@@ -20,3 +20,8 @@ Trigger -> Action
 ```sh
 pnpm install && pnpm dev
 ```
+## Linting
+
+```sh
+pnpm lint
+```

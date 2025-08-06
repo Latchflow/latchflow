@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "lint": "eslint .",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "dev": "echo 'dev server not yet implemented'",
