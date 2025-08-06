@@ -13,3 +13,226 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+
+///////////////////////////
+// ENUMS
+///////////////////////////
+
+enum UserRole {
+  ADMIN
+  EXECUTOR
+  RECIPIENT
+}
+
+enum CapabilityKind {
+  TRIGGER
+  ACTION
+}
+
+enum InvocationStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum VerificationType {
+  MAGIC_LINK
+  OTP
+  PASSPHRASE
+}
+
+enum PermissionType {
+  DOWNLOAD_ACCESS
+  SEND_MESSAGE
+  ADMIN_PANEL
+  OVERRIDE_RELEASE
+}
+
+enum ConditionType {
+  ALWAYS
+  AFTER_TRIGGER
+  AFTER_DEATH_CONFIRMATION
+}
+
+///////////////////////////
+// CORE MODELS
+///////////////////////////
+
+model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  name                String?
+  role                UserRole
+  executorAssignments ExecutorAssignment[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model Recipient {
+  id                String             @id @default(uuid())
+  email             String             @unique
+  name              String?
+  bundleAssignments BundleAssignment[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model Bundle {
+  id            String             @id @default(uuid())
+  name          String
+  storagePath   String
+  checksum      String
+  assignments   BundleAssignment[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model BundleAssignment {
+  id               String           @id @default(uuid())
+  bundle           Bundle           @relation(fields: [bundleId], references: [id])
+  bundleId         String
+  recipient        Recipient        @relation(fields: [recipientId], references: [id])
+  recipientId      String
+  maxDownloads     Int?
+  cooldownSeconds  Int?
+  verificationType VerificationType?
+  verificationMet  Boolean          @default(false)
+  lastDownloadAt   DateTime?
+  downloadEvents   DownloadEvent[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model DownloadEvent {
+  id                 String             @id @default(uuid())
+  bundleAssignment   BundleAssignment   @relation(fields: [bundleAssignmentId], references: [id])
+  bundleAssignmentId String
+  triggerEvent       TriggerEvent?      @relation(fields: [triggerEventId], references: [id])
+  triggerEventId     String?
+  downloadedAt       DateTime           @default(now())
+  userAgent          String
+  ip                 String
+}
+
+///////////////////////////
+// PLUGIN REGISTRY
+///////////////////////////
+
+model Plugin {
+  id           String             @id @default(uuid())
+  name         String
+  version      String?
+  description  String?
+  author       String?
+  homepageUrl  String?
+  repositoryUrl String?
+  installedAt  DateTime           @default(now())
+  capabilities PluginCapability[]
+}
+
+model PluginCapability {
+  id          String          @id @default(uuid())
+  plugin      Plugin          @relation(fields: [pluginId], references: [id])
+  pluginId    String
+  kind        CapabilityKind
+  key         String          // e.g. "cron_schedule", "email_notify"
+  displayName String
+  jsonSchema  Json?
+  isEnabled   Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+
+  @@unique([pluginId, key])
+}
+
+///////////////////////////
+// TRIGGERS & ACTIONS
+///////////////////////////
+
+model TriggerDefinition {
+  id                  String             @id @default(uuid())
+  name                String
+  capability          PluginCapability   @relation(fields: [capabilityId], references: [id])
+  capabilityId        String
+  config              Json
+  owner               User               @relation(fields: [ownerId], references: [id])
+  ownerId             String
+  actions             TriggerAction[]
+  events              TriggerEvent[]
+  executorAssignments ExecutorAssignment[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+}
+
+model TriggerEvent {
+  id                   String            @id @default(uuid())
+  triggerDefinition    TriggerDefinition @relation(fields: [triggerDefinitionId], references: [id])
+  triggerDefinitionId  String
+  firedAt              DateTime          @default(now())
+  context              Json
+  actionInvocations    ActionInvocation[]
+}
+
+model ActionDefinition {
+  id                String            @id @default(uuid())
+  name              String
+  capability        PluginCapability  @relation(fields: [capabilityId], references: [id])
+  capabilityId      String
+  config            Json
+  triggerActions    TriggerAction[]
+  actionInvocations ActionInvocation[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model TriggerAction {
+  id                   String            @id @default(uuid())
+  triggerDefinition    TriggerDefinition @relation(fields: [triggerDefinitionId], references: [id])
+  triggerDefinitionId  String
+  actionDefinition     ActionDefinition  @relation(fields: [actionDefinitionId], references: [id])
+  actionDefinitionId   String
+  sortOrder            Int               @default(0)
+  isEnabled            Boolean           @default(true)
+}
+
+model ActionInvocation {
+  id                 String            @id @default(uuid())
+  actionDefinition   ActionDefinition  @relation(fields: [actionDefinitionId], references: [id])
+  actionDefinitionId String
+  triggerEvent       TriggerEvent?     @relation(fields: [triggerEventId], references: [id])
+  triggerEventId     String?
+  manualInvoker      User?             @relation(fields: [manualInvokerId], references: [id])
+  manualInvokerId    String?
+  status             InvocationStatus
+  startedAt          DateTime          @default(now())
+  completedAt        DateTime?
+  result             Json?
+}
+
+///////////////////////////
+// EXECUTOR PERMISSIONS
+///////////////////////////
+
+model ExecutorAssignment {
+  id                          String             @id @default(uuid())
+  executor                    User               @relation(fields: [executorId], references: [id])
+  executorId                  String
+  bundle                      Bundle?            @relation(fields: [bundleId], references: [id])
+  bundleId                    String?
+  triggerDefinition           TriggerDefinition? @relation(fields: [triggerDefinitionId], references: [id])
+  triggerDefinitionId         String?
+  permissions                 ExecutorPermission[]
+  conditionType               ConditionType      @default(ALWAYS)
+  conditionTriggerDefinition  TriggerDefinition? @relation(fields: [conditionTriggerDefinitionId], references: [id])
+  conditionTriggerDefinitionId String?
+}
+
+model ExecutorPermission {
+  id                      String             @id @default(uuid())
+  assignment              ExecutorAssignment @relation(fields: [assignmentId], references: [id])
+  assignmentId            String
+  type                    PermissionType
+  isActive                Boolean            @default(true)
+  activatedAfterTrigger   TriggerDefinition? @relation(fields: [activatedAfterTriggerId], references: [id])
+  activatedAfterTriggerId String?
+}
