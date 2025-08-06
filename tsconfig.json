@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2020",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true
+  },
+  "include": ["packages/**/*.ts"]
+}
