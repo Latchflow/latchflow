@@ -49,12 +49,6 @@ enum PermissionType {
   OVERRIDE_RELEASE
 }
 
-enum ConditionType {
-  ALWAYS
-  AFTER_TRIGGER
-  AFTER_DEATH_CONFIRMATION
-}
-
 ///////////////////////////
 // CORE MODELS
 ///////////////////////////
@@ -222,9 +216,6 @@ model ExecutorAssignment {
   triggerDefinition           TriggerDefinition? @relation(fields: [triggerDefinitionId], references: [id])
   triggerDefinitionId         String?
   permissions                 ExecutorPermission[]
-  conditionType               ConditionType      @default(ALWAYS)
-  conditionTriggerDefinition  TriggerDefinition? @relation(fields: [conditionTriggerDefinitionId], references: [id])
-  conditionTriggerDefinitionId String?
 }
 
 model ExecutorPermission {
