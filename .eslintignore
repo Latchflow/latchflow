@@ -1,0 +1,3 @@
+# generated code
+packages/db/generated/**
+packages/db/generated/prisma/**
