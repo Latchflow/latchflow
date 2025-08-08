@@ -14,7 +14,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 ///////////////////////////
 // ENUMS
 ///////////////////////////
@@ -61,6 +60,8 @@ model User {
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  TriggerDefinition   TriggerDefinition[]
+  ActionInvocation    ActionInvocation[]
 }
 
 model Recipient {
@@ -73,38 +74,39 @@ model Recipient {
 }
 
 model Bundle {
-  id            String             @id @default(uuid())
-  name          String
-  storagePath   String
-  checksum      String
-  assignments   BundleAssignment[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id                 String               @id @default(uuid())
+  name               String
+  storagePath        String
+  checksum           String
+  assignments        BundleAssignment[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  ExecutorAssignment ExecutorAssignment[]
 }
 
 model BundleAssignment {
-  id               String           @id @default(uuid())
-  bundle           Bundle           @relation(fields: [bundleId], references: [id])
+  id               String            @id @default(uuid())
+  bundle           Bundle            @relation(fields: [bundleId], references: [id])
   bundleId         String
-  recipient        Recipient        @relation(fields: [recipientId], references: [id])
+  recipient        Recipient         @relation(fields: [recipientId], references: [id])
   recipientId      String
   maxDownloads     Int?
   cooldownSeconds  Int?
   verificationType VerificationType?
-  verificationMet  Boolean          @default(false)
+  verificationMet  Boolean           @default(false)
   lastDownloadAt   DateTime?
   downloadEvents   DownloadEvent[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 model DownloadEvent {
-  id                 String             @id @default(uuid())
-  bundleAssignment   BundleAssignment   @relation(fields: [bundleAssignmentId], references: [id])
+  id                 String           @id @default(uuid())
+  bundleAssignment   BundleAssignment @relation(fields: [bundleAssignmentId], references: [id])
   bundleAssignmentId String
-  triggerEvent       TriggerEvent?      @relation(fields: [triggerEventId], references: [id])
+  triggerEvent       TriggerEvent?    @relation(fields: [triggerEventId], references: [id])
   triggerEventId     String?
-  downloadedAt       DateTime           @default(now())
+  downloadedAt       DateTime         @default(now())
   userAgent          String
   ip                 String
 }
@@ -114,27 +116,29 @@ model DownloadEvent {
 ///////////////////////////
 
 model Plugin {
-  id           String             @id @default(uuid())
-  name         String
-  version      String?
-  description  String?
-  author       String?
-  homepageUrl  String?
+  id            String             @id @default(uuid())
+  name          String
+  version       String?
+  description   String?
+  author        String?
+  homepageUrl   String?
   repositoryUrl String?
-  installedAt  DateTime           @default(now())
-  capabilities PluginCapability[]
+  installedAt   DateTime           @default(now())
+  capabilities  PluginCapability[]
 }
 
 model PluginCapability {
-  id          String          @id @default(uuid())
-  plugin      Plugin          @relation(fields: [pluginId], references: [id])
-  pluginId    String
-  kind        CapabilityKind
-  key         String          // e.g. "cron_schedule", "email_notify"
-  displayName String
-  jsonSchema  Json?
-  isEnabled   Boolean         @default(true)
-  createdAt   DateTime        @default(now())
+  id                String              @id @default(uuid())
+  plugin            Plugin              @relation(fields: [pluginId], references: [id])
+  pluginId          String
+  kind              CapabilityKind
+  key               String // e.g. "cron_schedule", "email_notify"
+  displayName       String
+  jsonSchema        Json?
+  isEnabled         Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  TriggerDefinition TriggerDefinition[]
+  ActionDefinition  ActionDefinition[]
 
   @@unique([pluginId, key])
 }
@@ -144,61 +148,63 @@ model PluginCapability {
 ///////////////////////////
 
 model TriggerDefinition {
-  id                  String             @id @default(uuid())
+  id                  String               @id @default(uuid())
   name                String
-  capability          PluginCapability   @relation(fields: [capabilityId], references: [id])
+  capability          PluginCapability     @relation(fields: [capabilityId], references: [id])
   capabilityId        String
   config              Json
-  owner               User               @relation(fields: [ownerId], references: [id])
+  owner               User                 @relation(fields: [ownerId], references: [id])
   ownerId             String
   actions             TriggerAction[]
   events              TriggerEvent[]
   executorAssignments ExecutorAssignment[]
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  ExecutorPermission  ExecutorPermission[]
 }
 
 model TriggerEvent {
-  id                   String            @id @default(uuid())
-  triggerDefinition    TriggerDefinition @relation(fields: [triggerDefinitionId], references: [id])
-  triggerDefinitionId  String
-  firedAt              DateTime          @default(now())
-  context              Json
-  actionInvocations    ActionInvocation[]
+  id                  String             @id @default(uuid())
+  triggerDefinition   TriggerDefinition  @relation(fields: [triggerDefinitionId], references: [id])
+  triggerDefinitionId String
+  firedAt             DateTime           @default(now())
+  context             Json
+  actionInvocations   ActionInvocation[]
+  DownloadEvent       DownloadEvent[]
 }
 
 model ActionDefinition {
-  id                String            @id @default(uuid())
+  id                String             @id @default(uuid())
   name              String
-  capability        PluginCapability  @relation(fields: [capabilityId], references: [id])
+  capability        PluginCapability   @relation(fields: [capabilityId], references: [id])
   capabilityId      String
   config            Json
   triggerActions    TriggerAction[]
   actionInvocations ActionInvocation[]
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model TriggerAction {
-  id                   String            @id @default(uuid())
-  triggerDefinition    TriggerDefinition @relation(fields: [triggerDefinitionId], references: [id])
-  triggerDefinitionId  String
-  actionDefinition     ActionDefinition  @relation(fields: [actionDefinitionId], references: [id])
-  actionDefinitionId   String
-  sortOrder            Int               @default(0)
-  isEnabled            Boolean           @default(true)
+  id                  String            @id @default(uuid())
+  triggerDefinition   TriggerDefinition @relation(fields: [triggerDefinitionId], references: [id])
+  triggerDefinitionId String
+  actionDefinition    ActionDefinition  @relation(fields: [actionDefinitionId], references: [id])
+  actionDefinitionId  String
+  sortOrder           Int               @default(0)
+  isEnabled           Boolean           @default(true)
 }
 
 model ActionInvocation {
-  id                 String            @id @default(uuid())
-  actionDefinition   ActionDefinition  @relation(fields: [actionDefinitionId], references: [id])
+  id                 String           @id @default(uuid())
+  actionDefinition   ActionDefinition @relation(fields: [actionDefinitionId], references: [id])
   actionDefinitionId String
-  triggerEvent       TriggerEvent?     @relation(fields: [triggerEventId], references: [id])
+  triggerEvent       TriggerEvent?    @relation(fields: [triggerEventId], references: [id])
   triggerEventId     String?
-  manualInvoker      User?             @relation(fields: [manualInvokerId], references: [id])
+  manualInvoker      User?            @relation(fields: [manualInvokerId], references: [id])
   manualInvokerId    String?
   status             InvocationStatus
-  startedAt          DateTime          @default(now())
+  startedAt          DateTime         @default(now())
   completedAt        DateTime?
   result             Json?
 }
@@ -208,14 +214,14 @@ model ActionInvocation {
 ///////////////////////////
 
 model ExecutorAssignment {
-  id                          String             @id @default(uuid())
-  executor                    User               @relation(fields: [executorId], references: [id])
-  executorId                  String
-  bundle                      Bundle?            @relation(fields: [bundleId], references: [id])
-  bundleId                    String?
-  triggerDefinition           TriggerDefinition? @relation(fields: [triggerDefinitionId], references: [id])
-  triggerDefinitionId         String?
-  permissions                 ExecutorPermission[]
+  id                  String               @id @default(uuid())
+  executor            User                 @relation(fields: [executorId], references: [id])
+  executorId          String
+  bundle              Bundle?              @relation(fields: [bundleId], references: [id])
+  bundleId            String?
+  triggerDefinition   TriggerDefinition?   @relation(fields: [triggerDefinitionId], references: [id])
+  triggerDefinitionId String?
+  permissions         ExecutorPermission[]
 }
 
 model ExecutorPermission {
