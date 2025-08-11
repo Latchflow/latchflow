@@ -11,10 +11,17 @@ export async function main() {
   const config = loadConfig();
 
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
-  const db = getDb();
-  const loaded = await loadPlugins(config.PLUGINS_PATH);
   const runtime = new PluginRuntimeRegistry();
-  await upsertPluginsIntoDb(db, loaded, runtime);
+  try {
+    const db = getDb();
+    const loaded = await loadPlugins(config.PLUGINS_PATH);
+    await upsertPluginsIntoDb(db, loaded, runtime);
+    // eslint-disable-next-line no-console
+    console.log(`[core] Plugins loaded: ${loaded.length}`);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn("[core] Skipping plugin DB upsert (DB unavailable?):", (e as Error).message);
+  }
 
   // Initialize queue and consumer
   const { name: queueName, queue } = await loadQueue(
@@ -38,6 +45,8 @@ export async function main() {
   const server = createExpressServer();
   registerHealthRoutes(server, { queueName });
   await server.listen(config.PORT);
+  // eslint-disable-next-line no-console
+  console.log(`[core] HTTP server listening on :${config.PORT}`);
 }
 
 // Only run when executed directly
