@@ -11,11 +11,16 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "dev": "echo 'dev server not yet implemented'",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "env:load": "dotenvx run -f .env -f .env.defaults --ignore=MISSING_ENV_FILE --",
+    "dev:core": "pnpm run env:load pnpm -F core dev",
+    "db:migrate": "pnpm run env:load pnpm -F db migrate",
+    "db:generate": "pnpm run env:load pnpm -F db generate"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",
     "@commitlint/config-conventional": "^18.4.0",
+    "@dotenvx/dotenvx": "^1.48.4",
     "@typescript-eslint/eslint-plugin": "^7.6.0",
     "@typescript-eslint/parser": "^7.6.0",
     "eslint": "^8.0.0",
