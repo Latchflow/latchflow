@@ -23,6 +23,7 @@ module.exports = {
         "config",      // configuration changes
         "ui",          // user interface changes
       ]
-    ]
+    ],
+    "header-max-length": [2, "always", 200]
   }
 };
