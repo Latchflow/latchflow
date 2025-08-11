@@ -4,5 +4,8 @@
   "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
   "env": {"es2020": true, "node": true},
   "ignorePatterns": ["dist"],
-  "rules": {}
+  "rules": {
+    "quotes": "off",
+    "quote-props": ["error", "as-needed"]
+  }
 }

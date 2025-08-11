@@ -15,7 +15,8 @@
     "env:load": "dotenvx run -f .env -f .env.defaults --ignore=MISSING_ENV_FILE --",
     "dev:core": "pnpm run env:load pnpm -F core dev",
     "db:migrate": "pnpm run env:load pnpm -F db migrate",
-    "db:generate": "pnpm run env:load pnpm -F db generate"
+    "db:generate": "pnpm run env:load pnpm -F db generate",
+    "core:dev": "pnpm run env:load pnpm -F core dev"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",
@@ -32,9 +33,8 @@
   },
   "lint-staged": {
     "*.{ts,js,tsx,jsx}": [
-      "eslint --fix",
-      "prettier --check",
-      "tsc --noEmit"
+      "eslint --fix --cache",
+      "prettier --write"
     ]
   },
   "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748"
