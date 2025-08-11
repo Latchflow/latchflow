@@ -18,7 +18,10 @@ module.exports = {
         "revert",      // reverting changes
         "plugin",      // new/updated Latchflow plugin
         "schema",      // DB schema changes
-        "security"     // security-related fixes
+        "security",    // security-related fixes
+        "infra",       // infrastructure changes
+        "config",      // configuration changes
+        "ui",          // user interface changes
       ]
     ]
   }
