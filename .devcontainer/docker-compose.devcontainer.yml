@@ -1,0 +1,9 @@
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
+    command: sleep infinity
+    working_dir: /workspaces/latchflow
+    volumes:
+      - .:/workspaces/latchflow:cached
+    depends_on:
+      - postgres
