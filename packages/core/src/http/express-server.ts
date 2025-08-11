@@ -16,19 +16,17 @@ export function createExpressServer(): HttpServer {
   app.use(express.json());
   app.use(pinoHttp());
   // Basic JSON error handler
+  // eslint-disable-next-line
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-    // eslint-disable-line
     const status =
       typeof (err as { status?: unknown })?.status === "number"
         ? (err as { status: number }).status
         : 500;
-    (res as Response)
-      .status(status)
-      .json({
-        status: "error",
-        code: (err as { code?: string }).code || "INTERNAL",
-        message: (err as Error).message || "Internal Server Error",
-      });
+    (res as Response).status(status).json({
+      status: "error",
+      code: (err as { code?: string }).code || "INTERNAL",
+      message: (err as Error).message || "Internal Server Error",
+    });
   };
   app.use(errorHandler);
 
