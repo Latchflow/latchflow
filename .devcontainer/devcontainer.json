@@ -1,12 +1,21 @@
 {
-  "name": "Latchflow Dev (Compose)",
-  "dockerComposeFile": [
-    "../docker-compose.yml",
-    "docker-compose.devcontainer.yml"
+  "name": "Latchflow Dev",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway",
+    "--name",
+    "latchflow-dev"
   ],
-  "service": "dev",
-  "workspaceFolder": "/workspaces/latchflow",
-  "runServices": ["postgres", "minio", "mailhog"],
-  "overrideCommand": true,
+  "containerEnv": {
+    "COMPOSE_PROJECT_NAME": "latchflow-svcs"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": { "terminal.integrated.defaultProfile.linux": "bash" }
+    }
+  },
   "postCreateCommand": "pnpm install"
 }
