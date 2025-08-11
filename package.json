@@ -13,10 +13,9 @@
     "dev": "echo 'dev server not yet implemented'",
     "prepare": "husky install",
     "env:load": "dotenvx run -f .env -f .env.defaults --ignore=MISSING_ENV_FILE --",
-    "dev:core": "pnpm run env:load pnpm -F core dev",
-    "db:migrate": "pnpm run env:load pnpm -F db migrate",
-    "db:generate": "pnpm run env:load pnpm -F db generate",
-    "core:dev": "pnpm run env:load pnpm -F core dev"
+    "db:migrate": "pnpm run env:load pnpm -F @latchflow/db migrate",
+    "db:generate": "pnpm run env:load pnpm -F @latchflow/db generate",
+    "core:dev": "pnpm run env:load pnpm -F @latchflow/db build && pnpm run env:load pnpm -F @latchflow/core dev"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",
