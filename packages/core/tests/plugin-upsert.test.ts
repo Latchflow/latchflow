@@ -4,7 +4,7 @@ import {
   upsertPluginsIntoDb,
   type LoadedPlugin,
 } from "../src/plugins/plugin-loader";
-import type { DbClient } from "../src/db";
+import type { DbClient } from "../src/db.js";
 
 function createFakeDb() {
   type PluginRow = { id: string; name: string };

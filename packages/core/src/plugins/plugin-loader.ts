@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { DbClient } from "../db";
+import type { DbClient } from "../db.js";
 
 export const CapabilitySchema = z.object({
   kind: z.enum(["TRIGGER", "ACTION"]),

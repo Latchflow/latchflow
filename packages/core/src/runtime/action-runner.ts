@@ -1,5 +1,5 @@
-import { LatchflowQueue } from "../queue/types";
-import { getDb } from "../db";
+import { LatchflowQueue } from "../queue/types.js";
+import { getDb } from "../db.js";
 
 export async function startActionConsumer(
   queue: LatchflowQueue,

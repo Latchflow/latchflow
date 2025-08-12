@@ -1,4 +1,4 @@
-import { LatchflowQueue, QueueFactory } from "./types";
+import { LatchflowQueue, QueueFactory } from "./types.js";
 
 type Msg = {
   actionDefinitionId: string;

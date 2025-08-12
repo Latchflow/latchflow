@@ -7,7 +7,7 @@ import express, {
 import helmet from "helmet";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import type { HttpServer, RequestLike, ResponseLike, HttpHandler } from "./http-server";
+import type { HttpServer, RequestLike, ResponseLike, HttpHandler } from "./http-server.js";
 
 export function createExpressServer(): HttpServer {
   const app = express();

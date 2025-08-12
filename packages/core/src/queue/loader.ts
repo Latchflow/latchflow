@@ -1,4 +1,4 @@
-import { QueueFactory, LatchflowQueue } from "./types";
+import { QueueFactory, LatchflowQueue } from "./types.js";
 
 function resolveQueueFactory(mod: unknown): QueueFactory {
   const obj = mod as Record<string, unknown>;
@@ -19,7 +19,7 @@ export async function loadQueue(
   config: unknown,
 ): Promise<{ name: string; queue: LatchflowQueue }> {
   if (!driver || driver === "memory") {
-    const { createMemoryQueue } = await import("./memory-queue");
+    const { createMemoryQueue } = await import("./memory-queue.js");
     return { name: "memory", queue: await createMemoryQueue({ config }) };
   }
   if (pathOrNull) {

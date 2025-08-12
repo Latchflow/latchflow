@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { startActionConsumer } from "../src/runtime/action-runner";
-import { createMemoryQueue } from "../src/queue/memory-queue";
+import { startActionConsumer } from "../src/runtime/action-runner.js";
+import { createMemoryQueue } from "../src/queue/memory-queue.js";
 
-vi.mock("../src/db", () => {
+vi.mock("../src/db.js", () => {
   const created: unknown[] = [];
   const updated: unknown[] = [];
   return {

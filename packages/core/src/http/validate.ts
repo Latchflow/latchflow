@@ -1,5 +1,5 @@
 import { type ZodSchema } from "zod";
-import type { HttpHandler, RequestLike, ResponseLike } from "./http-server";
+import type { HttpHandler, RequestLike, ResponseLike } from "./http-server.js";
 
 export function validate(opts: { body?: ZodSchema; query?: ZodSchema; params?: ZodSchema }) {
   return (handler: HttpHandler): HttpHandler => {
