@@ -11,7 +11,7 @@
     "build": "tsup src/index.ts --dts",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
-    "lint": "eslint 'src/**/*.ts'"
+    "lint": "eslint '{src,tests}/**/*.ts'"
   },
   "dependencies": {
     "@latchflow/db": "workspace:*",
