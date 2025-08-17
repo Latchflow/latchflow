@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "test": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc",
     "dev": "echo 'dev server not yet implemented'",
     "prepare": "husky install",
     "env:load": "dotenvx run -f .env -f .env.defaults --ignore=MISSING_ENV_FILE --",
