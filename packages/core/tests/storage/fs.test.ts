@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createFsStorage } from "../src/storage/fs.js";
+import { createFsStorage } from "../../src/storage/fs.js";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";

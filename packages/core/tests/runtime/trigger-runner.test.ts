@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { startTriggerRunner } from "../src/runtime/trigger-runner.js";
+import { startTriggerRunner } from "../../src/runtime/trigger-runner.js";
 
-vi.mock("../src/db.js", () => {
+vi.mock("../../src/db.js", () => {
   return {
     getDb: () => ({
       triggerEvent: {

@@ -3,8 +3,8 @@ import {
   PluginRuntimeRegistry,
   upsertPluginsIntoDb,
   type LoadedPlugin,
-} from "../src/plugins/plugin-loader";
-import type { DbClient } from "../src/db.js";
+} from "../../src/plugins/plugin-loader";
+import type { DbClient } from "../../src/db.js";
 
 function createFakeDb() {
   type PluginRow = { id: string; name: string };

@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createMemoryStorage } from "../src/storage/memory.js";
-import { Readable as _Readable } from "node:stream";
+import { createMemoryStorage } from "../../src/storage/memory.js";
 
 describe("storage/memory", () => {
   it("puts, heads, streams, and deletes objects", async () => {

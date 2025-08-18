@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { z } from "zod";
-import { validate } from "../src/http/validate.js";
-import type { RequestLike, ResponseLike } from "../src/http/http-server.js";
+import { validate } from "../../src/http/validate.js";
+import type { RequestLike, ResponseLike } from "../../src/http/http-server.js";
 
 describe("validate helper", () => {
   it("parses body/query/params via zod and calls handler", async () => {
