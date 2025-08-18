@@ -51,6 +51,11 @@ const EnvSchema = z.object({
     .default("12")
     .transform((v) => Number(v))
     .pipe(z.number().int().positive()),
+  RECIPIENT_SESSION_TTL_HOURS: z
+    .string()
+    .default("2")
+    .transform((v) => Number(v))
+    .pipe(z.number().int().positive()),
   ADMIN_MAGICLINK_TTL_MIN: z
     .string()
     .default("15")

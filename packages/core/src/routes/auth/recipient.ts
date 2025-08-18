@@ -2,16 +2,35 @@ import { z } from "zod";
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db.js";
 import { genOtp, randomToken, sha256Hex } from "../../auth/tokens.js";
-import { clearCookie, setCookie } from "../../auth/cookies.js";
+import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
 import { RECIPIENT_SESSION_COOKIE, type AppConfig } from "../../config.js";
 
 export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
-  const RECIPIENT_SESSION_TTL_HOURS = 2;
   const MAX_ATTEMPTS = 5;
+  // Simple in-memory rate limiter (per IP+recipient+bundle+route)
+  const RATE_WINDOW_MS = 60_000;
+  const RATE_MAX = 10;
+  const rateBuckets = new Map<string, number[]>();
+
+  function checkRateLimit(key: string): boolean {
+    const now = Date.now();
+    const windowStart = now - RATE_WINDOW_MS;
+    const arr = rateBuckets.get(key) ?? [];
+    const recent = arr.filter((t) => t >= windowStart);
+    if (recent.length >= RATE_MAX) return false;
+    recent.push(now);
+    rateBuckets.set(key, recent);
+    return true;
+  }
 
   // POST /auth/recipient/start
   server.post("/auth/recipient/start", async (req, res) => {
+    const rlKey = `start:${req.ip ?? ""}`;
+    if (!checkRateLimit(rlKey)) {
+      res.status(429).json({ status: "error", code: "RATE_LIMITED", message: "Too many requests" });
+      return;
+    }
     const Body = z.object({ recipientId: z.string().min(1), bundleId: z.string().min(1) });
     const parsed = Body.safeParse(req.body);
     if (!parsed.success) {
@@ -21,13 +40,11 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
     const { recipientId, bundleId } = parsed.data;
     const assignment = await db.bundleAssignment.findFirst({ where: { recipientId, bundleId } });
     if (!assignment) {
-      res
-        .status(404)
-        .json({
-          status: "error",
-          code: "NOT_FOUND",
-          message: "Recipient is not assigned to bundle",
-        });
+      res.status(404).json({
+        status: "error",
+        code: "NOT_FOUND",
+        message: "Recipient is not assigned to bundle",
+      });
       return;
     }
     const otp = genOtp(config.RECIPIENT_OTP_LENGTH);
@@ -45,6 +62,11 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
 
   // POST /auth/recipient/verify
   server.post("/auth/recipient/verify", async (req, res) => {
+    const rlKey = `verify:${req.ip ?? ""}`;
+    if (!checkRateLimit(rlKey)) {
+      res.status(429).json({ status: "error", code: "RATE_LIMITED", message: "Too many requests" });
+      return;
+    }
     const Body = z.object({
       recipientId: z.string().min(1),
       bundleId: z.string().min(1),
@@ -85,7 +107,7 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
     // Success: create session and remove OTP
     await db.recipientOtp.delete({ where: { id: record.id } });
     const jti = randomToken(32);
-    const ttlSec = RECIPIENT_SESSION_TTL_HOURS * 3600;
+    const ttlSec = config.RECIPIENT_SESSION_TTL_HOURS * 3600;
     const session = await db.recipientSession.create({
       data: {
         recipientId,
@@ -109,13 +131,10 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
 
   // POST /auth/recipient/logout
   server.post("/auth/recipient/logout", async (req, res) => {
-    const cookies = ((req.headers?.["cookie"] as string) ?? "").split(";");
-    const raw = cookies.find((c) => c.trim().startsWith(`${RECIPIENT_SESSION_COOKIE}=`));
-    if (raw) {
-      const jti = decodeURIComponent(raw.split("=")[1] ?? "");
-      if (jti) {
-        await db.recipientSession.updateMany({ where: { jti }, data: { revokedAt: new Date() } });
-      }
+    const cookies = parseCookies(req);
+    const jti = cookies[RECIPIENT_SESSION_COOKIE];
+    if (jti) {
+      await db.recipientSession.updateMany({ where: { jti }, data: { revokedAt: new Date() } });
     }
     clearCookie(res, RECIPIENT_SESSION_COOKIE, {
       httpOnly: true,

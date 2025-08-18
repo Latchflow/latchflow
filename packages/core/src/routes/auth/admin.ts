@@ -3,7 +3,7 @@ import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db.js";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
 import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config.js";
-import { clearCookie, setCookie } from "../../auth/cookies.js";
+import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
 import { requireAdmin } from "../../middleware/require-admin.js";
 
 export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
@@ -85,13 +85,10 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
 
   // POST /auth/admin/logout
   server.post("/auth/admin/logout", async (req, res) => {
-    const cookies = ((req.headers?.["cookie"] as string) ?? "").split(";");
-    const raw = cookies.find((c) => c.trim().startsWith(`${ADMIN_SESSION_COOKIE}=`));
-    if (raw) {
-      const jti = decodeURIComponent(raw.split("=")[1] ?? "");
-      if (jti) {
-        await db.session.updateMany({ where: { jti }, data: { revokedAt: new Date() } });
-      }
+    const cookies = parseCookies(req);
+    const jti = cookies[ADMIN_SESSION_COOKIE];
+    if (jti) {
+      await db.session.updateMany({ where: { jti }, data: { revokedAt: new Date() } });
     }
     clearCookie(res, ADMIN_SESSION_COOKIE, {
       httpOnly: true,
