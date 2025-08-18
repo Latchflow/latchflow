@@ -76,6 +76,36 @@ const EnvSchema = z.object({
     .optional()
     .transform((v) => (v == null ? undefined : v === "true")),
   ADMIN_UI_ORIGIN: z.string().optional(),
+
+  // CLI auth
+  DEVICE_CODE_TTL_MIN: z
+    .string()
+    .default("10")
+    .transform((v) => Number(v))
+    .pipe(z.number().int().positive()),
+  DEVICE_CODE_INTERVAL_SEC: z
+    .string()
+    .default("5")
+    .transform((v) => Number(v))
+    .pipe(z.number().int().positive()),
+  API_TOKEN_TTL_DAYS: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length ? Number(v) : undefined))
+    .pipe(z.number().int().positive().optional()),
+  API_TOKEN_SCOPES_DEFAULT: z
+    .string()
+    .default('["core:read","core:write"]')
+    .transform((v) => {
+      try {
+        const arr = JSON.parse(v);
+        if (!Array.isArray(arr)) throw new Error("not an array");
+        return arr as string[];
+      } catch (e) {
+        throw new Error("Invalid API_TOKEN_SCOPES_DEFAULT JSON: " + (e as Error).message);
+      }
+    }),
+  API_TOKEN_PREFIX: z.string().default("lfk_"),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema> & {
@@ -83,6 +113,8 @@ export type AppConfig = z.infer<typeof EnvSchema> & {
   QUEUE_CONFIG_JSON?: unknown | null;
   STORAGE_CONFIG_JSON?: unknown | null;
   AUTH_COOKIE_SECURE: boolean;
+  API_TOKEN_TTL_DAYS?: number;
+  API_TOKEN_SCOPES_DEFAULT: string[];
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {

@@ -1,182 +1,158 @@
-# PLAN.md — Add Authentication (Magic Link for Admins, OTP for Recipients)
+# PLAN.md — CLI Authentication (Device Code Flow + API Tokens)
 
 ## Objective
-Implement lightweight authentication and authorization in 'packages/core' using:
-- Magic-link login for Admin/Executor users (based on existing 'User.roles')
-- OTP-per-bundle login for Recipients (no persistent account)
-- Server-side sessions stored in Postgres
-- HTTP-only cookies for session state
-- Role-based middleware for admin routes and bundle-scoped middleware for portal routes
+Add CLI authentication to 'packages/core' using:
+- A **device code** flow (human approves in browser or via API)
+- Long-lived **API tokens** (opaque, hashed in DB) used by the CLI via 'Authorization: Bearer'
 
 ## Deliverables
-- Prisma models (sessions/tokens) and migration
-- Config additions for auth behavior and cookie settings
-- Routes:
-  - 'POST /auth/admin/start', 'GET /auth/admin/callback', 'POST /auth/admin/logout', 'GET /auth/me'
-  - 'POST /auth/recipient/start', 'POST /auth/recipient/verify', 'POST /auth/recipient/logout'
+- Prisma models:
+  - 'ApiToken' (hashed tokens with scopes + TTL + revoke)
+  - 'DeviceAuth' (device_code + user_code, approval state)
+- Config additions for device code + token lifetimes
+- Routes (all JSON):
+  - 'POST /auth/cli/device/start' → begin device code flow
+  - 'POST /auth/cli/device/approve' → approve a user_code (admin UI or curl)
+  - 'POST /auth/cli/device/poll' → CLI polls; returns API token when approved
+  - 'GET  /auth/cli/tokens' → list caller's tokens (admin/executor)
+  - 'POST /auth/cli/tokens/revoke' → revoke a token by id
 - Middleware:
-  - 'requireAdmin' (checks user session + role)
-  - 'requireRecipient(bundleScoped?: boolean)' (checks recipient session and bundle scope)
-- Utility helpers:
-  - Token generator and SHA-256 hashing
-  - OTP generator and attempt/lockout handling
-  - Cookie set/clear utilities with secure defaults
-- Tests covering the happy paths and common failures
+  - 'requireApiToken(scopes?: string[])' — validates Bearer token and attaches 'req.user'
+- Utilities:
+  - Token generator & SHA-256 hasher (reuse existing 'auth/tokens.ts')
+  - Scope checking helper
+- Tests for the happy paths + failure cases
 
-## Prisma (add models; reuse existing 'User' with 'roles')
-Add to 'packages/db/prisma/schema.prisma' and run migrate:
+## Prisma (add models)
+Append to 'packages/db/prisma/schema.prisma' and migrate:
 
-'model Session {
-  id         String   @id @default(uuid())
+'model ApiToken {
+  id         String    @id @default(uuid())
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jti        String   @unique
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  scopes     String[]  // e.g. ["core:read", "core:write"]
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
   revokedAt  DateTime?
-  ip         String?
-  userAgent  String?
-  @@index([userId, expiresAt])
+  @@index([userId])
 }
 
-model MagicLink {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash  String   @unique
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
-  consumedAt DateTime?
-}
-
-model RecipientSession {
-  id          String   @id @default(uuid())
-  recipientId String
-  bundleId    String
-  jti         String   @unique
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
-  revokedAt   DateTime?
-  ip          String?
-  userAgent   String?
-  @@index([recipientId, bundleId])
-}
-
-model RecipientOtp {
-  id          String   @id @default(uuid())
-  recipientId String
-  bundleId    String
-  codeHash    String
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
-  attempts    Int      @default(0)
-  @@index([recipientId, bundleId])
+model DeviceAuth {
+  id            String   @id @default(uuid())
+  // Optional: set after we upsert/find the user by email at start time
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email         String
+  deviceName    String?
+  deviceCodeHash String  @unique
+  userCodeHash   String  @unique
+  intervalSec    Int      @default(5)
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  approvedAt     DateTime?
+  tokenId        String?
+  token          ApiToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
 }'
 
+Then:
+- 'pnpm run env:load pnpm -F db exec prisma migrate dev'
+- 'pnpm run env:load pnpm -F db exec prisma generate'
+
 ## Config ('packages/core/src/config.ts')
-Add zod-validated envs (with sensible defaults):
-- 'AUTH_COOKIE_DOMAIN' (optional)
-- 'AUTH_SESSION_TTL_HOURS' (default '12')
-- 'ADMIN_MAGICLINK_TTL_MIN' (default '15')
-- 'RECIPIENT_OTP_TTL_MIN' (default '10')
-- 'RECIPIENT_OTP_LENGTH' (default '6')
-- 'AUTH_COOKIE_SECURE' (default 'true' in non-dev)
-Cookie names (constants):
-- 'lf_admin_sess', 'lf_recipient_sess'
+Add zod-validated envs (with defaults):
+- 'DEVICE_CODE_TTL_MIN' (default '10')
+- 'DEVICE_CODE_INTERVAL_SEC' (default '5')
+- 'API_TOKEN_TTL_DAYS' (optional, e.g. '')
+- 'API_TOKEN_SCOPES_DEFAULT' (default '["core:read","core:write"]')
+- 'API_TOKEN_PREFIX' (default 'lfk_') // only for formatting the raw token string
 
 ## Files to create (core)
-- 'src/routes/auth/admin.ts'
-- 'src/routes/auth/recipient.ts'
-- 'src/middleware/require-admin.ts'
-- 'src/middleware/require-recipient.ts'
-- 'src/auth/tokens.ts' (random string, sha256 hash, otp generator)
-- 'src/auth/cookies.ts' (set/clear helpers, common cookie options)
-- Wire registration in 'src/index.ts' to mount the routes
+- 'src/routes/auth/cli.ts'
+- 'src/middleware/require-api-token.ts'
+- 'src/auth/scopes.ts' (scope check helper)
+- Wire into 'src/index.ts' (mount '/auth/cli' routes)
 
 ## Route specs
 
-'POST /auth/admin/start'
-- Body: '{ email: string }'
-- Behavior: upsert or find 'User' by email; create 'MagicLink' with 'tokenHash' (sha256 of a random token) and 'expiresAt' (now + ADMIN_MAGICLINK_TTL_MIN). Send email containing callback URL with raw token. In dev, log to console or MailHog.
-- Response: 204 (no content)
+'POST /auth/cli/device/start'
+- Body: '{ email: string, deviceName?: string }'
+- Behavior:
+  - Upsert/find 'User' by email (this is your admin/executor user set).
+  - Generate:
+    - 'device_code' (long, random; store 'sha256Hex' as 'deviceCodeHash')
+    - 'user_code' (short, human-friendly like 'ABCD-1234'; store hash)
+  - Create 'DeviceAuth' with '{ userId, email, deviceName, intervalSec, expiresAt = now + DEVICE_CODE_TTL_MIN }'
+  - Return:
+    '{ device_code, user_code, verification_uri, expires_in, interval }'
+    - 'verification_uri' can point to your admin UI (/cli/device/approve) or be an API path the user can hit in cURL/postman.
 
-'GET /auth/admin/callback?token=...'
-- Behavior: sha256(token) → find valid 'MagicLink' (not expired, not consumed). If found, mark consumed, create 'Session' with 'jti' (random), 'expiresAt' (now + AUTH_SESSION_TTL_HOURS). Set 'lf_admin_sess' cookie (HttpOnly, SameSite=Lax, Secure on TLS, Domain if configured). Redirect to admin UI origin (configurable) or return 204 JSON if no UI redirect is set.
+'POST /auth/cli/device/approve'
+- Body: '{ user_code: string }'
+- Behavior:
+  - Find 'DeviceAuth' by 'userCodeHash', ensure not expired, not approved.
+  - Ensure the associated 'User' has a role that’s allowed to obtain CLI tokens (e.g., ADMIN/EXECUTOR).
+  - Create 'ApiToken' with:
+    - 'userId', 'name' = 'deviceName' or 'CLI Token', 'scopes' = API_TOKEN_SCOPES_DEFAULT
+    - 'token' = random opaque string (prefix with API_TOKEN_PREFIX)
+    - 'tokenHash' = sha256Hex(token)
+    - 'expiresAt' if 'API_TOKEN_TTL_DAYS' set
+  - Mark 'DeviceAuth.approvedAt = now' & 'tokenId' = new token id.
+  - Response: 204 (do not return the token here; CLI will get it via poll).
 
-'POST /auth/admin/logout'
-- Behavior: read 'lf_admin_sess', revoke session (set 'revokedAt'), clear cookie.
-- Response: 204
+'POST /auth/cli/device/poll'
+- Body: '{ device_code: string }'
+- Behavior:
+  - Find 'DeviceAuth' by 'deviceCodeHash', check not expired.
+  - If not 'approvedAt', return 428 (or 202) with '{ status: "pending", interval }'.
+  - If approved, fetch 'ApiToken' by 'tokenId' and return:
+    '{ access_token: "<raw token>", token_type: "bearer", expires_at?: ISO, scopes: string[] }'
+  - Optional: one-shot the poll (delete DeviceAuth after success).
 
-'GET /auth/me'
-- Behavior: requires admin session; returns '{ user: { id, email, roles }, session: { expiresAt } }'
+'GET /auth/cli/tokens'
+- Auth: 'requireAdmin' or 'requireApiToken(["core:read"])' if you want tokens to manage themselves.
+- Returns caller’s tokens: id, name, scopes, createdAt, lastUsedAt, expiresAt, revokedAt.
 
-'POST /auth/recipient/start'
-- Body: '{ recipientId: string, bundleId: string }'
-- Behavior: verify that recipient is assigned to bundle (DB check). Generate numeric OTP (length RECIPIENT_OTP_LENGTH), store 'RecipientOtp' with 'codeHash' and 'expiresAt' (now + RECIPIENT_OTP_TTL_MIN), reset attempts. Email OTP to recipient's email (or log in dev).
-- Response: 204
-
-'POST /auth/recipient/verify'
-- Body: '{ recipientId: string, bundleId: string, otp: string }'
-- Behavior: lookup 'RecipientOtp' row, check expiry and 'attempts' < threshold (e.g., 5). If wrong, increment attempts; if correct, create 'RecipientSession' with 'jti' and expiry (shorter, e.g., 2 hours), delete or invalidate the OTP row. Set 'lf_recipient_sess' cookie.
-- Response: 204
-
-'POST /auth/recipient/logout'
-- Behavior: read 'lf_recipient_sess', revoke 'RecipientSession', clear cookie.
-- Response: 204
+'POST /auth/cli/tokens/revoke'
+- Body: '{ tokenId: string }'
+- Auth: 'requireAdmin' (or the token’s owner).
+- Sets 'revokedAt = now'.
 
 ## Middleware
 
-'// src/middleware/require-admin.ts'
-- Reads 'lf_admin_sess' cookie
-- Loads 'Session' with 'user'; checks not expired, not revoked
-- Checks 'user.roles' includes 'ADMIN' or 'EXECUTOR' (use your actual role strings)
-- Attaches 'req.user' and 'req.roles'; else 401/403
-
-'// src/middleware/require-recipient.ts'
-- Reads 'lf_recipient_sess' cookie
-- Loads 'RecipientSession'; checks not expired, not revoked
-- If 'bundleScoped' and route has ':bundleId', ensure it matches session.bundleId
-- Attaches 'req.recipientSession'; else 401/403
+'// src/middleware/require-api-token.ts'
+- Read 'Authorization: Bearer <token>'.
+- Validate format; hash with sha256; lookup 'ApiToken' by 'tokenHash'.
+- Ensure not revoked, not expired; update 'lastUsedAt'.
+- Load 'user' and ensure roles are allowed for the route if required.
+- Attach 'req.user', 'req.apiToken', and a 'hasScope(scope)' helper.
 
 ## Utilities
 
-'// src/auth/tokens.ts'
-- 'randomToken(len?: number): string' (url-safe)
+Extend 'src/auth/tokens.ts' (or create if missing):
+- 'randomTokenBase64Url(bytes: number): string' (e.g., 32 bytes)
+- 'formatApiToken(prefix, raw): string' // returns 'lfk_' + base64url
 - 'sha256Hex(str: string): string'
-- 'genOtp(digits: number): string' (numeric)
-
-'// src/auth/cookies.ts'
-- 'setCookie(res, name, value, { maxAgeSec })' with 'HttpOnly', 'SameSite=Lax', 'Secure' (unless explicitly disabled in dev), 'Path=/'
-- 'clearCookie(res, name)'
+- 'makeUserCode(): string' // e.g., 4+4 alnum with dash
+- 'makeDeviceCode(): string' // 32-48 char base64url
 
 ## Security notes
-- Store only **hashes** of magic links and OTPs (sha256)
-- Enforce TTLs and consume magic links on first use
-- Rate limit OTP verification and start endpoints (basic in-memory limiter is fine for MVP)
-- Never echo raw tokens in logs; only last 4 chars if needed
-- Cookies: HttpOnly + SameSite=Lax + Secure (in TLS). Allow 'AUTH_COOKIE_DOMAIN' if you need cross-subdomain cookies.
+- Always store **hashes** of API tokens and device codes; return raw tokens only once.
+- Enforce role checks on approval: only users with required roles can mint tokens.
+- Rate-limit 'device/start' and 'device/poll' by IP/email; add small backoff on poll (respect 'interval').
+- Return generic errors; never disclose which emails are valid.
+- Log token ids (not raw tokens); at most last 4 chars of raw tokens in debug.
 
-## Steps for Codex
-1) Add Prisma models and run:
-   - 'pnpm run env:load pnpm -F db exec prisma migrate dev'
-   - 'pnpm run env:load pnpm -F db exec prisma generate'
-2) Update 'src/config.ts' to include new auth envs and defaults.
-3) Create 'src/auth/tokens.ts' and 'src/auth/cookies.ts'.
-4) Implement middleware 'require-admin.ts' and 'require-recipient.ts'.
-5) Implement routes in 'src/routes/auth/admin.ts' and 'src/routes/auth/recipient.ts' with zod validation and proper responses.
-6) Register the routes in 'src/index.ts' (mount paths under '/auth/...').
-7) Add unit tests:
-   - Magic link flow: start → callback → me → logout (role-gated admin route returns 200 then 401 after logout)
-   - OTP flow: start → verify → protected portal route allowed → logout → route blocked
-   - Failure cases: expired token/otp, wrong otp increments attempts, non-admin roles denied
-8) Update any README or API docs section for the new endpoints (optional for MVP).
+## Tests
+- Device code happy path: start → approve → poll returns token → use token on a protected endpoint.
+- Poll before approve returns 202/428 with 'interval'.
+- Expired device code → 400/410.
+- Revoke token → subsequent API calls with that token get 401.
+- Token expiry (if configured) → 401 after time advance.
+- Scope check: route requiring 'core:write' rejects token with only 'core:read'.
 
-## Acceptance checklist
-- 'POST /auth/admin/start' returns 204 and creates a valid 'MagicLink'
-- 'GET /auth/admin/callback' sets 'lf_admin_sess' and creates 'Session'; 'GET /auth/me' returns user with roles
-- Admin-only route guarded by 'requireAdmin' returns 403 for users without required roles
-- 'POST /auth/recipient/start' generates and stores OTP for a valid (recipient, bundle)
-- 'POST /auth/recipient/verify' sets 'lf_recipient_sess' and creates 'RecipientSession'
-- 'requireRecipient(true)' blocks access when session bundle doesn't match route ':bundleId'
-- Logout endpoints revoke sessions and clear cookies
-- All new tests pass with 'pnpm -F core test'
+## Wire-up
+- Mount '/auth/cli' routes in 'src/index.ts' under the existing Express adapter.
+- Keep existing web session auth (cookies) unchanged; CLI uses only Bearer tokens.

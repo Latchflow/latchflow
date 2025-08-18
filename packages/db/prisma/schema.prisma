@@ -64,6 +64,8 @@ model User {
   ActionInvocation    ActionInvocation[]
   Session             Session[]
   MagicLink           MagicLink[]
+  ApiToken            ApiToken[]
+  DeviceAuth          DeviceAuth[]
 }
 
 model Recipient {
@@ -288,4 +290,40 @@ model RecipientOtp {
   attempts    Int      @default(0)
 
   @@index([recipientId, bundleId])
+}
+
+///////////////////////////
+// CLI AUTH MODELS
+///////////////////////////
+
+model ApiToken {
+  id         String       @id @default(uuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  scopes     String[]
+  tokenHash  String       @unique
+  createdAt  DateTime     @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  DeviceAuth DeviceAuth[]
+
+  @@index([userId])
+}
+
+model DeviceAuth {
+  id             String    @id @default(uuid())
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email          String
+  deviceName     String?
+  deviceCodeHash String    @unique
+  userCodeHash   String    @unique
+  intervalSec    Int       @default(5)
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  approvedAt     DateTime?
+  tokenId        String?
+  token          ApiToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
 }
