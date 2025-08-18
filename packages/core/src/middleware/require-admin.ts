@@ -9,6 +9,8 @@ function httpError(status: number, message: string) {
   return err;
 }
 
+type RolesCarrier = { roles: string[] };
+
 export async function requireAdmin(req: RequestLike) {
   const cookies = parseCookies(req);
   const token = cookies[ADMIN_SESSION_COOKIE];
@@ -19,8 +21,8 @@ export async function requireAdmin(req: RequestLike) {
   if (!session || session.revokedAt || session.expiresAt <= now) {
     throw httpError(401, "Invalid or expired admin session");
   }
-  const role = session.user.role;
-  if (role !== "ADMIN" && role !== "EXECUTOR") {
+  const roles = (session.user as unknown as RolesCarrier).roles;
+  if (!roles?.includes("ADMIN") && !roles?.includes("EXECUTOR")) {
     throw httpError(403, "Insufficient role");
   }
   return { user: session.user, session };

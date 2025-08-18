@@ -18,11 +18,11 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       return;
     }
     const { email } = parsed.data;
-    // Upsert user with default role EXECUTOR if new
+    // Upsert user with default roles if new
     const user = await db.user.upsert({
       where: { email },
       update: {},
-      create: { email, role: "EXECUTOR" },
+      create: { email, roles: ["EXECUTOR"] },
     });
 
     const token = randomToken(32);
@@ -107,7 +107,8 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
   server.get("/auth/me", async (req, res) => {
     try {
       const { user, session } = await requireAdmin(req);
-      res.status(200).json({ user: { id: user.id, email: user.email, role: user.role }, session });
+      const roles = (user as unknown as { roles: string[] }).roles;
+      res.status(200).json({ user: { id: user.id, email: user.email, roles }, session });
     } catch (e) {
       const err = e as Error & { status?: number };
       res

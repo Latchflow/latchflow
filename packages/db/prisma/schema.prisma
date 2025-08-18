@@ -56,7 +56,7 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   name                String?
-  role                UserRole
+  roles               UserRole[]
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
