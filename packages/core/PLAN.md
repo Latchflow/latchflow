@@ -1,205 +1,182 @@
-# PLAN.md — Latchflow Core Bootstrap (Express HTTP + Pluggable Queue + Storage)
+# PLAN.md — Add Authentication (Magic Link for Admins, OTP for Recipients)
 
 ## Objective
-Stand up the initial 'packages/core' service with:
-- Express-based HTTP API behind a small adapter
-- Pluggable queue (default in-memory) for Trigger→Action orchestration
-- Core-owned storage service (drivers + optional encryption) — plugins do not touch storage
-- Minimal REST routes (health, admin stubs, portal download)
-- Tests and scripts
+Implement lightweight authentication and authorization in 'packages/core' using:
+- Magic-link login for Admin/Executor users (based on existing 'User.roles')
+- OTP-per-bundle login for Recipients (no persistent account)
+- Server-side sessions stored in Postgres
+- HTTP-only cookies for session state
+- Role-based middleware for admin routes and bundle-scoped middleware for portal routes
 
 ## Deliverables
-- 'src/index.ts' — bootstrap server, load plugins, init DB, wire queue + storage + runners
-- 'src/config.ts' — env parsing (dotenv + zod) incl. queue and storage settings
-- 'src/db.ts' — Prisma client wrapper import from '@latchflow/db'
-- 'src/plugins/plugin-loader.ts' — scan, validate, upsert, register trigger/action capabilities
-- 'src/queue/types.ts' | 'src/queue/memory-queue.ts' | 'src/queue/loader.ts'
-- 'src/runtime/trigger-runner.ts' — start trigger listeners, persist 'TriggerEvent', enqueue actions
-- 'src/runtime/action-runner.ts' — consume queue, execute actions, persist 'ActionInvocation'
-- 'src/http/http-server.ts' | 'src/http/express-server.ts' | 'src/http/validate.ts'
-- 'src/routes/health.ts' — GET '/health' → '{ status: "ok", queue, storage }'
-- 'src/routes/admin/*.ts' — CRUD stubs (Bundle, Recipient, TriggerDefinition, ActionDefinition)
-- 'src/routes/portal/download.ts' — GET '/portal/bundles/:bundleId' (recipient-verified stream + 'DownloadEvent')
-- 'src/storage/types.ts' — storage driver interface
-- 'src/storage/loader.ts' — select driver via env (memory/fs/s3/custom path)
-- 'src/storage/memory.ts' — in-memory dev driver
-- 'src/storage/fs.ts' — local filesystem dev driver
-- 'src/storage/s3.ts' — S3/MinIO driver (MVP config; can stub if not ready)
-- 'src/storage/service.ts' — core storage facade (encryption wrapper + helpers)
-- 'src/crypto/encryption.ts' — no-op and AES-GCM helpers (envelope-ready, MVP can be 'none')
-- 'jest.config.ts' + a few tests
-- pnpm scripts: 'dev', 'test', 'lint'
+- Prisma models (sessions/tokens) and migration
+- Config additions for auth behavior and cookie settings
+- Routes:
+  - 'POST /auth/admin/start', 'GET /auth/admin/callback', 'POST /auth/admin/logout', 'GET /auth/me'
+  - 'POST /auth/recipient/start', 'POST /auth/recipient/verify', 'POST /auth/recipient/logout'
+- Middleware:
+  - 'requireAdmin' (checks user session + role)
+  - 'requireRecipient(bundleScoped?: boolean)' (checks recipient session and bundle scope)
+- Utility helpers:
+  - Token generator and SHA-256 hashing
+  - OTP generator and attempt/lockout handling
+  - Cookie set/clear utilities with secure defaults
+- Tests covering the happy paths and common failures
 
-## Constraints
-- TypeScript strict mode, Node 20+, pnpm workspaces
-- No hardcoded trigger/action types; all via plugin registry
-- Import Prisma client only from '@latchflow/db'
-- Every trigger firing must create a 'TriggerEvent'
-- Every action execution must create an 'ActionInvocation'
-- Every successful portal download must create a 'DownloadEvent'
-- Plugins (triggers/actions) must not call storage directly; they receive high-level helpers from core
-- Env-configured drivers; validate config with zod; no secrets hardcoded
+## Prisma (add models; reuse existing 'User' with 'roles')
+Add to 'packages/db/prisma/schema.prisma' and run migrate:
 
-## Config (storage + queue)
-- Queue:
-  - 'QUEUE_DRIVER' (default 'memory'), 'QUEUE_DRIVER_PATH' (optional), 'QUEUE_CONFIG_JSON' (optional JSON)
-- Storage:
-  - 'STORAGE_DRIVER' (default 'fs' in dev, suggest 's3' in docker), 'STORAGE_DRIVER_PATH' (optional), 'STORAGE_CONFIG_JSON' (optional JSON)
-  - For FS: 'STORAGE_BASE_PATH=./.data/storage'
-  - For S3/MinIO: 'STORAGE_S3_ENDPOINT', 'STORAGE_S3_REGION', 'STORAGE_S3_ACCESS_KEY', 'STORAGE_S3_SECRET_KEY', 'STORAGE_S3_FORCE_PATH_STYLE=true', 'STORAGE_BUCKET_PREFIX=latchflow-'
-  - Encryption (MVP default 'none'): 'ENCRYPTION_MODE=none|aes-gcm', 'ENCRYPTION_MASTER_KEY_B64=...'
-
-## Storage design (core-owned)
-- One driver per deployment (memory/fs/s3/custom)
-- Core facade wraps driver with optional encryption and policy
-- Portal downloads go through core (MVP) to enforce verification/limits and write 'DownloadEvent'
-- Actions get a minimal helper (e.g., 'createReleaseLink') that returns a portal URL — not a raw storage URL
-
-## Steps
-1) Read 'AGENTS.md', 'README.md', and 'packages/db/prisma/schema.prisma'.
-2) Create directory/file structure per Deliverables.
-3) Implement 'config.ts' with zod; include queue + storage + encryption envs.
-4) Implement storage:
-   - 'storage/types.ts' interface (see stub below)
-   - Drivers: 'memory.ts' (Map), 'fs.ts' (node fs streams), 's3.ts' (aws-sdk v3/minio client)
-   - 'storage/loader.ts' selects driver via env or custom module path
-   - 'crypto/encryption.ts' with 'none' (pass-through) and stubbed 'aes-gcm' helpers
-   - 'storage/service.ts' exposes high-level API used by routes and action context
-5) Implement queue ('types.ts' / 'memory-queue.ts' / 'loader.ts').
-6) Implement 'trigger-runner.ts' and 'action-runner.ts':
-   - Pass a context to actions that includes 'createReleaseLink' and 'prisma', not raw storage
-7) HTTP layer:
-   - Express adapter + error/validation middleware
-   - 'routes/portal/download.ts' that verifies recipient access, streams from storage, and writes 'DownloadEvent'
-   - 'routes/health.ts' returns '{ status, queue, storage }'
-8) Wire bootstrap in 'index.ts': load config, DB, plugins, storage, queue; start consumers/listeners; mount routes.
-9) Tests:
-   - Unit: memory storage put/get, queue enqueue/consume
-   - Integration: fake trigger fires → action uses 'createReleaseLink' → GET download streams and logs 'DownloadEvent'
-10) Local run:
-    - 'docker compose up -d'
-    - 'pnpm -F db exec prisma migrate dev && pnpm -F db exec prisma generate'
-    - 'pnpm -F db build' (if needed) and 'pnpm -F core dev'
-11) PR: 'feat(core): storage service + portal download, pluggable queue, express bootstrap'
-
-## Example stubs (use single quotes here; swap to backticks after paste)
-
-'// src/storage/types.ts'
-export interface StorageDriver {
-  put(opts: {
-    bucket: string; key: string;
-    body: Buffer | NodeJS.ReadableStream;
-    contentType?: string; metadata?: Record<string,string>;
-  }): Promise<{ etag?: string; size?: number }>;
-  getStream(opts: { bucket: string; key: string; range?: [number, number] }): Promise<NodeJS.ReadableStream>;
-  head(opts: { bucket: string; key: string }): Promise<{ size: number; contentType?: string; metadata?: Record<string,string> }>;
-  del(opts: { bucket: string; key: string }): Promise<void>;
-  createSignedGetUrl?(opts: { bucket: string; key: string; expiresSeconds: number }): Promise<string>;
+'model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jti        String   @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+  @@index([userId, expiresAt])
 }
 
-'// src/storage/loader.ts'
-import type { StorageDriver } from './types';
-export async function loadStorage(driver: string, pathOrNull: string | null, config: unknown): Promise<{ name: string; storage: StorageDriver }> {
-  if (!driver || driver === 'memory') {
-    const { createMemoryStorage } = await import('./memory');
-    return { name: 'memory', storage: await createMemoryStorage({ config }) };
-  }
-  if (driver === 'fs' && !pathOrNull) {
-    const { createFsStorage } = await import('./fs');
-    return { name: 'fs', storage: await createFsStorage({ config }) };
-  }
-  if (driver === 's3' && !pathOrNull) {
-    const { createS3Storage } = await import('./s3');
-    return { name: 's3', storage: await createS3Storage({ config }) };
-  }
-  const mod = await import(pathOrNull ?? driver);
-  const factory = (mod as any).default ?? (mod as any).createStorage;
-  return { name: driver, storage: await factory({ config }) };
+model MagicLink {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
 }
 
-'// src/crypto/encryption.ts'
-import { Readable } from 'node:stream';
-export type EncMode = 'none' | 'aes-gcm';
-export function wrapEncryptStream(mode: EncMode, masterKey?: Buffer) {
-  if (mode === 'none') return (s: NodeJS.ReadableStream) => s;
-  // TODO: implement AES-GCM streaming; MVP can be no-op with a TODO note
-  return (s: NodeJS.ReadableStream) => s;
-}
-export function wrapDecryptStream(mode: EncMode, masterKey?: Buffer) {
-  if (mode === 'none') return (s: NodeJS.ReadableStream) => s;
-  return (s: NodeJS.ReadableStream) => s;
-}
-
-'// src/storage/service.ts'
-import type { StorageDriver } from './types';
-type ServiceDeps = { driver: StorageDriver; bucketPrefix: string; encMode: 'none'|'aes-gcm'; masterKey?: Buffer };
-export function createStorageService(deps: ServiceDeps) {
-  const bucketFor = (ownerId: string) => `${deps.bucketPrefix}${ownerId}`;
-  return {
-    putBundleObject: async (ownerId: string, key: string, body: Buffer|NodeJS.ReadableStream, contentType?: string) => {
-      const bucket = bucketFor(ownerId);
-      return deps.driver.put({ bucket, key, body, contentType });
-    },
-    getBundleStream: async (ownerId: string, key: string) => {
-      const bucket = bucketFor(ownerId);
-      return deps.driver.getStream({ bucket, key });
-    },
-    // High-level helper used by actions (returns a portal URL, not a raw storage URL)
-    createReleaseLink: async (args: { bundleId: string; recipientId: string; ttlSeconds?: number }) => {
-      // MVP: return portal route; TTL can be enforced server-side later
-      const url = `/portal/bundles/${args.bundleId}?rid=${args.recipientId}`;
-      const expiresAt = args.ttlSeconds ? new Date(Date.now() + args.ttlSeconds*1000).toISOString() : undefined;
-      return { url, expiresAt };
-    },
-  };
+model RecipientSession {
+  id          String   @id @default(uuid())
+  recipientId String
+  bundleId    String
+  jti         String   @unique
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  ip          String?
+  userAgent   String?
+  @@index([recipientId, bundleId])
 }
 
-'// src/routes/portal/download.ts'
-import type { HttpServer } from '../http/http-server';
-export function registerPortalDownload(server: HttpServer, deps: {
-  prisma: any;
-  storage: { getBundleStream: (ownerId: string, key: string) => Promise<NodeJS.ReadableStream> };
-}) {
-  server.get('/portal/bundles/:bundleId', async (req: any, res: any) => {
-    const { bundleId } = req.params;
-    const recipientId = req.query?.rid;
-    // TODO: verify recipient is allowed to access bundleId (OTP/passphrase/session)
-    // TODO: look up storage key + ownerId for bundleId in DB
-    // const key = ...
-    // const ownerId = ...
-    // const stream = await deps.storage.getBundleStream(ownerId, key);
-    // stream.pipe(res);
-    // TODO: write DownloadEvent (bundleId, recipientId, ip, userAgent, timestamp)
-    res.status(501).json({ status: 'todo', bundleId, recipientId });
-  });
-}
+model RecipientOtp {
+  id          String   @id @default(uuid())
+  recipientId String
+  bundleId    String
+  codeHash    String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  @@index([recipientId, bundleId])
+}'
 
-'// passing helper into actions (excerpt)'
-type ActionCtx = {
-  prisma: any;
-  createReleaseLink: (args: { bundleId: string; recipientId: string; ttlSeconds?: number }) => Promise<{ url: string; expiresAt?: string }>;
-};
-export function startActionConsumer(queue: any, deps: { prisma: any; storageService: any; executeActionImpl: (ctx: ActionCtx, defId: string, payload: any) => Promise<void> }) {
-  return queue.consumeActions(async (msg: any) => {
-    const ctx: ActionCtx = {
-      prisma: deps.prisma,
-      createReleaseLink: deps.storageService.createReleaseLink,
-    };
-    await deps.executeActionImpl(ctx, msg.actionDefinitionId, { triggerEventId: msg.triggerEventId, context: msg.context });
-  });
-}
+## Config ('packages/core/src/config.ts')
+Add zod-validated envs (with sensible defaults):
+- 'AUTH_COOKIE_DOMAIN' (optional)
+- 'AUTH_SESSION_TTL_HOURS' (default '12')
+- 'ADMIN_MAGICLINK_TTL_MIN' (default '15')
+- 'RECIPIENT_OTP_TTL_MIN' (default '10')
+- 'RECIPIENT_OTP_LENGTH' (default '6')
+- 'AUTH_COOKIE_SECURE' (default 'true' in non-dev)
+Cookie names (constants):
+- 'lf_admin_sess', 'lf_recipient_sess'
+
+## Files to create (core)
+- 'src/routes/auth/admin.ts'
+- 'src/routes/auth/recipient.ts'
+- 'src/middleware/require-admin.ts'
+- 'src/middleware/require-recipient.ts'
+- 'src/auth/tokens.ts' (random string, sha256 hash, otp generator)
+- 'src/auth/cookies.ts' (set/clear helpers, common cookie options)
+- Wire registration in 'src/index.ts' to mount the routes
+
+## Route specs
+
+'POST /auth/admin/start'
+- Body: '{ email: string }'
+- Behavior: upsert or find 'User' by email; create 'MagicLink' with 'tokenHash' (sha256 of a random token) and 'expiresAt' (now + ADMIN_MAGICLINK_TTL_MIN). Send email containing callback URL with raw token. In dev, log to console or MailHog.
+- Response: 204 (no content)
+
+'GET /auth/admin/callback?token=...'
+- Behavior: sha256(token) → find valid 'MagicLink' (not expired, not consumed). If found, mark consumed, create 'Session' with 'jti' (random), 'expiresAt' (now + AUTH_SESSION_TTL_HOURS). Set 'lf_admin_sess' cookie (HttpOnly, SameSite=Lax, Secure on TLS, Domain if configured). Redirect to admin UI origin (configurable) or return 204 JSON if no UI redirect is set.
+
+'POST /auth/admin/logout'
+- Behavior: read 'lf_admin_sess', revoke session (set 'revokedAt'), clear cookie.
+- Response: 204
+
+'GET /auth/me'
+- Behavior: requires admin session; returns '{ user: { id, email, roles }, session: { expiresAt } }'
+
+'POST /auth/recipient/start'
+- Body: '{ recipientId: string, bundleId: string }'
+- Behavior: verify that recipient is assigned to bundle (DB check). Generate numeric OTP (length RECIPIENT_OTP_LENGTH), store 'RecipientOtp' with 'codeHash' and 'expiresAt' (now + RECIPIENT_OTP_TTL_MIN), reset attempts. Email OTP to recipient's email (or log in dev).
+- Response: 204
+
+'POST /auth/recipient/verify'
+- Body: '{ recipientId: string, bundleId: string, otp: string }'
+- Behavior: lookup 'RecipientOtp' row, check expiry and 'attempts' < threshold (e.g., 5). If wrong, increment attempts; if correct, create 'RecipientSession' with 'jti' and expiry (shorter, e.g., 2 hours), delete or invalidate the OTP row. Set 'lf_recipient_sess' cookie.
+- Response: 204
+
+'POST /auth/recipient/logout'
+- Behavior: read 'lf_recipient_sess', revoke 'RecipientSession', clear cookie.
+- Response: 204
+
+## Middleware
+
+'// src/middleware/require-admin.ts'
+- Reads 'lf_admin_sess' cookie
+- Loads 'Session' with 'user'; checks not expired, not revoked
+- Checks 'user.roles' includes 'ADMIN' or 'EXECUTOR' (use your actual role strings)
+- Attaches 'req.user' and 'req.roles'; else 401/403
+
+'// src/middleware/require-recipient.ts'
+- Reads 'lf_recipient_sess' cookie
+- Loads 'RecipientSession'; checks not expired, not revoked
+- If 'bundleScoped' and route has ':bundleId', ensure it matches session.bundleId
+- Attaches 'req.recipientSession'; else 401/403
+
+## Utilities
+
+'// src/auth/tokens.ts'
+- 'randomToken(len?: number): string' (url-safe)
+- 'sha256Hex(str: string): string'
+- 'genOtp(digits: number): string' (numeric)
+
+'// src/auth/cookies.ts'
+- 'setCookie(res, name, value, { maxAgeSec })' with 'HttpOnly', 'SameSite=Lax', 'Secure' (unless explicitly disabled in dev), 'Path=/'
+- 'clearCookie(res, name)'
+
+## Security notes
+- Store only **hashes** of magic links and OTPs (sha256)
+- Enforce TTLs and consume magic links on first use
+- Rate limit OTP verification and start endpoints (basic in-memory limiter is fine for MVP)
+- Never echo raw tokens in logs; only last 4 chars if needed
+- Cookies: HttpOnly + SameSite=Lax + Secure (in TLS). Allow 'AUTH_COOKIE_DOMAIN' if you need cross-subdomain cookies.
+
+## Steps for Codex
+1) Add Prisma models and run:
+   - 'pnpm run env:load pnpm -F db exec prisma migrate dev'
+   - 'pnpm run env:load pnpm -F db exec prisma generate'
+2) Update 'src/config.ts' to include new auth envs and defaults.
+3) Create 'src/auth/tokens.ts' and 'src/auth/cookies.ts'.
+4) Implement middleware 'require-admin.ts' and 'require-recipient.ts'.
+5) Implement routes in 'src/routes/auth/admin.ts' and 'src/routes/auth/recipient.ts' with zod validation and proper responses.
+6) Register the routes in 'src/index.ts' (mount paths under '/auth/...').
+7) Add unit tests:
+   - Magic link flow: start → callback → me → logout (role-gated admin route returns 200 then 401 after logout)
+   - OTP flow: start → verify → protected portal route allowed → logout → route blocked
+   - Failure cases: expired token/otp, wrong otp increments attempts, non-admin roles denied
+8) Update any README or API docs section for the new endpoints (optional for MVP).
 
 ## Acceptance checklist
-- '/health' reports '{ status: "ok", queue: "<driver>", storage: "<driver>" }'
-- Storage driver loads via env; FS driver writes/reads files under 'STORAGE_BASE_PATH'
-- 'createReleaseLink' returns a portal URL; actions can call it without knowing storage internals
-- Portal download route verifies access (placeholder), and a successful download writes a 'DownloadEvent'
-- Triggers create 'TriggerEvent'; actions create 'ActionInvocation'
-- All tests pass with 'pnpm -r test'
-
-## Follow-ups (next PRs)
-- Implement real AES-GCM envelope encryption and key handling
-- Add S3/MinIO driver with signed URL support; optional proxy vs. redirect policy
-- Add recipient verification middleware (OTP/passphrase) and per-recipient rate limits
-- Add download tokens (short-lived HMAC) for emailed links and enforce TTL
-- Metrics hooks for storage/queue timings and failure counts
+- 'POST /auth/admin/start' returns 204 and creates a valid 'MagicLink'
+- 'GET /auth/admin/callback' sets 'lf_admin_sess' and creates 'Session'; 'GET /auth/me' returns user with roles
+- Admin-only route guarded by 'requireAdmin' returns 403 for users without required roles
+- 'POST /auth/recipient/start' generates and stores OTP for a valid (recipient, bundle)
+- 'POST /auth/recipient/verify' sets 'lf_recipient_sess' and creates 'RecipientSession'
+- 'requireRecipient(true)' blocks access when session bundle doesn't match route ':bundleId'
+- Logout endpoints revoke sessions and clear cookies
+- All new tests pass with 'pnpm -F core test'

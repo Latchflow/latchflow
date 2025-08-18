@@ -1,0 +1,129 @@
+import { z } from "zod";
+import type { HttpServer } from "../../http/http-server.js";
+import { getDb } from "../../db.js";
+import { genOtp, randomToken, sha256Hex } from "../../auth/tokens.js";
+import { clearCookie, setCookie } from "../../auth/cookies.js";
+import { RECIPIENT_SESSION_COOKIE, type AppConfig } from "../../config.js";
+
+export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfig) {
+  const db = getDb();
+  const RECIPIENT_SESSION_TTL_HOURS = 2;
+  const MAX_ATTEMPTS = 5;
+
+  // POST /auth/recipient/start
+  server.post("/auth/recipient/start", async (req, res) => {
+    const Body = z.object({ recipientId: z.string().min(1), bundleId: z.string().min(1) });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
+      return;
+    }
+    const { recipientId, bundleId } = parsed.data;
+    const assignment = await db.bundleAssignment.findFirst({ where: { recipientId, bundleId } });
+    if (!assignment) {
+      res
+        .status(404)
+        .json({
+          status: "error",
+          code: "NOT_FOUND",
+          message: "Recipient is not assigned to bundle",
+        });
+      return;
+    }
+    const otp = genOtp(config.RECIPIENT_OTP_LENGTH);
+    const codeHash = sha256Hex(otp);
+    const expiresAt = new Date(Date.now() + config.RECIPIENT_OTP_TTL_MIN * 60_000);
+    // Reset existing OTPs for this pair
+    await db.recipientOtp.deleteMany({ where: { recipientId, bundleId } });
+    await db.recipientOtp.create({ data: { recipientId, bundleId, codeHash, expiresAt } });
+
+    // Dev-only: log the OTP
+    // eslint-disable-next-line no-console
+    console.log(`[auth] OTP for recipient ${recipientId}/${bundleId}: ${otp}`);
+    res.status(204).json({});
+  });
+
+  // POST /auth/recipient/verify
+  server.post("/auth/recipient/verify", async (req, res) => {
+    const Body = z.object({
+      recipientId: z.string().min(1),
+      bundleId: z.string().min(1),
+      otp: z.string().min(1),
+    });
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
+      return;
+    }
+    const { recipientId, bundleId, otp } = parsed.data;
+    const now = new Date();
+    const record = await db.recipientOtp.findFirst({
+      where: { recipientId, bundleId },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!record || record.expiresAt <= now) {
+      res
+        .status(401)
+        .json({ status: "error", code: "INVALID_OTP", message: "Invalid or expired OTP" });
+      return;
+    }
+    if (record.attempts >= MAX_ATTEMPTS) {
+      res
+        .status(429)
+        .json({ status: "error", code: "TOO_MANY_ATTEMPTS", message: "Too many attempts" });
+      return;
+    }
+    const good = record.codeHash === sha256Hex(otp);
+    if (!good) {
+      await db.recipientOtp.update({
+        where: { id: record.id },
+        data: { attempts: { increment: 1 } },
+      });
+      res.status(401).json({ status: "error", code: "INVALID_OTP", message: "Invalid OTP" });
+      return;
+    }
+    // Success: create session and remove OTP
+    await db.recipientOtp.delete({ where: { id: record.id } });
+    const jti = randomToken(32);
+    const ttlSec = RECIPIENT_SESSION_TTL_HOURS * 3600;
+    const session = await db.recipientSession.create({
+      data: {
+        recipientId,
+        bundleId,
+        jti,
+        expiresAt: new Date(Date.now() + ttlSec * 1000),
+        ip: req.ip,
+        userAgent: req.userAgent,
+      },
+    });
+    setCookie(res, RECIPIENT_SESSION_COOKIE, session.jti, {
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: config.AUTH_COOKIE_SECURE,
+      domain: config.AUTH_COOKIE_DOMAIN,
+      path: "/",
+      maxAgeSec: ttlSec,
+    });
+    res.status(204).json({});
+  });
+
+  // POST /auth/recipient/logout
+  server.post("/auth/recipient/logout", async (req, res) => {
+    const cookies = ((req.headers?.["cookie"] as string) ?? "").split(";");
+    const raw = cookies.find((c) => c.trim().startsWith(`${RECIPIENT_SESSION_COOKIE}=`));
+    if (raw) {
+      const jti = decodeURIComponent(raw.split("=")[1] ?? "");
+      if (jti) {
+        await db.recipientSession.updateMany({ where: { jti }, data: { revokedAt: new Date() } });
+      }
+    }
+    clearCookie(res, RECIPIENT_SESSION_COOKIE, {
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: config.AUTH_COOKIE_SECURE,
+      domain: config.AUTH_COOKIE_DOMAIN,
+      path: "/",
+    });
+    res.status(204).json({});
+  });
+}

@@ -2,6 +2,8 @@ import { loadConfig } from "./config.js";
 import { getDb } from "./db.js";
 import { createExpressServer } from "./http/express-server.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerAdminAuthRoutes } from "./routes/auth/admin.js";
+import { registerRecipientAuthRoutes } from "./routes/auth/recipient.js";
 import { loadQueue } from "./queue/loader.js";
 import { startActionConsumer } from "./runtime/action-runner.js";
 import { startTriggerRunner } from "./runtime/trigger-runner.js";
@@ -66,6 +68,8 @@ export async function main() {
   // Start HTTP server
   const server = createExpressServer();
   registerHealthRoutes(server, { queueName, storageName });
+  registerAdminAuthRoutes(server, config);
+  registerRecipientAuthRoutes(server, config);
   await server.listen(config.PORT);
   // eslint-disable-next-line no-console
   console.log(`[core] HTTP server listening on :${config.PORT}`);

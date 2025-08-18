@@ -2,11 +2,16 @@ export interface RequestLike {
   params?: unknown;
   query?: unknown;
   body?: unknown;
+  headers?: Record<string, string | string[] | undefined>;
+  ip?: string;
+  userAgent?: string;
 }
 
 export interface ResponseLike {
   status(code: number): ResponseLike;
   json(payload: unknown): void;
+  header(name: string, value: string | string[]): ResponseLike;
+  redirect(url: string, status?: number): void;
 }
 
 export type HttpHandler = (req: RequestLike, res: ResponseLike) => Promise<void> | void;
