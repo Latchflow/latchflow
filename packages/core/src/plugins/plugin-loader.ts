@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import type { DbClient } from "../db.js";
+import type { Prisma } from "@latchflow/db";
 
 export const CapabilitySchema = z.object({
   kind: z.enum(["TRIGGER", "ACTION"]),
@@ -83,11 +84,16 @@ export async function upsertPluginsIntoDb(
           kind: cap.kind,
           key: cap.key,
           displayName: cap.displayName,
-          jsonSchema: (cap.configSchema ?? null) as unknown,
+          // Store plugin-provided config schema JSON as-is
+          jsonSchema: (cap.configSchema ?? null) as unknown as
+            | Prisma.InputJsonValue
+            | Prisma.NullableJsonNullValueInput,
         },
         update: {
           displayName: cap.displayName,
-          jsonSchema: (cap.configSchema ?? null) as unknown,
+          jsonSchema: (cap.configSchema ?? null) as unknown as
+            | Prisma.InputJsonValue
+            | Prisma.NullableJsonNullValueInput,
           isEnabled: true,
         },
       });

@@ -1,5 +1,6 @@
 import { LatchflowQueue } from "../queue/types.js";
 import { getDb } from "../db.js";
+import type { Prisma } from "@latchflow/db";
 
 export async function startActionConsumer(
   queue: LatchflowQueue,
@@ -25,7 +26,13 @@ export async function startActionConsumer(
       const result = (await deps.executeAction(msg)) as unknown;
       await db.actionInvocation.update({
         where: { id: inv.id },
-        data: { status: "SUCCESS", result: result as unknown, completedAt: new Date() },
+        data: {
+          status: "SUCCESS",
+          result: (result ?? null) as unknown as
+            | Prisma.InputJsonValue
+            | Prisma.NullableJsonNullValueInput,
+          completedAt: new Date(),
+        },
       });
     } catch (e) {
       const errorResult = { error: (e as Error).message } as unknown;
@@ -33,7 +40,9 @@ export async function startActionConsumer(
         where: { id: inv.id },
         data: {
           status: "FAILED",
-          result: errorResult,
+          result: errorResult as unknown as
+            | Prisma.InputJsonValue
+            | Prisma.NullableJsonNullValueInput,
           completedAt: new Date(),
         },
       });

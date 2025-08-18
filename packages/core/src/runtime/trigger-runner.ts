@@ -1,4 +1,5 @@
 import { getDb } from "../db.js";
+import type { Prisma } from "@latchflow/db";
 
 type FireMsg = {
   actionDefinitionId: string;
@@ -15,7 +16,10 @@ export async function startTriggerRunner(opts: { onFire: (msg: FireMsg) => Promi
   ) {
     // Insert TriggerEvent
     const evt = await db.triggerEvent.create({
-      data: { triggerDefinitionId, context },
+      data: {
+        triggerDefinitionId,
+        context: (context ?? null) as unknown as Prisma.InputJsonValue | Prisma.JsonNullValueInput,
+      },
     });
 
     // Resolve enabled actions mapped via TriggerAction

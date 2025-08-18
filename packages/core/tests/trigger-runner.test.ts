@@ -25,7 +25,11 @@ describe("trigger-runner", () => {
     const fired: Array<
       { actionDefinitionId: string; triggerEventId: string } & Record<string, unknown>
     > = [];
-    const runner = await startTriggerRunner({ onFire: async (m) => fired.push(m) });
+    const runner = await startTriggerRunner({
+      onFire: async (m) => {
+        fired.push(m);
+      },
+    });
     await runner.fireTriggerOnce("trig_1", { foo: "bar" });
     expect(fired.map((f) => f.actionDefinitionId)).toEqual(["act_1", "act_2"]);
     expect(fired[0].triggerEventId).toBe("evt_1");

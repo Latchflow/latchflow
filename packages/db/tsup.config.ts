@@ -10,6 +10,7 @@ export default defineConfig({
   external: [
     // Leave the generated client + engines as-is
     "../generated/prisma",
+    "../generated/prisma/index.js",
     "@prisma/client",
     ".prisma/client",
     "@prisma/engines",
