@@ -1,0 +1,9 @@
+type: object
+properties:
+  type:
+    type: string
+  plugin:
+    type: string
+  configSchema:
+    type: object
+required: [type, plugin]

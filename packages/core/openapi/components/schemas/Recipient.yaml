@@ -1,0 +1,11 @@
+allOf:
+  - $ref: ./ObjectMeta.yaml
+  - type: object
+    properties:
+      email:
+        type: string
+        format: email
+      name:
+        type: string
+        nullable: true
+    required: [email]

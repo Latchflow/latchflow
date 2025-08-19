@@ -1,0 +1,9 @@
+type: object
+properties:
+  limit:
+    type: integer
+    minimum: 1
+  nextCursor:
+    type: string
+    nullable: true
+required: [limit]

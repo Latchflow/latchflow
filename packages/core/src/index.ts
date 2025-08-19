@@ -15,6 +15,7 @@ import {
 } from "./plugins/plugin-loader.js";
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
+import { registerOpenApiRoute } from "./routes/openapi.js";
 
 export async function main() {
   const config = loadConfig();
@@ -72,6 +73,7 @@ export async function main() {
   registerAdminAuthRoutes(server, config);
   registerRecipientAuthRoutes(server, config);
   registerCliAuthRoutes(server, config);
+  registerOpenApiRoute(server);
   await server.listen(config.PORT);
   // eslint-disable-next-line no-console
   console.log(`[core] HTTP server listening on :${config.PORT}`);

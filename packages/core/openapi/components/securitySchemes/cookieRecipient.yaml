@@ -1,0 +1,4 @@
+type: apiKey
+in: cookie
+name: lf_recipient_sess
+description: Recipient session cookie

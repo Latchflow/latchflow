@@ -1,0 +1,81 @@
+admin_start:
+  post:
+    summary: Start admin login via magic link
+    tags: [Auth (Admin)]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              email:
+                type: string
+                format: email
+            required: [email]
+    responses:
+      '204':
+        description: Magic link issued (no content)
+      '400':
+        description: Invalid body
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+
+admin_callback:
+  get:
+    summary: Finalize admin login using magic link token
+    tags: [Auth (Admin)]
+    parameters:
+      - in: query
+        name: token
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Session established via cookie
+      '401':
+        description: Invalid or expired token
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+
+admin_logout:
+  post:
+    summary: Logout admin session
+    tags: [Auth (Admin)]
+    security:
+      - cookieAdmin: []
+    responses:
+      '204':
+        description: Logged out
+
+auth_me:
+  get:
+    summary: Get current admin user
+    tags: [Auth (Admin)]
+    security:
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Current user info
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  $ref: ../../components/schemas/User.yaml
+                session:
+                  type: object
+              required: [user]
+      '401':
+        description: Not authenticated
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+

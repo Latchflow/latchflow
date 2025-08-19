@@ -1,0 +1,137 @@
+cli_device_start:
+  post:
+    summary: Start CLI device authorization
+    tags: [Auth (CLI)]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              email:
+                type: string
+                format: email
+              deviceName:
+                type: string
+                nullable: true
+    responses:
+      '200':
+        description: Device auth started
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/DeviceStartResponse.yaml
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+
+cli_device_approve:
+  post:
+    summary: Approve a CLI device using user code (admin/executor only)
+    tags: [Auth (CLI)]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              user_code:
+                type: string
+            required: [user_code]
+    responses:
+      '204':
+        description: Approved
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+
+cli_device_poll:
+  post:
+    summary: Poll for device authorization result
+    tags: [Auth (CLI)]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              device_code:
+                type: string
+            required: [device_code]
+    responses:
+      '200':
+        description: Authorization complete
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/DevicePollSuccess.yaml
+      '202':
+        description: Authorization pending
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/DevicePollPending.yaml
+
+cli_tokens_list:
+  get:
+    summary: List API tokens for current admin/executor
+    tags: [Auth (CLI)]
+    security:
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Tokens list
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tokens:
+                  type: array
+                  items:
+                    type: object
+              required: [tokens]
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+
+cli_tokens_revoke:
+  post:
+    summary: Revoke an API token
+    tags: [Auth (CLI)]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tokenId:
+                type: string
+            required: [tokenId]
+    responses:
+      '204':
+        description: Revoked
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+

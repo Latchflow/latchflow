@@ -1,0 +1,18 @@
+pipelines_list:
+  get:
+    summary: List trigger→action pipelines
+    tags: [Pipelines]
+    responses:
+      '200':
+        description: Pipelines
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ../components/schemas/TriggerAction.yaml
+              required: [items]
+

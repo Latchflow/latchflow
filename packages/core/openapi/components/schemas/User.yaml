@@ -1,0 +1,12 @@
+allOf:
+  - $ref: ./ObjectMeta.yaml
+  - type: object
+    properties:
+      email:
+        type: string
+        format: email
+      roles:
+        type: array
+        items:
+          type: string
+    required: [email, roles]

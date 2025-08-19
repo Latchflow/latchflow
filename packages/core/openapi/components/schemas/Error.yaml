@@ -1,0 +1,10 @@
+type: object
+properties:
+  status:
+    type: string
+    enum: [error]
+  code:
+    type: string
+  message:
+    type: string
+required: [status, code, message]

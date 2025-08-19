@@ -1,0 +1,47 @@
+bundles_list:
+  get:
+    summary: List bundles
+    tags: [Bundles]
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundles page
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: ../components/schemas/Page.yaml
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: ../components/schemas/Bundle.yaml
+                  required: [items]
+
+bundles_get:
+  get:
+    summary: Get bundle by id
+    tags: [Bundles]
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Bundle
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/Bundle.yaml
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/Error.yaml
+

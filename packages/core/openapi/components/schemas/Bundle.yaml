@@ -1,0 +1,14 @@
+allOf:
+  - $ref: ./ObjectMeta.yaml
+  - type: object
+    properties:
+      name:
+        type: string
+      description:
+        type: string
+        nullable: true
+      encrypted:
+        type: boolean
+      fileCount:
+        type: integer
+    required: [name, encrypted]

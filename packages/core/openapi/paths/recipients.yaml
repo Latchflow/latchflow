@@ -1,0 +1,47 @@
+recipients_list:
+  get:
+    summary: List recipients
+    tags: [Recipients]
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Recipients page
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: ../components/schemas/Page.yaml
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: ../components/schemas/Recipient.yaml
+                  required: [items]
+
+recipients_get:
+  get:
+    summary: Get recipient by id
+    tags: [Recipients]
+    parameters:
+      - in: path
+        name: recipientId
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Recipient
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/Recipient.yaml
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/Error.yaml
+

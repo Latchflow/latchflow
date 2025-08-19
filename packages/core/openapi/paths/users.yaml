@@ -1,0 +1,20 @@
+users_list:
+  get:
+    summary: List users/executors
+    tags: [Executors/Users]
+    security:
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Users
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ../components/schemas/User.yaml
+              required: [items]
+

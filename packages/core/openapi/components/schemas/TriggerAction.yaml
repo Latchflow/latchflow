@@ -1,0 +1,7 @@
+type: object
+properties:
+  trigger:
+    $ref: ./TriggerDefinition.yaml
+  action:
+    $ref: ./ActionDefinition.yaml
+required: [trigger, action]

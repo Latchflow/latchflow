@@ -1,0 +1,123 @@
+openapi: 3.1.0
+info:
+  title: Latchflow Core API
+  version: 0.2.0
+  description: >-
+    Trigger-gated secure file release system. Core HTTP API used by admin UI, recipient portal, and CLI.
+servers:
+  - url: http://localhost:3001
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth (Admin)
+  - name: Auth (Recipient)
+  - name: Auth (CLI)
+  - name: Files
+  - name: Bundles
+  - name: Recipients
+  - name: Plugins
+  - name: Triggers
+  - name: Actions
+  - name: Pipelines
+  - name: Executors/Users
+  - name: Portal
+  - name: Config
+  - name: Audit
+paths:
+  /health:
+    $ref: ./paths/health.yaml#/health
+
+  /auth/admin/start:
+    $ref: ./paths/auth/admin.yaml#/admin_start
+  /auth/admin/callback:
+    $ref: ./paths/auth/admin.yaml#/admin_callback
+  /auth/admin/logout:
+    $ref: ./paths/auth/admin.yaml#/admin_logout
+  /auth/me:
+    $ref: ./paths/auth/admin.yaml#/auth_me
+
+  /auth/recipient/start:
+    $ref: ./paths/auth/recipient.yaml#/recipient_start
+  /auth/recipient/verify:
+    $ref: ./paths/auth/recipient.yaml#/recipient_verify
+  /auth/recipient/logout:
+    $ref: ./paths/auth/recipient.yaml#/recipient_logout
+
+  /auth/cli/device/start:
+    $ref: ./paths/auth/cli.yaml#/cli_device_start
+  /auth/cli/device/approve:
+    $ref: ./paths/auth/cli.yaml#/cli_device_approve
+  /auth/cli/device/poll:
+    $ref: ./paths/auth/cli.yaml#/cli_device_poll
+  /auth/cli/tokens:
+    $ref: ./paths/auth/cli.yaml#/cli_tokens_list
+  /auth/cli/tokens/revoke:
+    $ref: ./paths/auth/cli.yaml#/cli_tokens_revoke
+
+  /bundles:
+    $ref: ./paths/bundles.yaml#/bundles_list
+  /bundles/{bundleId}:
+    $ref: ./paths/bundles.yaml#/bundles_get
+
+  /recipients:
+    $ref: ./paths/recipients.yaml#/recipients_list
+  /recipients/{recipientId}:
+    $ref: ./paths/recipients.yaml#/recipients_get
+
+  /files/{fileId}:
+    $ref: ./paths/files.yaml#/files_get
+
+  /plugins:
+    $ref: ./paths/plugins.yaml#/plugins_list
+  /triggers:
+    $ref: ./paths/triggers.yaml#/triggers_list
+  /actions:
+    $ref: ./paths/actions.yaml#/actions_list
+  /pipelines:
+    $ref: ./paths/pipelines.yaml#/pipelines_list
+  /users:
+    $ref: ./paths/users.yaml#/users_list
+  /portal/info:
+    $ref: ./paths/portal.yaml#/portal_info
+
+components:
+  schemas:
+    Error:
+      $ref: ./components/schemas/Error.yaml
+    Page:
+      $ref: ./components/schemas/Page.yaml
+    ObjectMeta:
+      $ref: ./components/schemas/ObjectMeta.yaml
+    Bundle:
+      $ref: ./components/schemas/Bundle.yaml
+    Recipient:
+      $ref: ./components/schemas/Recipient.yaml
+    Plugin:
+      $ref: ./components/schemas/Plugin.yaml
+    TriggerDefinition:
+      $ref: ./components/schemas/TriggerDefinition.yaml
+    ActionDefinition:
+      $ref: ./components/schemas/ActionDefinition.yaml
+    TriggerAction:
+      $ref: ./components/schemas/TriggerAction.yaml
+    User:
+      $ref: ./components/schemas/User.yaml
+    DeviceStartResponse:
+      $ref: ./components/schemas/DeviceStartResponse.yaml
+    DevicePollPending:
+      $ref: ./components/schemas/DevicePollPending.yaml
+    DevicePollSuccess:
+      $ref: ./components/schemas/DevicePollSuccess.yaml
+  parameters:
+    Cursor:
+      $ref: ./components/parameters/Cursor.yaml
+    Limit:
+      $ref: ./components/parameters/Limit.yaml
+  securitySchemes:
+    cookieAdmin:
+      $ref: ./components/securitySchemes/cookieAdmin.yaml
+    cookieRecipient:
+      $ref: ./components/securitySchemes/cookieRecipient.yaml
+    bearer:
+      $ref: ./components/securitySchemes/bearer.yaml
+

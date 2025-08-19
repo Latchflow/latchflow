@@ -1,158 +1,139 @@
-# PLAN.md — CLI Authentication (Device Code Flow + API Tokens)
+# PLAN.md — Multi‑file OpenAPI (OAS) for Core API
 
 ## Objective
-Add CLI authentication to 'packages/core' using:
-- A **device code** flow (human approves in browser or via API)
-- Long-lived **API tokens** (opaque, hashed in DB) used by the CLI via 'Authorization: Bearer'
+Create a multi‑file OpenAPI 3.1 spec for `packages/core`, split by paths/components, wired with `$ref`s, with tooling to lint/preview/bundle, and a route to serve the bundled JSON from the running core service.
 
 ## Deliverables
-- Prisma models:
-  - 'ApiToken' (hashed tokens with scopes + TTL + revoke)
-  - 'DeviceAuth' (device_code + user_code, approval state)
-- Config additions for device code + token lifetimes
-- Routes (all JSON):
-  - 'POST /auth/cli/device/start' → begin device code flow
-  - 'POST /auth/cli/device/approve' → approve a user_code (admin UI or curl)
-  - 'POST /auth/cli/device/poll' → CLI polls; returns API token when approved
-  - 'GET  /auth/cli/tokens' → list caller's tokens (admin/executor)
-  - 'POST /auth/cli/tokens/revoke' → revoke a token by id
-- Middleware:
-  - 'requireApiToken(scopes?: string[])' — validates Bearer token and attaches 'req.user'
-- Utilities:
-  - Token generator & SHA-256 hasher (reuse existing 'auth/tokens.ts')
-  - Scope checking helper
-- Tests for the happy paths + failure cases
+- Directory scaffold under `packages/core/openapi/`:
+  - `openapi.yaml` (root orchestrator)
+  - `paths/` (one file per endpoint group)
+  - `components/schemas/`, `components/parameters/`, `components/securitySchemes/`
+  - `dist/` (bundled output; git‑ignored)
+- NPM scripts (repo root) for lint/preview/bundle/validate
+- Dev dependencies: `@redocly/cli`, `swagger-cli`
+- Express route (read‑only) to serve `/openapi.json` from the core service (bundled artifact copied into `dist`)
+- Minimal starter content: health + auth (admin/recipient/CLI) + files + bundles + recipients + plugins + triggers + actions + pipelines + users + portal (skeletons are fine; keep request/response schemas referenced from components)
 
-## Prisma (add models)
-Append to 'packages/db/prisma/schema.prisma' and migrate:
+## Folder Layout (to create)
+packages/core/openapi/
+  openapi.yaml
+  paths/
+    health.yaml
+    auth/
+      admin.yaml
+      recipient.yaml
+      cli.yaml
+    files.yaml
+    bundles.yaml
+    recipients.yaml
+    plugins.yaml
+    triggers.yaml
+    actions.yaml
+    pipelines.yaml
+    users.yaml
+    portal.yaml
+  components/
+    schemas/
+      Error.yaml
+      Page.yaml
+      ObjectMeta.yaml
+      Bundle.yaml
+      Recipient.yaml
+      Plugin.yaml
+      TriggerDefinition.yaml
+      ActionDefinition.yaml
+      TriggerAction.yaml
+      User.yaml
+      DeviceStartResponse.yaml
+      DevicePollPending.yaml
+      DevicePollSuccess.yaml
+    parameters/
+      Cursor.yaml
+      Limit.yaml
+    securitySchemes/
+      cookieAdmin.yaml
+      cookieRecipient.yaml
+      bearer.yaml
+  dist/   # generated (git‑ignored)
 
-'model ApiToken {
-  id         String    @id @default(uuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name       String
-  scopes     String[]  // e.g. ["core:read", "core:write"]
-  tokenHash  String    @unique
-  createdAt  DateTime  @default(now())
-  lastUsedAt DateTime?
-  expiresAt  DateTime?
-  revokedAt  DateTime?
-  @@index([userId])
-}
+## .gitignore updates
+- Add lines:
+  - 'packages/core/openapi/dist/'
+  - 'openapi/dist/'
 
-model DeviceAuth {
-  id            String   @id @default(uuid())
-  // Optional: set after we upsert/find the user by email at start time
-  userId        String?
-  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  email         String
-  deviceName    String?
-  deviceCodeHash String  @unique
-  userCodeHash   String  @unique
-  intervalSec    Int      @default(5)
-  createdAt      DateTime @default(now())
-  expiresAt      DateTime
-  approvedAt     DateTime?
-  tokenId        String?
-  token          ApiToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
-}'
+## Root Spec (packages/core/openapi/openapi.yaml)
+- OpenAPI 3.1 metadata (title "Latchflow Core API", version "0.2.0", server http://localhost:3001)
+- 'tags' list (Health, Auth (Admin), Auth (Recipient), Auth (CLI), Files, Bundles, Recipients, Plugins, Triggers, Actions, Pipelines, Executors/Users, Portal, Config, Audit)
+- 'paths' section only contains $refs to the split files/anchors, e.g.:
+  - '/health' → './paths/health.yaml'
+  - '/auth/admin/start' → './paths/auth/admin.yaml#/postStart'
+  - '/files' → './paths/files.yaml#/list'
+  - Continue for every route we’ve defined so far
+- 'components' references:
+  - 'securitySchemes.cookieAdmin' → './components/securitySchemes/cookieAdmin.yaml'
+  - 'parameters.Cursor', 'parameters.Limit'
+  - All shared schemas listed above
 
-Then:
-- 'pnpm run env:load pnpm -F db exec prisma migrate dev'
-- 'pnpm run env:load pnpm -F db exec prisma generate'
+## Example Path Files (skeletons)
+- 'paths/health.yaml': define 'get' with 200 response containing '{ status, queue, storage }'
+- 'paths/auth/admin.yaml':
+  - Anchor blocks (YAML anchors) named 'postStart', 'getCallback', 'postLogout', 'getMe'
+  - Each block contains method, summary, request/response shapes and references shared schemas
+- 'paths/files.yaml':
+  - Anchors: 'list', 'upload', 'byId', 'move', 'download'
+  - 'list' uses pagination parameters and returns 'Page' with 'ObjectMeta' items
+- Replicate anchor pattern for other groups (bundles, recipients, plugins, triggers, actions, pipelines, users, portal)
 
-## Config ('packages/core/src/config.ts')
-Add zod-validated envs (with defaults):
-- 'DEVICE_CODE_TTL_MIN' (default '10')
-- 'DEVICE_CODE_INTERVAL_SEC' (default '5')
-- 'API_TOKEN_TTL_DAYS' (optional, e.g. '')
-- 'API_TOKEN_SCOPES_DEFAULT' (default '["core:read","core:write"]')
-- 'API_TOKEN_PREFIX' (default 'lfk_') // only for formatting the raw token string
+## Example Component Files (skeletons)
+- 'components/schemas/Error.yaml': object with 'error' and optional 'message'
+- 'components/parameters/Cursor.yaml': query param 'cursor' (string)
+- 'components/securitySchemes/bearer.yaml': HTTP bearer scheme
+- Populate the rest as thin placeholders referencing field names we already use; keep required fields minimal for now
 
-## Files to create (core)
-- 'src/routes/auth/cli.ts'
-- 'src/middleware/require-api-token.ts'
-- 'src/auth/scopes.ts' (scope check helper)
-- Wire into 'src/index.ts' (mount '/auth/cli' routes)
+## Tooling (root package.json)
+- Add devDependencies:
+  - '@redocly/cli': '^1.16.0'
+  - 'swagger-cli': '^4.0.4'
+- Add scripts:
+  - 'oas:lint': 'redocly lint packages/core/openapi/openapi.yaml'
+  - 'oas:preview': 'redocly preview-docs packages/core/openapi/openapi.yaml'
+  - 'oas:bundle': 'redocly bundle packages/core/openapi/openapi.yaml -o packages/core/openapi/dist/openapi.json && mkdir -p openapi/dist && cp packages/core/openapi/dist/openapi.json openapi/dist/openapi.json'
+  - 'oas:validate': 'swagger-cli validate packages/core/openapi/openapi.yaml'
 
-## Route specs
+## Serve the Bundle from Core
+- During 'pnpm oas:bundle', ensure 'packages/core/openapi/dist/openapi.json' exists
+- Copy the bundled file into the built server output on build (e.g., as 'packages/core/dist/openapi.json')
+- Add a route (e.g., 'src/routes/meta.ts'):
+  - 'GET /openapi.json' → reads and streams the bundled JSON from the runtime path
+- Register this route in 'src/index.ts' after the health route
+- Do not expose non‑bundled source files over HTTP
 
-'POST /auth/cli/device/start'
-- Body: '{ email: string, deviceName?: string }'
-- Behavior:
-  - Upsert/find 'User' by email (this is your admin/executor user set).
-  - Generate:
-    - 'device_code' (long, random; store 'sha256Hex' as 'deviceCodeHash')
-    - 'user_code' (short, human-friendly like 'ABCD-1234'; store hash)
-  - Create 'DeviceAuth' with '{ userId, email, deviceName, intervalSec, expiresAt = now + DEVICE_CODE_TTL_MIN }'
-  - Return:
-    '{ device_code, user_code, verification_uri, expires_in, interval }'
-    - 'verification_uri' can point to your admin UI (/cli/device/approve) or be an API path the user can hit in cURL/postman.
+## Constraints & Conventions
+- All $ref paths are relative to 'openapi.yaml' or the current file (use './' prefixes)
+- Use YAML anchors inside path group files; reference via fragments like '#/list'
+- Keep secrets/config out of the spec (show shapes only; no real values)
+- Maintain backward compatibility: once a path ships, only additive changes without breaking consumers
 
-'POST /auth/cli/device/approve'
-- Body: '{ user_code: string }'
-- Behavior:
-  - Find 'DeviceAuth' by 'userCodeHash', ensure not expired, not approved.
-  - Ensure the associated 'User' has a role that’s allowed to obtain CLI tokens (e.g., ADMIN/EXECUTOR).
-  - Create 'ApiToken' with:
-    - 'userId', 'name' = 'deviceName' or 'CLI Token', 'scopes' = API_TOKEN_SCOPES_DEFAULT
-    - 'token' = random opaque string (prefix with API_TOKEN_PREFIX)
-    - 'tokenHash' = sha256Hex(token)
-    - 'expiresAt' if 'API_TOKEN_TTL_DAYS' set
-  - Mark 'DeviceAuth.approvedAt = now' & 'tokenId' = new token id.
-  - Response: 204 (do not return the token here; CLI will get it via poll).
+## Steps for Codex
+1) Create folder tree and empty files exactly as listed
+2) Populate 'openapi.yaml' with metadata, tags, 'paths' refs, and 'components' refs
+3) Add minimal content for:
+   - 'paths/health.yaml'
+   - 'paths/auth/admin.yaml', 'paths/auth/recipient.yaml', 'paths/auth/cli.yaml' (use anchors)
+   - 'paths/files.yaml', 'paths/bundles.yaml', 'paths/recipients.yaml', 'paths/plugins.yaml', 'paths/triggers.yaml', 'paths/actions.yaml', 'paths/pipelines.yaml', 'paths/users.yaml', 'paths/portal.yaml'
+   - 'components/*' placeholders (schemas/parameters/securitySchemes)
+4) Update root 'package.json' with devDeps and scripts; add .gitignore entries
+5) Implement '/openapi.json' route in core and wire it in 'src/index.ts'
+6) Run:
+   - 'pnpm oas:lint'
+   - 'pnpm oas:validate'
+   - 'pnpm oas:bundle'
+   - Start core and verify 'GET /openapi.json' returns the bundled spec
 
-'POST /auth/cli/device/poll'
-- Body: '{ device_code: string }'
-- Behavior:
-  - Find 'DeviceAuth' by 'deviceCodeHash', check not expired.
-  - If not 'approvedAt', return 428 (or 202) with '{ status: "pending", interval }'.
-  - If approved, fetch 'ApiToken' by 'tokenId' and return:
-    '{ access_token: "<raw token>", token_type: "bearer", expires_at?: ISO, scopes: string[] }'
-  - Optional: one-shot the poll (delete DeviceAuth after success).
-
-'GET /auth/cli/tokens'
-- Auth: 'requireAdmin' or 'requireApiToken(["core:read"])' if you want tokens to manage themselves.
-- Returns caller’s tokens: id, name, scopes, createdAt, lastUsedAt, expiresAt, revokedAt.
-
-'POST /auth/cli/tokens/revoke'
-- Body: '{ tokenId: string }'
-- Auth: 'requireAdmin' (or the token’s owner).
-- Sets 'revokedAt = now'.
-
-## Middleware
-
-'// src/middleware/require-api-token.ts'
-- Read 'Authorization: Bearer <token>'.
-- Validate format; hash with sha256; lookup 'ApiToken' by 'tokenHash'.
-- Ensure not revoked, not expired; update 'lastUsedAt'.
-- Load 'user' and ensure roles are allowed for the route if required.
-- Attach 'req.user', 'req.apiToken', and a 'hasScope(scope)' helper.
-
-## Utilities
-
-Extend 'src/auth/tokens.ts' (or create if missing):
-- 'randomTokenBase64Url(bytes: number): string' (e.g., 32 bytes)
-- 'formatApiToken(prefix, raw): string' // returns 'lfk_' + base64url
-- 'sha256Hex(str: string): string'
-- 'makeUserCode(): string' // e.g., 4+4 alnum with dash
-- 'makeDeviceCode(): string' // 32-48 char base64url
-
-## Security notes
-- Always store **hashes** of API tokens and device codes; return raw tokens only once.
-- Enforce role checks on approval: only users with required roles can mint tokens.
-- Rate-limit 'device/start' and 'device/poll' by IP/email; add small backoff on poll (respect 'interval').
-- Return generic errors; never disclose which emails are valid.
-- Log token ids (not raw tokens); at most last 4 chars of raw tokens in debug.
-
-## Tests
-- Device code happy path: start → approve → poll returns token → use token on a protected endpoint.
-- Poll before approve returns 202/428 with 'interval'.
-- Expired device code → 400/410.
-- Revoke token → subsequent API calls with that token get 401.
-- Token expiry (if configured) → 401 after time advance.
-- Scope check: route requiring 'core:write' rejects token with only 'core:read'.
-
-## Wire-up
-- Mount '/auth/cli' routes in 'src/index.ts' under the existing Express adapter.
-- Keep existing web session auth (cookies) unchanged; CLI uses only Bearer tokens.
+## Acceptance Checklist
+- 'packages/core/openapi/openapi.yaml' composes without unresolved $refs
+- 'pnpm oas:lint' and 'pnpm oas:validate' succeed
+- 'pnpm oas:bundle' emits 'packages/core/openapi/dist/openapi.json' and a copy at 'openapi/dist/openapi.json'
+- Running core: 'GET /openapi.json' returns the bundled JSON with correct 'info', 'servers', 'paths', and 'components'
+- At least these routes are present in 'paths/': health; auth (admin/recipient/cli); files; bundles; recipients; plugins; triggers; actions; pipelines; users; portal
+- No nested backticks or invalid YAML emitted in the split files

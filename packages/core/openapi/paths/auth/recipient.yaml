@@ -1,0 +1,64 @@
+recipient_start:
+  post:
+    summary: Start recipient OTP flow
+    tags: [Auth (Recipient)]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              recipientId:
+                type: string
+              bundleId:
+                type: string
+            required: [recipientId, bundleId]
+    responses:
+      '204':
+        description: OTP issued (dev logs only)
+      '404':
+        description: Recipient not assigned to bundle
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+
+recipient_verify:
+  post:
+    summary: Verify recipient OTP and establish session
+    tags: [Auth (Recipient)]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              recipientId:
+                type: string
+              bundleId:
+                type: string
+              otp:
+                type: string
+            required: [recipientId, bundleId, otp]
+    responses:
+      '204':
+        description: Session established via cookie
+      '401':
+        description: Invalid OTP
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
+
+recipient_logout:
+  post:
+    summary: Logout recipient session
+    tags: [Auth (Recipient)]
+    security:
+      - cookieRecipient: []
+    responses:
+      '204':
+        description: Logged out
+

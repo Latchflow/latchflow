@@ -1,0 +1,16 @@
+portal_info:
+  get:
+    summary: Portal info / banner
+    tags: [Portal]
+    responses:
+      '200':
+        description: Portal metadata
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+              required: [message]
+

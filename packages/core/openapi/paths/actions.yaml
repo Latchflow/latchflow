@@ -1,0 +1,18 @@
+actions_list:
+  get:
+    summary: List action definitions
+    tags: [Actions]
+    responses:
+      '200':
+        description: Actions
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ../components/schemas/ActionDefinition.yaml
+              required: [items]
+

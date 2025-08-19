@@ -1,0 +1,11 @@
+type: object
+properties:
+  name:
+    type: string
+  version:
+    type: string
+  capabilities:
+    type: array
+    items:
+      type: string
+required: [name, version, capabilities]

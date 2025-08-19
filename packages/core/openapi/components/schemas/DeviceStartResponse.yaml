@@ -1,0 +1,13 @@
+type: object
+properties:
+  device_code:
+    type: string
+  user_code:
+    type: string
+  verification_uri:
+    type: string
+  expires_in:
+    type: integer
+  interval:
+    type: integer
+required: [device_code, user_code, verification_uri, expires_in, interval]
