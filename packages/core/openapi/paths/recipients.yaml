@@ -75,6 +75,10 @@ bundle_recipients:
     security:
       - cookieAdmin: []
     parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
       - $ref: ../components/parameters/Limit.yaml
       - $ref: ../components/parameters/Cursor.yaml
     responses:
@@ -95,6 +99,11 @@ bundle_recipients:
     tags: [Recipients]
     security:
       - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
     requestBody:
       required: true
       content:
@@ -112,9 +121,38 @@ bundle_recipients:
     security:
       - cookieAdmin: []
     parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
       - in: query
         name: recipientId
         required: true
         schema: { type: string, format: uuid }
     responses:
       '204': { description: Detached }
+
+bundle_recipients_batch:
+  post:
+    summary: Attach multiple recipients to bundle
+    tags: [Recipients]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              recipientIds:
+                type: array
+                items: { type: string, format: uuid }
+            required: [recipientIds]
+    responses:
+      '204': { description: Attached }

@@ -1,0 +1,5 @@
+type: object
+properties:
+  bundleObject: { $ref: ./BundleObject.yaml }
+  file: { $ref: ./File.yaml }
+required: [bundleObject, file]

@@ -109,3 +109,59 @@ whoami:
           application/json:
             schema:
               $ref: ../../components/schemas/Error.yaml
+
+auth_sessions:
+  get:
+    summary: List active admin sessions for current user
+    tags: [Auth (Admin)]
+    security:
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Sessions
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      createdAt: { type: string, format: date-time }
+                      expiresAt: { type: string, format: date-time }
+                      lastSeenAt: { type: string, format: date-time, nullable: true }
+                      ip: { type: string, nullable: true }
+                      userAgent: { type: string, nullable: true }
+                    required: [id, createdAt, expiresAt]
+              required: [items]
+      '401':
+        description: Not authenticated
+        content:
+          application/json:
+            schema: { $ref: ../../components/schemas/Error.yaml }
+
+auth_sessions_revoke:
+  post:
+    summary: Revoke a specific admin session
+    tags: [Auth (Admin)]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              sessionId: { type: string, format: uuid }
+            required: [sessionId]
+    responses:
+      '204': { description: Revoked }
+      '401':
+        description: Not authenticated
+        content:
+          application/json:
+            schema: { $ref: ../../components/schemas/Error.yaml }

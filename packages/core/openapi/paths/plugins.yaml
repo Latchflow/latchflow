@@ -15,6 +15,7 @@ plugins:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/Plugin.yaml }
+                nextCursor: { type: string, nullable: true }
               required: [items]
 
 plugins_install:

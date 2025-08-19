@@ -1,222 +1,174 @@
-# PLAN.md — Patch OpenAPI Spec to Align With File-First Model & Admin/Portal/CLI Needs
+# PLAN.md — Patch OpenAPI Spec for Missing Admin, Portal, and Observability Endpoints (Spec-Only)
 
 ## Scope
-Only modify the OpenAPI (OAS) to match our API plan. Do NOT implement DB or server route code in this PR. The goal is to:
-- Represent files as first‑class objects independent of bundles.
-- Add missing endpoints for file CRUD, bundle–file join management, portal access, plugins/capabilities, and system endpoints.
-- Normalize schemas (Error, Page, ObjectMeta, File, BundleObject) and security across paths.
-- Split OAS into modular files and add a bundled artifact.
+Update only the OpenAPI (OAS) to cover the full MVP contract. Do NOT change DB or server code in this PR. The goal is to make the spec authoritative so frontends/CLI can proceed in parallel.
 
----
+## What to keep (already good)
+- Auth families (Admin magic-link, Recipient OTP, CLI device flow + API tokens)
+- Files as first‑class objects, independent of bundles
+- Bundles, Recipients, Plugins (list/install/uninstall), Health
+- Split-file OAS structure and bundling scripts
 
-## Tasks
+## Changes to make
 
-### 1) Restructure the spec into multiple files
-Create folder layout:
-- openapi/openapi.yaml                       # root orchestrator (3.1)
-- openapi/paths/
-  - health.yaml
-  - system.yaml                               # /openapi.json, /health/live, /health/ready
-  - auth/
-    - admin.yaml
-    - recipient.yaml
-    - cli.yaml
-  - files.yaml
-  - bundles.yaml
-  - bundle-objects.yaml                       # attach/detach/update listing
-  - recipients.yaml
-  - plugins.yaml
-  - capabilities.yaml
-  - triggers.yaml
-  - actions.yaml
-  - pipelines.yaml
-  - users.yaml
-  - portal.yaml
-- openapi/components/
-  - schemas/
-    - Error.yaml
-    - Page.yaml
-    - ObjectMeta.yaml
-    - File.yaml
-    - Bundle.yaml
-    - BundleObject.yaml
-    - Recipient.yaml
-    - Plugin.yaml
-    - Capability.yaml
-    - TriggerDefinition.yaml
-    - ActionDefinition.yaml
-    - TriggerAction.yaml
-    - User.yaml
-    - DeviceStartResponse.yaml
-    - DevicePollPending.yaml
-    - DevicePollSuccess.yaml
-  - parameters/
-    - Cursor.yaml
-    - Limit.yaml
-  - securitySchemes/
-    - cookieAdmin.yaml
-    - cookieRecipient.yaml
-    - bearer.yaml
+### 1) System & Observability
+Add new path file openapi/paths/system.yaml and wire in root:
+- GET /openapi.json — public; serves bundled JSON
+- GET /health/live — public; liveness
+- GET /health/ready — public; readiness (DB, queue, storage checks)
+Keep GET /health (summary { status, queue, storage }) as-is.
 
-Update openapi/openapi.yaml:
-- Keep info/servers/tags.
-- Replace inline paths/components with $ref entries pointing to the files above.
+### 2) Auth utilities (Admin & CLI)
+In openapi/paths/auth/admin.yaml:
+- GET /whoami — works with cookieAdmin OR bearer; returns { kind: "admin"|"cli", user, scopes? }
+- GET /auth/sessions — list the caller’s active admin sessions (metadata only; spec now, impl later)
+- POST /auth/sessions/revoke — body { sessionId }; 204
 
-### 2) Normalize security & conventions
-- Security schemes:
-  - cookieAdmin: apiKey in cookie lf_admin_sess
-  - cookieRecipient: apiKey in cookie lf_recipient_sess
-  - bearer: http bearer (opaque) — set bearerFormat to opaque and description to “CLI API token”
-- Conventions:
-  - Pagination params: cursor (string), limit (1..200, default 50)
-  - Pagination shape in responses: { items: T[], nextCursor?: string }
-  - Errors: { error: string, message?: string } for all 4xx/5xx responses
-  - All admin write operations require cookieAdmin
-  - CLI endpoints accept bearer; some may also allow cookieAdmin (e.g., listing tokens in the UI)
-  - Portal endpoints require cookieRecipient
+In openapi/paths/auth/cli.yaml:
+- POST /auth/cli/tokens — create a token with { name?, scopes?, ttlDays? }; returns masked preview + token once
+- POST /auth/cli/tokens/rotate — body { tokenId }; returns new token, old revoked
 
-### 3) Schemas — add/replace
-- Error.yaml
-  type: object; required: [error]; properties: error (string), message (string)
-- Page.yaml
-  type: object; required: [items]; properties: items (array, any), nextCursor (string, nullable)
-- ObjectMeta.yaml
-  type: object; required: [id, updatedAt]; properties: id (uuid), updatedAt (date-time), createdAt (date-time)
-- File.yaml  (first‑class file)
-  required: [id, key, size, contentType, updatedAt]
-  properties: id (uuid), key (string), size (integer), contentType (string), metadata (object<string,string>), etag (string), updatedAt (date-time)
-- Bundle.yaml
-  required: [id, name, ownerId, createdAt]; properties: id (uuid), name, description?, ownerId, createdAt (date-time)
-- BundleObject.yaml  (bundle–file join)
-  required: [id, bundleId, fileId]
-  properties: id (uuid), bundleId (uuid), fileId (uuid), path (string), sortOrder (integer), required (boolean), addedAt (date-time)
-- Recipient.yaml
-  required: [id, email]; properties: id (uuid), email (email), displayName?
-- Plugin.yaml
-  required: [id, name, version, capabilities]; properties: id (uuid), name, version, capabilities (Capability[])
-- Capability.yaml
-  required: [kind, key, displayName]; properties: kind (enum TRIGGER|ACTION), key (string), displayName (string), jsonSchema (object)
-- TriggerDefinition.yaml / ActionDefinition.yaml / TriggerAction.yaml / User.yaml
-  Align to earlier plan: include id/createdAt where applicable and use capabilityKey + config + enabled for definitions.
-- Device* schemas
-  Keep DeviceStartResponse / DevicePollPending / DevicePollSuccess; ensure token_type enum: bearer.
+Security notes in each op:
+- cookieAdmin for admin pages
+- bearer for CLI token endpoints (also allow cookieAdmin where we want UI to manage tokens)
 
-### 4) Paths — add/mutate to match the plan
-Keep existing paths that already match; otherwise replace/extend as below.
+### 3) Files (Admin) — fuller object management
+In openapi/paths/files.yaml:
+- GET /files — add query params:
+  - prefix (string)
+  - q (string; optional free-text over key/metadata)
+  - unassigned (boolean; files not referenced by any bundle) — spec only, impl later
+  Returns Page<File>
+- POST /files/upload — keep multipart upload; clarify 201 + ETag header
+- POST /files/upload-url — returns { url, fields?, headers?, expiresAt } for pre-signed large uploads (optional path; spec now)
+- GET /files/{id} — response schema = File
+- PATCH /files/{id}/metadata — body { metadata: object<string,string> } → 204
+- POST /files/{id}/move — body { newKey } → 204
+- POST /files/batch/delete — body { ids: string[] } → 204
+- POST /files/batch/move — body { items: { id, newKey }[] } → 204
+- DELETE /files/{id} — 204
+- GET /files/{id}/download — stream binary (admin)
 
-#### System
-- GET /openapi.json                      # public; serves bundled JSON (see tooling)
-- GET /health/live                       # public; liveness
-- GET /health/ready                      # public; readiness
-- GET /health                            # summary { status, queue, storage } (keep)
+### 4) Bundles (Admin)
+In openapi/paths/bundles.yaml:
+- GET /bundles — Page<Bundle>
+- POST /bundles — { name, description? } → 201
+- GET /bundles/{bundleId} — Bundle
+- PATCH /bundles/{bundleId} — { name?, description? } → 204
+- DELETE /bundles/{bundleId} — 204
+- GET /bundles/{bundleId}/objects — Page<BundleObjectWithFile>
+  - Define BundleObjectWithFile schema: { bundleObject: BundleObject, file: File }
 
-#### Auth (Admin)
-- POST /auth/admin/start                 # body { email }
-- GET  /auth/admin/callback?token=...    # 204 or 302; sets cookie
-- POST /auth/admin/logout
-- GET  /auth/me                          # returns { user, session }
-- GET  /whoami                           # unified identity (cookieAdmin or bearer): { kind: "admin"|"cli", user, scopes? }
+### 5) Bundle Objects (Admin) — attach/detach/update
+New file openapi/paths/bundle-objects.yaml:
+- POST /bundles/{bundleId}/objects — body accepts one or many:
+  - { fileId, path?, sortOrder?, required? } | { items: [...] }
+  → 201 with created objects
+- PATCH /bundles/{bundleId}/objects/{id} — { path?, sortOrder?, required? } → 204
+- DELETE /bundles/{bundleId}/objects/{id} → 204
 
-#### Auth (Recipient)
-- POST /auth/recipient/start             # body { recipientId, bundleId }
-- POST /auth/recipient/verify            # body { recipientId, bundleId, otp }
-- POST /auth/recipient/logout
+### 6) Recipients (Admin)
+In openapi/paths/recipients.yaml:
+- GET /recipients — Page<Recipient> with optional q
+- POST /recipients — { email, displayName? } → 201
+- GET /recipients/{recipientId} — Recipient
+- GET /bundles/{bundleId}/recipients — { recipients: Recipient[] }
+- POST /bundles/{bundleId}/recipients — { recipientId } → 204
+- DELETE /bundles/{bundleId}/recipients — query recipientId → 204
+- POST /bundles/{bundleId}/recipients/batch — { recipientIds: string[] } → 204
 
-#### Auth (CLI)
-- POST /auth/cli/device/start            # body { email, deviceName? } → DeviceStartResponse
-- POST /auth/cli/device/approve          # admin only; body { user_code }
-- POST /auth/cli/device/poll             # body { device_code } → Pending/Success
-- GET  /auth/cli/tokens                  # allow cookieAdmin or bearer
-- POST /auth/cli/tokens/revoke           # allow cookieAdmin or bearer; body { tokenId }
+### 7) Portal (Recipient)
+In openapi/paths/portal.yaml:
+- GET /portal/me — recipient identity + allowed bundles (array of { bundleId, name })
+- GET /portal/bundles — list accessible bundles (Page<Bundle>)
+- GET /portal/bundles/{bundleId}/objects — Page<File> limited to attached files
+- GET /portal/bundles/{bundleId} — download (stream) or 302 to signed URL
+- POST /portal/auth/otp/resend — rate-limited resend; 204
 
-#### Files (admin)
-- GET    /files                          # list with optional ?prefix=&unassigned=bool (paging)
-- POST   /files/upload                   # multipart: { key, file, contentType?, metadata? } → 201 + ETag header
-- GET    /files/{id}                     # metadata (File schema)
-- POST   /files/{id}/move                # body { newKey } → 204
-- DELETE /files/{id}                     # 204 (optionally require If-Match)
-- GET    /files/{id}/download            # stream (admin)
+### 8) Plugins & Capabilities (Admin)
+In openapi/paths/plugins.yaml (keep):
+- GET /plugins
+- POST /plugins/install — { source, verifySignature? } → 202
+- DELETE /plugins/{pluginId} → 204
+Add openapi/paths/capabilities.yaml:
+- GET /capabilities — { items: Capability[] } (merged registry; used to build forms)
+- Optional soon: POST /plugins/{pluginId}/enable and /disable (spec placeholders ok)
 
-#### Bundles (admin)
-- GET    /bundles                        # page
-- POST   /bundles                        # create { name, description? }
-- GET    /bundles/{bundleId}
-- PATCH  /bundles/{bundleId}             # update name/description
-- DELETE /bundles/{bundleId}
-- GET    /bundles/{bundleId}/objects     # list BundleObject + embedded file metadata (paged)
+### 9) Triggers / Actions / Pipelines (Admin)
+In openapi/paths/triggers.yaml and actions.yaml:
+- GET list, POST create, PATCH update, DELETE remove (already largely present; normalize shapes)
+In openapi/paths/pipelines.yaml:
+- GET /pipelines — Page<TriggerAction>
+- POST /pipelines — { triggerId, actionId, sortOrder, enabled? } → 201
+- PATCH /pipelines/{id} — { sortOrder?, enabled? } → 204
+- DELETE /pipelines/{id} → 204
+Optional stubs (commented in file): POST /triggers/{id}/test, POST /actions/{id}/test
 
-#### Bundle Objects (admin)
-- POST   /bundles/{bundleId}/objects     # attach one or many files: [{ fileId, path?, sortOrder?, required? }]
-- PATCH  /bundles/{bundleId}/objects/{id}# update path/sortOrder/required
-- DELETE /bundles/{bundleId}/objects/{id}
+### 10) Users (Admin)
+In openapi/paths/users.yaml:
+- GET /users — Page<User> with optional q
+- PATCH /users/{id}/roles — { roles: string[] } → 204
+- Optional: GET /users/{id} (spec only)
 
-#### Recipients (admin)
-- GET  /recipients                       # page, optional ?q=
-- POST /recipients                       # create { email, displayName? }
-- GET  /recipients/{recipientId}
-- GET  /bundles/{bundleId}/recipients
-- POST /bundles/{bundleId}/recipients    # attach { recipientId }
-- DELETE /bundles/{bundleId}/recipients  # detach via ?recipientId=
+### 11) Components — schemas/parameters/security
+Update or add schemas in openapi/components/schemas:
+- Error: { error, message? }
+- Page: { items: [], nextCursor?: string }
+- File: { id(uuid), key, size(int), contentType, metadata(object<string,string>), etag?, createdAt?, updatedAt }
+- ObjectMeta: keep if referenced elsewhere; prefer File for file endpoints
+- Bundle, Recipient, Plugin, Capability, TriggerDefinition, ActionDefinition, TriggerAction, User
+- BundleObject: { id, bundleId, fileId, path?, sortOrder?, required?, addedAt }
+- BundleObjectWithFile: { bundleObject: BundleObject, file: File }
+- DeviceStartResponse, DevicePollPending, DevicePollSuccess (ensure token_type enum includes bearer)
+Parameters:
+- Cursor (string), Limit (int 1..200 default 50)
+Security:
+- cookieAdmin (cookie lf_admin_sess), cookieRecipient (cookie lf_recipient_sess), bearer (http bearer, bearerFormat: opaque)
 
-#### Portal (recipient)
-- GET /portal/me
-- GET /portal/bundles
-- GET /portal/bundles/{bundleId}/objects
-- GET /portal/bundles/{bundleId}         # download (stream) or 302 to signed URL
+### 12) Error & security consistency
+- Ensure every 4xx/5xx uses components/schemas/Error
+- Each path declares the right security:
+  - Admin routes → cookieAdmin (and optionally bearer for CLI-manageable ops)
+  - CLI routes → bearer (also allow cookieAdmin where the UI manages tokens)
+  - Portal routes → cookieRecipient
+- Document 429 for rate-limited auth starts/verifies and device poll
 
-#### Plugins & Capabilities (admin)
-- GET  /plugins
-- POST /plugins/install                  # { source, verifySignature? } → 202
-- DELETE /plugins/{pluginId}
-- GET  /capabilities                     # merged trigger/action capability registry
+### 13) Root wiring
+In openapi/openapi.yaml:
+- Add tags: System, Capabilities, Bundle Objects
+- Reference new/updated path files with $ref fragments (anchors where used)
+- Reference all components via $ref
+- Keep servers / info as-is
 
-#### Triggers / Actions / Pipelines (admin)
-- GET  /triggers; POST /triggers
-- PATCH /triggers/{id}; DELETE /triggers/{id}
-- GET  /actions;  POST /actions
-- PATCH /actions/{id};  DELETE /actions/{id}
-- GET  /pipelines; POST /pipelines
-- PATCH /pipelines/{id}; DELETE /pipelines/{id}
+### 14) Tooling (already present; reaffirm)
+- oas:lint = redocly lint openapi/openapi.yaml
+- oas:validate = swagger-cli validate openapi/openapi.yaml
+- oas:bundle = redocly bundle openapi/openapi.yaml -o openapi/dist/openapi.json
+- oas:preview = redocly preview-docs openapi/openapi.yaml
 
-#### Users (admin)
-- GET  /users                            # page, optional ?q=
-- PATCH /users/{id}/roles                # { roles: string[] }
-
-### 5) Fix inconsistencies in the current spec
-- Change Files GET by id schema to use File (id, key, size, contentType, metadata?, etag?, updatedAt).
-- Ensure all list endpoints return Page shape: { items, nextCursor } (remove limit from response payload; it’s a param).
-- Set Limit.max to 200 (not 100).
-- Set bearer.securityScheme.bearerFormat to opaque (not JWT).
-- Ensure every 4xx/5xx references the shared Error schema.
-- Add security blocks to any paths missing them:
-  - Admin paths → cookieAdmin
-  - CLI token list/revoke → bearer or cookieAdmin
-  - Portal paths → cookieRecipient
-
-### 6) Tooling
-Add dev scripts at repo root to work with multi-file OAS:
-- oas:lint      → redocly lint openapi/openapi.yaml
-- oas:validate  → swagger-cli validate openapi/openapi.yaml
-- oas:bundle    → redocly bundle openapi/openapi.yaml -o openapi/dist/openapi.json
-- oas:preview   → redocly preview-docs openapi/openapi.yaml
-
-Do not add server code, but include a note in the PR description that /openapi.json will be served by core in a follow-up.
-
----
+No server/DB changes in this PR. Add a note in the PR description that routes will be implemented to match the new contract in subsequent PRs.
 
 ## Acceptance Criteria
+- Spec split remains valid; oas:validate and oas:lint pass without errors
+- oas:bundle produces openapi/dist/openapi.json
+- New endpoints appear with correct security blocks:
+  - System: /openapi.json, /health/live, /health/ready
+  - Auth utils: /whoami, /auth/sessions, /auth/sessions/revoke
+  - CLI token mgmt: /auth/cli/tokens (create), /auth/cli/tokens/rotate
+  - Files: list (prefix/q/unassigned), upload, upload-url, get, metadata patch, move, batch ops, delete, download
+  - Bundles: CRUD + /objects listing
+  - Bundle Objects: attach (single/batch), update, delete
+  - Recipients: CRUD + attach/detach/list per bundle (+ batch attach)
+  - Portal: me, bundles, bundle objects, download, otp/resend
+  - Plugins & Capabilities: list/install/uninstall + /capabilities
+  - Triggers/Actions/Pipelines: complete CRUD sets
+  - Users: list + patch roles
+- All list endpoints return Page shape { items, nextCursor }
+- All error responses use the shared Error schema
+- File schema is first‑class and used by file endpoints; Bundle membership handled via BundleObject endpoints
+- No DB/server code changes included
 
-- Spec is split into files as per layout; openapi/openapi.yaml uses $ref to include them.
-- oas:validate and oas:lint pass.
-- oas:bundle produces openapi/dist/openapi.json.
-- Security schemes are consistent and used across all paths.
-- Error responses use the shared Error schema.
-- Pagination on all list endpoints uses { items, nextCursor } and the shared Cursor/Limit params.
-- File model is first‑class (File schema) and bundle membership is expressed via BundleObject and dedicated endpoints.
-- New paths exist for: files CRUD, bundle objects attach/detach/update, portal listing/download, capabilities, whoami, health/live, health/ready, openapi.json.
-- No DB or server implementation changes are included in this PR (spec-only).
-
----
-
-## Notes to Reviewer
-This PR intentionally defines the contract ahead of implementation so admin‑ui, portal, and CLI can develop in parallel. A follow‑up PR will add database models and route handlers that conform to this spec.
+## Notes
+- Where behavior is “stream or 302”, document both responses; front-ends should handle either.
+- The unassigned filter for /files is spec’d now; implementation later may require an index.
+- Keep enums/strings broad enough (roles, scopes) to avoid breaking changes later.

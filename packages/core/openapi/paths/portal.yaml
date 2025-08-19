@@ -6,14 +6,21 @@ portal_me:
       - cookieRecipient: []
     responses:
       '200':
-        description: Recipient identity
+        description: Recipient identity and allowed bundles
         content:
           application/json:
             schema:
               type: object
               properties:
                 recipient: { $ref: ../components/schemas/Recipient.yaml }
-              required: [recipient]
+                bundles:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      bundleId: { type: string, format: uuid }
+                      name: { type: string }
+              required: [recipient, bundles]
 
 portal_bundles:
   get:
@@ -40,16 +47,20 @@ portal_bundles:
 
 portal_bundle_objects:
   get:
-    summary: List objects in a bundle (recipient view)
+    summary: List files in a bundle (recipient view)
     tags: [Portal]
     security:
       - cookieRecipient: []
     parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
       - $ref: ../components/parameters/Limit.yaml
       - $ref: ../components/parameters/Cursor.yaml
     responses:
       '200':
-        description: Bundle objects
+        description: Files in bundle
         content:
           application/json:
             schema:
@@ -58,12 +69,7 @@ portal_bundle_objects:
                 items:
                   type: array
                   items:
-                    allOf:
-                      - $ref: ../components/schemas/BundleObject.yaml
-                      - type: object
-                        properties:
-                          file:
-                            $ref: ../components/schemas/File.yaml
+                    $ref: ../components/schemas/File.yaml
                 nextCursor: { type: string, nullable: true }
               required: [items]
 
@@ -73,6 +79,11 @@ portal_bundle_download:
     tags: [Portal]
     security:
       - cookieRecipient: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
     responses:
       '200':
         description: Bundle archive
@@ -80,3 +91,25 @@ portal_bundle_download:
           application/octet-stream:
             schema: { type: string, format: binary }
       '302': { description: Redirect to signed URL }
+
+portal_otp_resend:
+  post:
+    summary: Resend recipient OTP
+    tags: [Portal]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              recipientId: { type: string, format: uuid }
+              bundleId: { type: string, format: uuid }
+            required: [recipientId, bundleId]
+    responses:
+      '204': { description: Sent }
+      '429':
+        description: Rate limited
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Error.yaml }

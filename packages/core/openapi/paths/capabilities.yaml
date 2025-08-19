@@ -15,5 +15,5 @@ capabilities:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/Capability.yaml }
+                nextCursor: { type: string, nullable: true }
               required: [items]
-

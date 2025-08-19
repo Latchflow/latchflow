@@ -5,6 +5,10 @@ bundle_objects_collection:
     security:
       - cookieAdmin: []
     parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
       - $ref: ../components/parameters/Limit.yaml
       - $ref: ../components/parameters/Cursor.yaml
     responses:
@@ -18,12 +22,7 @@ bundle_objects_collection:
                 items:
                   type: array
                   items:
-                    allOf:
-                      - $ref: ../components/schemas/BundleObject.yaml
-                      - type: object
-                        properties:
-                          file:
-                            $ref: ../components/schemas/File.yaml
+                    $ref: ../components/schemas/BundleObjectWithFile.yaml
                 nextCursor: { type: string, nullable: true }
               required: [items]
   post:
@@ -36,15 +35,29 @@ bundle_objects_collection:
       content:
         application/json:
           schema:
-            type: array
-            items:
-              type: object
-              properties:
-                fileId: { type: string, format: uuid }
-                path: { type: string }
-                sortOrder: { type: integer }
-                required: { type: boolean }
-              required: [fileId]
+            oneOf:
+              - type: array
+                items:
+                  type: object
+                  properties:
+                    fileId: { type: string, format: uuid }
+                    path: { type: string }
+                    sortOrder: { type: integer }
+                    required: { type: boolean }
+                  required: [fileId]
+              - type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fileId: { type: string, format: uuid }
+                        path: { type: string }
+                        sortOrder: { type: integer }
+                        required: { type: boolean }
+                      required: [fileId]
+                required: [items]
     responses:
       '201':
         description: Attached
@@ -57,6 +70,11 @@ bundle_objects_collection:
                   type: array
                   items: { $ref: ../components/schemas/BundleObject.yaml }
               required: [items]
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
 
 bundle_objects_item:
   patch:
@@ -64,6 +82,15 @@ bundle_objects_item:
     tags: ["Bundle Objects"]
     security:
       - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
     requestBody:
       required: true
       content:
@@ -81,6 +108,14 @@ bundle_objects_item:
     tags: ["Bundle Objects"]
     security:
       - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
     responses:
       '204': { description: Detached }
-

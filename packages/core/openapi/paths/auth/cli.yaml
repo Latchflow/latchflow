@@ -22,6 +22,11 @@ cli_device_start:
           application/json:
             schema:
               $ref: ../../components/schemas/DeviceStartResponse.yaml
+      '429':
+        description: Rate limited
+        content:
+          application/json:
+            schema: { $ref: ../../components/schemas/Error.yaml }
       '400':
         description: Invalid request
         content:
@@ -82,8 +87,13 @@ cli_device_poll:
           application/json:
             schema:
               $ref: ../../components/schemas/DevicePollPending.yaml
+      '429':
+        description: Slow down / rate limited
+        content:
+          application/json:
+            schema: { $ref: ../../components/schemas/Error.yaml }
 
-cli_tokens_list:
+cli_tokens:
   get:
     summary: List API tokens for current admin/executor
     tags: [Auth (CLI)]
@@ -109,6 +119,40 @@ cli_tokens_list:
           application/json:
             schema:
               $ref: ../../components/schemas/Error.yaml
+  post:
+    summary: Create a new API token
+    tags: [Auth (CLI)]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              scopes:
+                type: array
+                items: { type: string }
+              ttlDays: { type: integer }
+    responses:
+      '201':
+        description: Created; token is only returned once
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                id: { type: string, format: uuid }
+                name: { type: string }
+                scopes:
+                  type: array
+                  items: { type: string }
+                expiresAt: { type: string, format: date-time, nullable: true }
+              required: [token, id]
 
 cli_tokens_revoke:
   post:
@@ -136,3 +180,32 @@ cli_tokens_revoke:
           application/json:
             schema:
               $ref: ../../components/schemas/Error.yaml
+
+cli_tokens_rotate:
+  post:
+    summary: Rotate an API token
+    tags: [Auth (CLI)]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tokenId: { type: string, format: uuid }
+            required: [tokenId]
+    responses:
+      '201':
+        description: Rotated; new token returned once
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                id: { type: string, format: uuid }
+                expiresAt: { type: string, format: date-time, nullable: true }
+              required: [token, id]

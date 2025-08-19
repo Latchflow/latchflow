@@ -23,6 +23,12 @@ recipient_start:
           application/json:
             schema:
               $ref: ../../components/schemas/Error.yaml
+      '429':
+        description: Rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
 
 recipient_verify:
   post:
@@ -51,6 +57,12 @@ recipient_verify:
           application/json:
             schema:
               $ref: ../../components/schemas/Error.yaml
+      '429':
+        description: Rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml
 
 recipient_logout:
   post:
@@ -61,4 +73,3 @@ recipient_logout:
     responses:
       '204':
         description: Logged out
-

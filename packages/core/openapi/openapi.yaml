@@ -44,6 +44,10 @@ paths:
     $ref: ./paths/auth/admin.yaml#/auth_me
   /whoami:
     $ref: ./paths/auth/admin.yaml#/whoami
+  /auth/sessions:
+    $ref: ./paths/auth/admin.yaml#/auth_sessions
+  /auth/sessions/revoke:
+    $ref: ./paths/auth/admin.yaml#/auth_sessions_revoke
 
   /auth/recipient/start:
     $ref: ./paths/auth/recipient.yaml#/recipient_start
@@ -59,18 +63,28 @@ paths:
   /auth/cli/device/poll:
     $ref: ./paths/auth/cli.yaml#/cli_device_poll
   /auth/cli/tokens:
-    $ref: ./paths/auth/cli.yaml#/cli_tokens_list
+    $ref: ./paths/auth/cli.yaml#/cli_tokens
   /auth/cli/tokens/revoke:
     $ref: ./paths/auth/cli.yaml#/cli_tokens_revoke
+  /auth/cli/tokens/rotate:
+    $ref: ./paths/auth/cli.yaml#/cli_tokens_rotate
 
   /files:
     $ref: ./paths/files.yaml#/files_list
   /files/upload:
     $ref: ./paths/files.yaml#/files_upload
+  /files/upload-url:
+    $ref: ./paths/files.yaml#/files_upload_url
   /files/{id}:
     $ref: ./paths/files.yaml#/files_item
   /files/{id}/move:
     $ref: ./paths/files.yaml#/files_move
+  /files/{id}/metadata:
+    $ref: ./paths/files.yaml#/files_metadata
+  /files/batch/delete:
+    $ref: ./paths/files.yaml#/files_batch_delete
+  /files/batch/move:
+    $ref: ./paths/files.yaml#/files_batch_move
   /files/{id}/download:
     $ref: ./paths/files.yaml#/files_download
 
@@ -89,6 +103,8 @@ paths:
     $ref: ./paths/recipients.yaml#/recipients_item
   /bundles/{bundleId}/recipients:
     $ref: ./paths/recipients.yaml#/bundle_recipients
+  /bundles/{bundleId}/recipients/batch:
+    $ref: ./paths/recipients.yaml#/bundle_recipients_batch
 
   /portal/me:
     $ref: ./paths/portal.yaml#/portal_me
@@ -98,6 +114,8 @@ paths:
     $ref: ./paths/portal.yaml#/portal_bundle_objects
   /portal/bundles/{bundleId}:
     $ref: ./paths/portal.yaml#/portal_bundle_download
+  /portal/auth/otp/resend:
+    $ref: ./paths/portal.yaml#/portal_otp_resend
 
   /plugins:
     $ref: ./paths/plugins.yaml#/plugins
@@ -134,6 +152,7 @@ components:
     File: { $ref: ./components/schemas/File.yaml }
     Bundle: { $ref: ./components/schemas/Bundle.yaml }
     BundleObject: { $ref: ./components/schemas/BundleObject.yaml }
+    BundleObjectWithFile: { $ref: ./components/schemas/BundleObjectWithFile.yaml }
     Recipient: { $ref: ./components/schemas/Recipient.yaml }
     Plugin: { $ref: ./components/schemas/Plugin.yaml }
     Capability: { $ref: ./components/schemas/Capability.yaml }

@@ -34,6 +34,8 @@ pipelines_collection:
             properties:
               triggerId: { type: string, format: uuid }
               actionId: { type: string, format: uuid }
+              sortOrder: { type: integer }
+              enabled: { type: boolean }
             required: [triggerId, actionId]
     responses:
       '201':
@@ -60,8 +62,8 @@ pipelines_item:
           schema:
             type: object
             properties:
-              triggerId: { type: string, format: uuid }
-              actionId: { type: string, format: uuid }
+              sortOrder: { type: integer }
+              enabled: { type: boolean }
     responses:
       '204': { description: Updated }
   delete:
