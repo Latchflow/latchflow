@@ -2,6 +2,13 @@ import { describe, it, expect } from "vitest";
 import { registerCliAuthRoutes } from "../../src/routes/auth/cli.js";
 import type { HttpHandler } from "../../src/http/http-server.js";
 
+import { vi } from "vitest";
+vi.mock("../../src/db.js", () => ({
+  getDb: () => ({
+    deviceAuth: { findFirst: vi.fn(async () => null) },
+    apiToken: { findUnique: vi.fn(async () => null) },
+  }),
+}));
 describe("cli poll route", () => {
   it("returns 400 on invalid body", async () => {
     const handlers = new Map<string, HttpHandler>();

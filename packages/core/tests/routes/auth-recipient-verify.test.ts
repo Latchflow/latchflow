@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { registerRecipientAuthRoutes } from "../../src/routes/auth/recipient.js";
 import type { HttpHandler } from "../../src/http/http-server.js";
 
+import { vi } from "vitest";
+vi.mock("../../src/db.js", () => ({ getDb: () => ({ recipientOtp: {}, recipientSession: {} }) }));
 describe("recipient verify route", () => {
   it("returns 400 on invalid body", async () => {
     const handlers = new Map<string, HttpHandler>();

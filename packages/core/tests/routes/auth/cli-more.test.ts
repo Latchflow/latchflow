@@ -106,7 +106,7 @@ describe("cli auth more", () => {
   });
 
   it("poll returns INVALID_CODE, EXPIRED, REVOKED, UNAVAILABLE branches", async () => {
-    const { __state } = await import("../../../src/db.js");
+    const { __state } = (await import("../../../src/db.js")) as any;
     const makeServer = () => {
       const handlers = new Map<string, HttpHandler>();
       const server = {

@@ -25,6 +25,10 @@ describe("validate helper", () => {
       json(payload: unknown) {
         json = payload;
       },
+      header() {
+        return this;
+      },
+      redirect() {},
     };
     await wrapped(req, res);
     expect(handler).toHaveBeenCalledOnce();
