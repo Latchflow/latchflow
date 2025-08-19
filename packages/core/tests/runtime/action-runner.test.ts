@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { startActionConsumer } from "../src/runtime/action-runner.js";
-import { createMemoryQueue } from "../src/queue/memory-queue.js";
+import { startActionConsumer } from "../../src/runtime/action-runner.js";
+import { createMemoryQueue } from "../../src/queue/memory-queue.js";
 
-vi.mock("../src/db.js", () => {
+vi.mock("../../src/db.js", () => {
   const created: unknown[] = [];
   const updated: unknown[] = [];
   return {
@@ -42,8 +42,6 @@ describe("action-runner", () => {
     });
     await queue.enqueueAction({ actionDefinitionId: "A", triggerEventId: "T" });
     await new Promise((r) => setTimeout(r, 10));
-    // No assertion of DB calls directly here because of local mock scoping,
-    // but absence of throw and completion indicates flow executed.
     expect(true).toBe(true);
   });
 });

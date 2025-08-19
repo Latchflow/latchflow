@@ -56,12 +56,16 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   name                String?
-  role                UserRole
+  roles               UserRole[]
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   TriggerDefinition   TriggerDefinition[]
   ActionInvocation    ActionInvocation[]
+  Session             Session[]
+  MagicLink           MagicLink[]
+  ApiToken            ApiToken[]
+  DeviceAuth          DeviceAuth[]
 }
 
 model Recipient {
@@ -232,4 +236,94 @@ model ExecutorPermission {
   isActive                Boolean            @default(true)
   activatedAfterTrigger   TriggerDefinition? @relation(fields: [activatedAfterTriggerId], references: [id])
   activatedAfterTriggerId String?
+}
+
+///////////////////////////
+// AUTH MODELS
+///////////////////////////
+
+model Session {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jti       String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+
+  @@index([userId, expiresAt])
+}
+
+model MagicLink {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+}
+
+model RecipientSession {
+  id          String    @id @default(uuid())
+  recipientId String
+  bundleId    String
+  jti         String    @unique
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  ip          String?
+  userAgent   String?
+
+  @@index([recipientId, bundleId])
+}
+
+model RecipientOtp {
+  id          String   @id @default(uuid())
+  recipientId String
+  bundleId    String
+  codeHash    String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+
+  @@index([recipientId, bundleId])
+}
+
+///////////////////////////
+// CLI AUTH MODELS
+///////////////////////////
+
+model ApiToken {
+  id         String       @id @default(uuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  scopes     String[]
+  tokenHash  String       @unique
+  createdAt  DateTime     @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  DeviceAuth DeviceAuth[]
+
+  @@index([userId])
+}
+
+model DeviceAuth {
+  id             String    @id @default(uuid())
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email          String
+  deviceName     String?
+  deviceCodeHash String    @unique
+  userCodeHash   String    @unique
+  intervalSec    Int       @default(5)
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  approvedAt     DateTime?
+  tokenId        String?
+  token          ApiToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
 }

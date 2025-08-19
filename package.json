@@ -16,7 +16,9 @@
     "db:build": "pnpm run env:load pnpm -F @latchflow/db build",
     "db:migrate": "pnpm run env:load pnpm -F @latchflow/db migrate",
     "db:generate": "pnpm run env:load pnpm -F @latchflow/db generate",
-    "core:dev": "pnpm run env:load pnpm -F @latchflow/db build && pnpm run env:load pnpm -F @latchflow/core dev"
+    "core:dev": "pnpm run env:load pnpm -F @latchflow/db build && pnpm run env:load pnpm -F @latchflow/core dev",
+    "core:test": "pnpm -F @latchflow/core exec vitest",
+    "core:test:coverage": "pnpm -F @latchflow/core exec vitest --coverage"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",
@@ -25,12 +27,19 @@
     "@swc/core": "^1.13.3",
     "@typescript-eslint/eslint-plugin": "^7.6.0",
     "@typescript-eslint/parser": "^7.6.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^8.0.0",
     "husky": "^9.0.0",
     "lint-staged": "^15.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
+    "vitest": "^2.1.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "vitest": "^2.1.9",
+      "@vitest/coverage-v8": "^2.1.9"
+    }
   },
   "lint-staged": {
     "*.{ts,js,tsx,jsx}": [

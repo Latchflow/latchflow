@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { loadQueue } from "../src/queue/loader.js";
+import { loadQueue } from "../../src/queue/loader.js";
 
 describe("queue loader", () => {
   it("loads memory queue by default", async () => {

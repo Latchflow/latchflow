@@ -31,6 +31,14 @@ export function createExpressServer(): HttpServer {
   app.use(errorHandler);
 
   const wrap = (h: HttpHandler) => (req: Request, res: Response, next: NextFunction) => {
+    const reqAdapter: RequestLike = {
+      params: req.params,
+      query: req.query as unknown,
+      body: req.body as unknown,
+      headers: req.headers,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"] as string | undefined,
+    };
     const resAdapter: ResponseLike = {
       status(code: number) {
         res.status(code);
@@ -39,8 +47,17 @@ export function createExpressServer(): HttpServer {
       json(payload: unknown) {
         res.json(payload);
       },
+      header(name: string, value: string | string[]) {
+        // Express allows string[] for 'Set-Cookie'
+        (res as Response).setHeader(name, value as unknown as string | readonly string[]);
+        return this;
+      },
+      redirect(url: string, status?: number) {
+        if (status) res.redirect(status, url);
+        else res.redirect(url);
+      },
     };
-    Promise.resolve(h(req as unknown as RequestLike, resAdapter)).catch(next);
+    Promise.resolve(h(reqAdapter, resAdapter)).catch(next);
   };
   return {
     get: (p, h) => app.get(p, wrap(h)),

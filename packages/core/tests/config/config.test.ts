@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { loadConfig } from "../src/config.js";
+import { loadConfig } from "../../src/config.js";
 
 describe("config loader", () => {
   it("parses required and defaults", () => {
     const cfg = loadConfig({
       DATABASE_URL: "postgres://user:pass@localhost:5432/db",
-      // omit PORT to use default 3001
       PLUGINS_PATH: "packages/plugins",
       QUEUE_DRIVER: "memory",
     } as unknown as NodeJS.ProcessEnv);
