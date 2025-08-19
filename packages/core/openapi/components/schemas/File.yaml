@@ -1,0 +1,13 @@
+type: object
+properties:
+  id: { type: string, format: uuid }
+  key: { type: string }
+  size: { type: integer }
+  contentType: { type: string }
+  metadata:
+    type: object
+    additionalProperties:
+      type: string
+  etag: { type: string }
+  updatedAt: { type: string, format: date-time }
+required: [id, key, size, contentType, updatedAt]

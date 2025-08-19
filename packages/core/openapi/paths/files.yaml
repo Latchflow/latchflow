@@ -1,30 +1,138 @@
-files_get:
+files_list:
   get:
-    summary: Get file metadata by id
+    summary: List files
     tags: [Files]
+    security:
+      - cookieAdmin: []
     parameters:
-      - in: path
-        name: fileId
-        required: true
-        schema:
-          type: string
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: prefix
+        schema: { type: string }
+      - in: query
+        name: unassigned
+        schema: { type: boolean }
     responses:
       '200':
-        description: File metadata
+        description: Files page
         content:
           application/json:
             schema:
               type: object
               properties:
-                id: { type: string }
-                name: { type: string }
-                size: { type: integer }
-                contentType: { type: string }
-              required: [id, name, size]
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/File.yaml }
+                nextCursor: { type: string, nullable: true }
+              required: [items]
+
+files_upload:
+  post:
+    summary: Upload file
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              key: { type: string }
+              file:
+                type: string
+                format: binary
+              contentType: { type: string }
+              metadata:
+                type: object
+                additionalProperties: { type: string }
+            required: [file]
+    responses:
+      '201':
+        description: Created
+        headers:
+          ETag:
+            schema: { type: string }
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/File.yaml }
+
+files_item:
+  get:
+    summary: Get file by id
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: File
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/File.yaml }
       '404':
         description: Not found
         content:
           application/json:
-            schema:
-              $ref: ../components/schemas/Error.yaml
+            schema: { $ref: ../components/schemas/Error.yaml }
+  delete:
+    summary: Delete file
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
 
+files_move:
+  post:
+    summary: Move/rename file key
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              newKey: { type: string }
+            required: [newKey]
+    responses:
+      '204': { description: Moved }
+
+files_download:
+  get:
+    summary: Download file
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: File stream
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary

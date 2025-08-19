@@ -79,3 +79,33 @@ auth_me:
             schema:
               $ref: ../../components/schemas/Error.yaml
 
+whoami:
+  get:
+    summary: Identify current principal (admin or cli)
+    tags: [Auth (Admin)]
+    security:
+      - cookieAdmin: []
+      - bearer: []
+    responses:
+      '200':
+        description: Identity
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum: [admin, cli]
+                user:
+                  $ref: ../../components/schemas/User.yaml
+                scopes:
+                  type: array
+                  items:
+                    type: string
+      '401':
+        description: Not authenticated
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/Error.yaml

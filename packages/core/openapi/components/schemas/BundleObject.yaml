@@ -1,0 +1,10 @@
+type: object
+properties:
+  id: { type: string, format: uuid }
+  bundleId: { type: string, format: uuid }
+  fileId: { type: string, format: uuid }
+  path: { type: string }
+  sortOrder: { type: integer }
+  required: { type: boolean }
+  addedAt: { type: string, format: date-time }
+required: [id, bundleId, fileId]

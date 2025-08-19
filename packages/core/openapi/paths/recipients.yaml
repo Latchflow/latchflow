@@ -1,47 +1,120 @@
-recipients_list:
+recipients_collection:
   get:
     summary: List recipients
     tags: [Recipients]
+    security:
+      - cookieAdmin: []
     parameters:
       - $ref: ../components/parameters/Limit.yaml
       - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: q
+        schema: { type: string }
     responses:
       '200':
         description: Recipients page
         content:
           application/json:
             schema:
-              allOf:
-                - $ref: ../components/schemas/Page.yaml
-                - type: object
-                  properties:
-                    items:
-                      type: array
-                      items:
-                        $ref: ../components/schemas/Recipient.yaml
-                  required: [items]
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Recipient.yaml }
+                nextCursor: { type: string, nullable: true }
+              required: [items]
+  post:
+    summary: Create recipient
+    tags: [Recipients]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              email: { type: string, format: email }
+              displayName: { type: string }
+            required: [email]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Recipient.yaml }
 
-recipients_get:
+recipients_item:
   get:
     summary: Get recipient by id
     tags: [Recipients]
+    security:
+      - cookieAdmin: []
     parameters:
       - in: path
         name: recipientId
         required: true
-        schema:
-          type: string
+        schema: { type: string, format: uuid }
     responses:
       '200':
         description: Recipient
         content:
           application/json:
-            schema:
-              $ref: ../components/schemas/Recipient.yaml
+            schema: { $ref: ../components/schemas/Recipient.yaml }
       '404':
         description: Not found
         content:
           application/json:
-            schema:
-              $ref: ../components/schemas/Error.yaml
+            schema: { $ref: ../components/schemas/Error.yaml }
 
+bundle_recipients:
+  get:
+    summary: List recipients assigned to a bundle
+    tags: [Recipients]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundle recipients page
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Recipient.yaml }
+                nextCursor: { type: string, nullable: true }
+              required: [items]
+  post:
+    summary: Attach recipient to bundle
+    tags: [Recipients]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              recipientId: { type: string, format: uuid }
+            required: [recipientId]
+    responses:
+      '204': { description: Attached }
+  delete:
+    summary: Detach recipient from bundle
+    tags: [Recipients]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: query
+        name: recipientId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Detached }

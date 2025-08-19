@@ -1,9 +1,15 @@
-users_list:
+users_collection:
   get:
     summary: List users/executors
     tags: [Executors/Users]
     security:
       - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: q
+        schema: { type: string }
     responses:
       '200':
         description: Users
@@ -14,7 +20,31 @@ users_list:
               properties:
                 items:
                   type: array
-                  items:
-                    $ref: ../components/schemas/User.yaml
+                  items: { $ref: ../components/schemas/User.yaml }
+                nextCursor: { type: string, nullable: true }
               required: [items]
 
+users_roles:
+  patch:
+    summary: Update user roles
+    tags: [Executors/Users]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              roles:
+                type: array
+                items: { type: string }
+            required: [roles]
+    responses:
+      '204': { description: Updated }

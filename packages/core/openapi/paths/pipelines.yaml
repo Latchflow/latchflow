@@ -1,7 +1,12 @@
-pipelines_list:
+pipelines_collection:
   get:
     summary: List trigger→action pipelines
     tags: [Pipelines]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
     responses:
       '200':
         description: Pipelines
@@ -12,7 +17,62 @@ pipelines_list:
               properties:
                 items:
                   type: array
-                  items:
-                    $ref: ../components/schemas/TriggerAction.yaml
+                  items: { $ref: ../components/schemas/TriggerAction.yaml }
+                nextCursor: { type: string, nullable: true }
               required: [items]
+  post:
+    summary: Create pipeline
+    tags: [Pipelines]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              triggerId: { type: string, format: uuid }
+              actionId: { type: string, format: uuid }
+            required: [triggerId, actionId]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/TriggerAction.yaml }
 
+pipelines_item:
+  patch:
+    summary: Update pipeline
+    tags: [Pipelines]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              triggerId: { type: string, format: uuid }
+              actionId: { type: string, format: uuid }
+    responses:
+      '204': { description: Updated }
+  delete:
+    summary: Delete pipeline
+    tags: [Pipelines]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }

@@ -1,11 +1,6 @@
-allOf:
-  - $ref: ./ObjectMeta.yaml
-  - type: object
-    properties:
-      email:
-        type: string
-        format: email
-      name:
-        type: string
-        nullable: true
-    required: [email]
+type: object
+properties:
+  id: { type: string, format: uuid }
+  email: { type: string, format: email }
+  displayName: { type: string, nullable: true }
+required: [id, email]

@@ -1,10 +1,7 @@
 type: object
 properties:
-  status:
-    type: string
-    enum: [error]
-  code:
+  error:
     type: string
   message:
     type: string
-required: [status, code, message]
+required: [error]

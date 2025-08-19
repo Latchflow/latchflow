@@ -1,4 +1,4 @@
 type: http
 scheme: bearer
-bearerFormat: JWT
+bearerFormat: opaque
 description: Bearer token (CLI API token)

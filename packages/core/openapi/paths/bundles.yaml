@@ -1,7 +1,9 @@
-bundles_list:
+bundles_collection:
   get:
     summary: List bundles
     tags: [Bundles]
+    security:
+      - cookieAdmin: []
     parameters:
       - $ref: ../components/parameters/Limit.yaml
       - $ref: ../components/parameters/Cursor.yaml
@@ -11,37 +13,87 @@ bundles_list:
         content:
           application/json:
             schema:
-              allOf:
-                - $ref: ../components/schemas/Page.yaml
-                - type: object
-                  properties:
-                    items:
-                      type: array
-                      items:
-                        $ref: ../components/schemas/Bundle.yaml
-                  required: [items]
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Bundle.yaml }
+                nextCursor: { type: string, nullable: true }
+              required: [items]
+  post:
+    summary: Create bundle
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              description: { type: string }
+            required: [name]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Bundle.yaml }
 
-bundles_get:
+bundles_item:
   get:
     summary: Get bundle by id
     tags: [Bundles]
+    security:
+      - cookieAdmin: []
     parameters:
       - in: path
         name: bundleId
         required: true
-        schema:
-          type: string
+        schema: { type: string, format: uuid }
     responses:
       '200':
         description: Bundle
         content:
           application/json:
-            schema:
-              $ref: ../components/schemas/Bundle.yaml
+            schema: { $ref: ../components/schemas/Bundle.yaml }
       '404':
         description: Not found
         content:
           application/json:
-            schema:
-              $ref: ../components/schemas/Error.yaml
-
+            schema: { $ref: ../components/schemas/Error.yaml }
+  patch:
+    summary: Update bundle
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              description: { type: string }
+    responses:
+      '204': { description: Updated }
+  delete:
+    summary: Delete bundle
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }

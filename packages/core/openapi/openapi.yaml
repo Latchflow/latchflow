@@ -2,28 +2,35 @@ openapi: 3.1.0
 info:
   title: Latchflow Core API
   version: 0.2.0
-  description: >-
-    Trigger-gated secure file release system. Core HTTP API used by admin UI, recipient portal, and CLI.
+  description: Core HTTP API for admin UI, recipient portal, and CLI.
 servers:
   - url: http://localhost:3001
     description: Local development
 tags:
+  - name: System
   - name: Health
   - name: Auth (Admin)
   - name: Auth (Recipient)
   - name: Auth (CLI)
   - name: Files
   - name: Bundles
+  - name: Bundle Objects
   - name: Recipients
   - name: Plugins
+  - name: Capabilities
   - name: Triggers
   - name: Actions
   - name: Pipelines
   - name: Executors/Users
   - name: Portal
-  - name: Config
   - name: Audit
 paths:
+  /openapi.json:
+    $ref: ./paths/system.yaml#/openapi_json
+  /health/live:
+    $ref: ./paths/system.yaml#/health_live
+  /health/ready:
+    $ref: ./paths/system.yaml#/health_ready
   /health:
     $ref: ./paths/health.yaml#/health
 
@@ -35,6 +42,8 @@ paths:
     $ref: ./paths/auth/admin.yaml#/admin_logout
   /auth/me:
     $ref: ./paths/auth/admin.yaml#/auth_me
+  /whoami:
+    $ref: ./paths/auth/admin.yaml#/whoami
 
   /auth/recipient/start:
     $ref: ./paths/auth/recipient.yaml#/recipient_start
@@ -54,70 +63,91 @@ paths:
   /auth/cli/tokens/revoke:
     $ref: ./paths/auth/cli.yaml#/cli_tokens_revoke
 
+  /files:
+    $ref: ./paths/files.yaml#/files_list
+  /files/upload:
+    $ref: ./paths/files.yaml#/files_upload
+  /files/{id}:
+    $ref: ./paths/files.yaml#/files_item
+  /files/{id}/move:
+    $ref: ./paths/files.yaml#/files_move
+  /files/{id}/download:
+    $ref: ./paths/files.yaml#/files_download
+
   /bundles:
-    $ref: ./paths/bundles.yaml#/bundles_list
+    $ref: ./paths/bundles.yaml#/bundles_collection
   /bundles/{bundleId}:
-    $ref: ./paths/bundles.yaml#/bundles_get
+    $ref: ./paths/bundles.yaml#/bundles_item
+  /bundles/{bundleId}/objects:
+    $ref: ./paths/bundle-objects.yaml#/bundle_objects_collection
+  /bundles/{bundleId}/objects/{id}:
+    $ref: ./paths/bundle-objects.yaml#/bundle_objects_item
 
   /recipients:
-    $ref: ./paths/recipients.yaml#/recipients_list
+    $ref: ./paths/recipients.yaml#/recipients_collection
   /recipients/{recipientId}:
-    $ref: ./paths/recipients.yaml#/recipients_get
+    $ref: ./paths/recipients.yaml#/recipients_item
+  /bundles/{bundleId}/recipients:
+    $ref: ./paths/recipients.yaml#/bundle_recipients
 
-  /files/{fileId}:
-    $ref: ./paths/files.yaml#/files_get
+  /portal/me:
+    $ref: ./paths/portal.yaml#/portal_me
+  /portal/bundles:
+    $ref: ./paths/portal.yaml#/portal_bundles
+  /portal/bundles/{bundleId}/objects:
+    $ref: ./paths/portal.yaml#/portal_bundle_objects
+  /portal/bundles/{bundleId}:
+    $ref: ./paths/portal.yaml#/portal_bundle_download
 
   /plugins:
-    $ref: ./paths/plugins.yaml#/plugins_list
+    $ref: ./paths/plugins.yaml#/plugins
+  /plugins/{pluginId}:
+    $ref: ./paths/plugins.yaml#/plugins_item
+  /plugins/install:
+    $ref: ./paths/plugins.yaml#/plugins_install
+  /capabilities:
+    $ref: ./paths/capabilities.yaml#/capabilities
+
   /triggers:
-    $ref: ./paths/triggers.yaml#/triggers_list
+    $ref: ./paths/triggers.yaml#/triggers_collection
+  /triggers/{id}:
+    $ref: ./paths/triggers.yaml#/triggers_item
   /actions:
-    $ref: ./paths/actions.yaml#/actions_list
+    $ref: ./paths/actions.yaml#/actions_collection
+  /actions/{id}:
+    $ref: ./paths/actions.yaml#/actions_item
   /pipelines:
-    $ref: ./paths/pipelines.yaml#/pipelines_list
+    $ref: ./paths/pipelines.yaml#/pipelines_collection
+  /pipelines/{id}:
+    $ref: ./paths/pipelines.yaml#/pipelines_item
+
   /users:
-    $ref: ./paths/users.yaml#/users_list
-  /portal/info:
-    $ref: ./paths/portal.yaml#/portal_info
+    $ref: ./paths/users.yaml#/users_collection
+  /users/{id}/roles:
+    $ref: ./paths/users.yaml#/users_roles
 
 components:
   schemas:
-    Error:
-      $ref: ./components/schemas/Error.yaml
-    Page:
-      $ref: ./components/schemas/Page.yaml
-    ObjectMeta:
-      $ref: ./components/schemas/ObjectMeta.yaml
-    Bundle:
-      $ref: ./components/schemas/Bundle.yaml
-    Recipient:
-      $ref: ./components/schemas/Recipient.yaml
-    Plugin:
-      $ref: ./components/schemas/Plugin.yaml
-    TriggerDefinition:
-      $ref: ./components/schemas/TriggerDefinition.yaml
-    ActionDefinition:
-      $ref: ./components/schemas/ActionDefinition.yaml
-    TriggerAction:
-      $ref: ./components/schemas/TriggerAction.yaml
-    User:
-      $ref: ./components/schemas/User.yaml
-    DeviceStartResponse:
-      $ref: ./components/schemas/DeviceStartResponse.yaml
-    DevicePollPending:
-      $ref: ./components/schemas/DevicePollPending.yaml
-    DevicePollSuccess:
-      $ref: ./components/schemas/DevicePollSuccess.yaml
+    Error: { $ref: ./components/schemas/Error.yaml }
+    Page: { $ref: ./components/schemas/Page.yaml }
+    ObjectMeta: { $ref: ./components/schemas/ObjectMeta.yaml }
+    File: { $ref: ./components/schemas/File.yaml }
+    Bundle: { $ref: ./components/schemas/Bundle.yaml }
+    BundleObject: { $ref: ./components/schemas/BundleObject.yaml }
+    Recipient: { $ref: ./components/schemas/Recipient.yaml }
+    Plugin: { $ref: ./components/schemas/Plugin.yaml }
+    Capability: { $ref: ./components/schemas/Capability.yaml }
+    TriggerDefinition: { $ref: ./components/schemas/TriggerDefinition.yaml }
+    ActionDefinition: { $ref: ./components/schemas/ActionDefinition.yaml }
+    TriggerAction: { $ref: ./components/schemas/TriggerAction.yaml }
+    User: { $ref: ./components/schemas/User.yaml }
+    DeviceStartResponse: { $ref: ./components/schemas/DeviceStartResponse.yaml }
+    DevicePollPending: { $ref: ./components/schemas/DevicePollPending.yaml }
+    DevicePollSuccess: { $ref: ./components/schemas/DevicePollSuccess.yaml }
   parameters:
-    Cursor:
-      $ref: ./components/parameters/Cursor.yaml
-    Limit:
-      $ref: ./components/parameters/Limit.yaml
+    Cursor: { $ref: ./components/parameters/Cursor.yaml }
+    Limit: { $ref: ./components/parameters/Limit.yaml }
   securitySchemes:
-    cookieAdmin:
-      $ref: ./components/securitySchemes/cookieAdmin.yaml
-    cookieRecipient:
-      $ref: ./components/securitySchemes/cookieRecipient.yaml
-    bearer:
-      $ref: ./components/securitySchemes/bearer.yaml
-
+    cookieAdmin: { $ref: ./components/securitySchemes/cookieAdmin.yaml }
+    cookieRecipient: { $ref: ./components/securitySchemes/cookieRecipient.yaml }
+    bearer: { $ref: ./components/securitySchemes/bearer.yaml }

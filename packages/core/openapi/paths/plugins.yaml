@@ -1,7 +1,9 @@
-plugins_list:
+plugins:
   get:
-    summary: List registered plugins and capabilities
+    summary: List registered plugins
     tags: [Plugins]
+    security:
+      - cookieAdmin: []
     responses:
       '200':
         description: Plugins
@@ -12,7 +14,38 @@ plugins_list:
               properties:
                 items:
                   type: array
-                  items:
-                    $ref: ../components/schemas/Plugin.yaml
+                  items: { $ref: ../components/schemas/Plugin.yaml }
               required: [items]
 
+plugins_install:
+  post:
+    summary: Install plugin
+    tags: [Plugins]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              source: { type: string }
+              verifySignature: { type: boolean }
+            required: [source]
+    responses:
+      '202': { description: Installing }
+
+plugins_item:
+  delete:
+    summary: Uninstall plugin
+    tags: [Plugins]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pluginId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Removed }

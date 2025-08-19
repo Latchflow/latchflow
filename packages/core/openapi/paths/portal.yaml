@@ -1,16 +1,82 @@
-portal_info:
+portal_me:
   get:
-    summary: Portal info / banner
+    summary: Get current recipient info
     tags: [Portal]
+    security:
+      - cookieRecipient: []
     responses:
       '200':
-        description: Portal metadata
+        description: Recipient identity
         content:
           application/json:
             schema:
               type: object
               properties:
-                message:
-                  type: string
-              required: [message]
+                recipient: { $ref: ../components/schemas/Recipient.yaml }
+              required: [recipient]
 
+portal_bundles:
+  get:
+    summary: List bundles available to the recipient
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundles page
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Bundle.yaml }
+                nextCursor: { type: string, nullable: true }
+              required: [items]
+
+portal_bundle_objects:
+  get:
+    summary: List objects in a bundle (recipient view)
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundle objects
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    allOf:
+                      - $ref: ../components/schemas/BundleObject.yaml
+                      - type: object
+                        properties:
+                          file:
+                            $ref: ../components/schemas/File.yaml
+                nextCursor: { type: string, nullable: true }
+              required: [items]
+
+portal_bundle_download:
+  get:
+    summary: Download bundle (stream or redirect)
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    responses:
+      '200':
+        description: Bundle archive
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      '302': { description: Redirect to signed URL }

@@ -1,0 +1,32 @@
+openapi_json:
+  get:
+    summary: Bundled OpenAPI document
+    tags: [System]
+    responses:
+      '200':
+        description: OpenAPI JSON
+        content:
+          application/json:
+            schema:
+              type: object
+      '404':
+        description: Not bundled
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/Error.yaml
+
+health_live:
+  get:
+    summary: Liveness probe
+    tags: [Health]
+    responses:
+      '200': { description: Alive }
+
+health_ready:
+  get:
+    summary: Readiness probe
+    tags: [Health]
+    responses:
+      '200': { description: Ready }
+

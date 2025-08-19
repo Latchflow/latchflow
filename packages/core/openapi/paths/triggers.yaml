@@ -1,7 +1,12 @@
-triggers_list:
+triggers_collection:
   get:
     summary: List trigger definitions
     tags: [Triggers]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
     responses:
       '200':
         description: Triggers
@@ -12,7 +17,63 @@ triggers_list:
               properties:
                 items:
                   type: array
-                  items:
-                    $ref: ../components/schemas/TriggerDefinition.yaml
+                  items: { $ref: ../components/schemas/TriggerDefinition.yaml }
+                nextCursor: { type: string, nullable: true }
               required: [items]
+  post:
+    summary: Create trigger definition
+    tags: [Triggers]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              capabilityKey: { type: string }
+              config: { type: object }
+              enabled: { type: boolean }
+            required: [capabilityKey, config]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/TriggerDefinition.yaml }
 
+triggers_item:
+  patch:
+    summary: Update trigger definition
+    tags: [Triggers]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              config: { type: object }
+              enabled: { type: boolean }
+    responses:
+      '204': { description: Updated }
+  delete:
+    summary: Delete trigger definition
+    tags: [Triggers]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }

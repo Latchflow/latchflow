@@ -1,139 +1,222 @@
-# PLAN.md — Multi‑file OpenAPI (OAS) for Core API
+# PLAN.md — Patch OpenAPI Spec to Align With File-First Model & Admin/Portal/CLI Needs
 
-## Objective
-Create a multi‑file OpenAPI 3.1 spec for `packages/core`, split by paths/components, wired with `$ref`s, with tooling to lint/preview/bundle, and a route to serve the bundled JSON from the running core service.
+## Scope
+Only modify the OpenAPI (OAS) to match our API plan. Do NOT implement DB or server route code in this PR. The goal is to:
+- Represent files as first‑class objects independent of bundles.
+- Add missing endpoints for file CRUD, bundle–file join management, portal access, plugins/capabilities, and system endpoints.
+- Normalize schemas (Error, Page, ObjectMeta, File, BundleObject) and security across paths.
+- Split OAS into modular files and add a bundled artifact.
 
-## Deliverables
-- Directory scaffold under `packages/core/openapi/`:
-  - `openapi.yaml` (root orchestrator)
-  - `paths/` (one file per endpoint group)
-  - `components/schemas/`, `components/parameters/`, `components/securitySchemes/`
-  - `dist/` (bundled output; git‑ignored)
-- NPM scripts (repo root) for lint/preview/bundle/validate
-- Dev dependencies: `@redocly/cli`, `swagger-cli`
-- Express route (read‑only) to serve `/openapi.json` from the core service (bundled artifact copied into `dist`)
-- Minimal starter content: health + auth (admin/recipient/CLI) + files + bundles + recipients + plugins + triggers + actions + pipelines + users + portal (skeletons are fine; keep request/response schemas referenced from components)
+---
 
-## Folder Layout (to create)
-packages/core/openapi/
-  openapi.yaml
-  paths/
-    health.yaml
-    auth/
-      admin.yaml
-      recipient.yaml
-      cli.yaml
-    files.yaml
-    bundles.yaml
-    recipients.yaml
-    plugins.yaml
-    triggers.yaml
-    actions.yaml
-    pipelines.yaml
-    users.yaml
-    portal.yaml
-  components/
-    schemas/
-      Error.yaml
-      Page.yaml
-      ObjectMeta.yaml
-      Bundle.yaml
-      Recipient.yaml
-      Plugin.yaml
-      TriggerDefinition.yaml
-      ActionDefinition.yaml
-      TriggerAction.yaml
-      User.yaml
-      DeviceStartResponse.yaml
-      DevicePollPending.yaml
-      DevicePollSuccess.yaml
-    parameters/
-      Cursor.yaml
-      Limit.yaml
-    securitySchemes/
-      cookieAdmin.yaml
-      cookieRecipient.yaml
-      bearer.yaml
-  dist/   # generated (git‑ignored)
+## Tasks
 
-## .gitignore updates
-- Add lines:
-  - 'packages/core/openapi/dist/'
-  - 'openapi/dist/'
+### 1) Restructure the spec into multiple files
+Create folder layout:
+- openapi/openapi.yaml                       # root orchestrator (3.1)
+- openapi/paths/
+  - health.yaml
+  - system.yaml                               # /openapi.json, /health/live, /health/ready
+  - auth/
+    - admin.yaml
+    - recipient.yaml
+    - cli.yaml
+  - files.yaml
+  - bundles.yaml
+  - bundle-objects.yaml                       # attach/detach/update listing
+  - recipients.yaml
+  - plugins.yaml
+  - capabilities.yaml
+  - triggers.yaml
+  - actions.yaml
+  - pipelines.yaml
+  - users.yaml
+  - portal.yaml
+- openapi/components/
+  - schemas/
+    - Error.yaml
+    - Page.yaml
+    - ObjectMeta.yaml
+    - File.yaml
+    - Bundle.yaml
+    - BundleObject.yaml
+    - Recipient.yaml
+    - Plugin.yaml
+    - Capability.yaml
+    - TriggerDefinition.yaml
+    - ActionDefinition.yaml
+    - TriggerAction.yaml
+    - User.yaml
+    - DeviceStartResponse.yaml
+    - DevicePollPending.yaml
+    - DevicePollSuccess.yaml
+  - parameters/
+    - Cursor.yaml
+    - Limit.yaml
+  - securitySchemes/
+    - cookieAdmin.yaml
+    - cookieRecipient.yaml
+    - bearer.yaml
 
-## Root Spec (packages/core/openapi/openapi.yaml)
-- OpenAPI 3.1 metadata (title "Latchflow Core API", version "0.2.0", server http://localhost:3001)
-- 'tags' list (Health, Auth (Admin), Auth (Recipient), Auth (CLI), Files, Bundles, Recipients, Plugins, Triggers, Actions, Pipelines, Executors/Users, Portal, Config, Audit)
-- 'paths' section only contains $refs to the split files/anchors, e.g.:
-  - '/health' → './paths/health.yaml'
-  - '/auth/admin/start' → './paths/auth/admin.yaml#/postStart'
-  - '/files' → './paths/files.yaml#/list'
-  - Continue for every route we’ve defined so far
-- 'components' references:
-  - 'securitySchemes.cookieAdmin' → './components/securitySchemes/cookieAdmin.yaml'
-  - 'parameters.Cursor', 'parameters.Limit'
-  - All shared schemas listed above
+Update openapi/openapi.yaml:
+- Keep info/servers/tags.
+- Replace inline paths/components with $ref entries pointing to the files above.
 
-## Example Path Files (skeletons)
-- 'paths/health.yaml': define 'get' with 200 response containing '{ status, queue, storage }'
-- 'paths/auth/admin.yaml':
-  - Anchor blocks (YAML anchors) named 'postStart', 'getCallback', 'postLogout', 'getMe'
-  - Each block contains method, summary, request/response shapes and references shared schemas
-- 'paths/files.yaml':
-  - Anchors: 'list', 'upload', 'byId', 'move', 'download'
-  - 'list' uses pagination parameters and returns 'Page' with 'ObjectMeta' items
-- Replicate anchor pattern for other groups (bundles, recipients, plugins, triggers, actions, pipelines, users, portal)
+### 2) Normalize security & conventions
+- Security schemes:
+  - cookieAdmin: apiKey in cookie lf_admin_sess
+  - cookieRecipient: apiKey in cookie lf_recipient_sess
+  - bearer: http bearer (opaque) — set bearerFormat to opaque and description to “CLI API token”
+- Conventions:
+  - Pagination params: cursor (string), limit (1..200, default 50)
+  - Pagination shape in responses: { items: T[], nextCursor?: string }
+  - Errors: { error: string, message?: string } for all 4xx/5xx responses
+  - All admin write operations require cookieAdmin
+  - CLI endpoints accept bearer; some may also allow cookieAdmin (e.g., listing tokens in the UI)
+  - Portal endpoints require cookieRecipient
 
-## Example Component Files (skeletons)
-- 'components/schemas/Error.yaml': object with 'error' and optional 'message'
-- 'components/parameters/Cursor.yaml': query param 'cursor' (string)
-- 'components/securitySchemes/bearer.yaml': HTTP bearer scheme
-- Populate the rest as thin placeholders referencing field names we already use; keep required fields minimal for now
+### 3) Schemas — add/replace
+- Error.yaml
+  type: object; required: [error]; properties: error (string), message (string)
+- Page.yaml
+  type: object; required: [items]; properties: items (array, any), nextCursor (string, nullable)
+- ObjectMeta.yaml
+  type: object; required: [id, updatedAt]; properties: id (uuid), updatedAt (date-time), createdAt (date-time)
+- File.yaml  (first‑class file)
+  required: [id, key, size, contentType, updatedAt]
+  properties: id (uuid), key (string), size (integer), contentType (string), metadata (object<string,string>), etag (string), updatedAt (date-time)
+- Bundle.yaml
+  required: [id, name, ownerId, createdAt]; properties: id (uuid), name, description?, ownerId, createdAt (date-time)
+- BundleObject.yaml  (bundle–file join)
+  required: [id, bundleId, fileId]
+  properties: id (uuid), bundleId (uuid), fileId (uuid), path (string), sortOrder (integer), required (boolean), addedAt (date-time)
+- Recipient.yaml
+  required: [id, email]; properties: id (uuid), email (email), displayName?
+- Plugin.yaml
+  required: [id, name, version, capabilities]; properties: id (uuid), name, version, capabilities (Capability[])
+- Capability.yaml
+  required: [kind, key, displayName]; properties: kind (enum TRIGGER|ACTION), key (string), displayName (string), jsonSchema (object)
+- TriggerDefinition.yaml / ActionDefinition.yaml / TriggerAction.yaml / User.yaml
+  Align to earlier plan: include id/createdAt where applicable and use capabilityKey + config + enabled for definitions.
+- Device* schemas
+  Keep DeviceStartResponse / DevicePollPending / DevicePollSuccess; ensure token_type enum: bearer.
 
-## Tooling (root package.json)
-- Add devDependencies:
-  - '@redocly/cli': '^1.16.0'
-  - 'swagger-cli': '^4.0.4'
-- Add scripts:
-  - 'oas:lint': 'redocly lint packages/core/openapi/openapi.yaml'
-  - 'oas:preview': 'redocly preview-docs packages/core/openapi/openapi.yaml'
-  - 'oas:bundle': 'redocly bundle packages/core/openapi/openapi.yaml -o packages/core/openapi/dist/openapi.json && mkdir -p openapi/dist && cp packages/core/openapi/dist/openapi.json openapi/dist/openapi.json'
-  - 'oas:validate': 'swagger-cli validate packages/core/openapi/openapi.yaml'
+### 4) Paths — add/mutate to match the plan
+Keep existing paths that already match; otherwise replace/extend as below.
 
-## Serve the Bundle from Core
-- During 'pnpm oas:bundle', ensure 'packages/core/openapi/dist/openapi.json' exists
-- Copy the bundled file into the built server output on build (e.g., as 'packages/core/dist/openapi.json')
-- Add a route (e.g., 'src/routes/meta.ts'):
-  - 'GET /openapi.json' → reads and streams the bundled JSON from the runtime path
-- Register this route in 'src/index.ts' after the health route
-- Do not expose non‑bundled source files over HTTP
+#### System
+- GET /openapi.json                      # public; serves bundled JSON (see tooling)
+- GET /health/live                       # public; liveness
+- GET /health/ready                      # public; readiness
+- GET /health                            # summary { status, queue, storage } (keep)
 
-## Constraints & Conventions
-- All $ref paths are relative to 'openapi.yaml' or the current file (use './' prefixes)
-- Use YAML anchors inside path group files; reference via fragments like '#/list'
-- Keep secrets/config out of the spec (show shapes only; no real values)
-- Maintain backward compatibility: once a path ships, only additive changes without breaking consumers
+#### Auth (Admin)
+- POST /auth/admin/start                 # body { email }
+- GET  /auth/admin/callback?token=...    # 204 or 302; sets cookie
+- POST /auth/admin/logout
+- GET  /auth/me                          # returns { user, session }
+- GET  /whoami                           # unified identity (cookieAdmin or bearer): { kind: "admin"|"cli", user, scopes? }
 
-## Steps for Codex
-1) Create folder tree and empty files exactly as listed
-2) Populate 'openapi.yaml' with metadata, tags, 'paths' refs, and 'components' refs
-3) Add minimal content for:
-   - 'paths/health.yaml'
-   - 'paths/auth/admin.yaml', 'paths/auth/recipient.yaml', 'paths/auth/cli.yaml' (use anchors)
-   - 'paths/files.yaml', 'paths/bundles.yaml', 'paths/recipients.yaml', 'paths/plugins.yaml', 'paths/triggers.yaml', 'paths/actions.yaml', 'paths/pipelines.yaml', 'paths/users.yaml', 'paths/portal.yaml'
-   - 'components/*' placeholders (schemas/parameters/securitySchemes)
-4) Update root 'package.json' with devDeps and scripts; add .gitignore entries
-5) Implement '/openapi.json' route in core and wire it in 'src/index.ts'
-6) Run:
-   - 'pnpm oas:lint'
-   - 'pnpm oas:validate'
-   - 'pnpm oas:bundle'
-   - Start core and verify 'GET /openapi.json' returns the bundled spec
+#### Auth (Recipient)
+- POST /auth/recipient/start             # body { recipientId, bundleId }
+- POST /auth/recipient/verify            # body { recipientId, bundleId, otp }
+- POST /auth/recipient/logout
 
-## Acceptance Checklist
-- 'packages/core/openapi/openapi.yaml' composes without unresolved $refs
-- 'pnpm oas:lint' and 'pnpm oas:validate' succeed
-- 'pnpm oas:bundle' emits 'packages/core/openapi/dist/openapi.json' and a copy at 'openapi/dist/openapi.json'
-- Running core: 'GET /openapi.json' returns the bundled JSON with correct 'info', 'servers', 'paths', and 'components'
-- At least these routes are present in 'paths/': health; auth (admin/recipient/cli); files; bundles; recipients; plugins; triggers; actions; pipelines; users; portal
-- No nested backticks or invalid YAML emitted in the split files
+#### Auth (CLI)
+- POST /auth/cli/device/start            # body { email, deviceName? } → DeviceStartResponse
+- POST /auth/cli/device/approve          # admin only; body { user_code }
+- POST /auth/cli/device/poll             # body { device_code } → Pending/Success
+- GET  /auth/cli/tokens                  # allow cookieAdmin or bearer
+- POST /auth/cli/tokens/revoke           # allow cookieAdmin or bearer; body { tokenId }
+
+#### Files (admin)
+- GET    /files                          # list with optional ?prefix=&unassigned=bool (paging)
+- POST   /files/upload                   # multipart: { key, file, contentType?, metadata? } → 201 + ETag header
+- GET    /files/{id}                     # metadata (File schema)
+- POST   /files/{id}/move                # body { newKey } → 204
+- DELETE /files/{id}                     # 204 (optionally require If-Match)
+- GET    /files/{id}/download            # stream (admin)
+
+#### Bundles (admin)
+- GET    /bundles                        # page
+- POST   /bundles                        # create { name, description? }
+- GET    /bundles/{bundleId}
+- PATCH  /bundles/{bundleId}             # update name/description
+- DELETE /bundles/{bundleId}
+- GET    /bundles/{bundleId}/objects     # list BundleObject + embedded file metadata (paged)
+
+#### Bundle Objects (admin)
+- POST   /bundles/{bundleId}/objects     # attach one or many files: [{ fileId, path?, sortOrder?, required? }]
+- PATCH  /bundles/{bundleId}/objects/{id}# update path/sortOrder/required
+- DELETE /bundles/{bundleId}/objects/{id}
+
+#### Recipients (admin)
+- GET  /recipients                       # page, optional ?q=
+- POST /recipients                       # create { email, displayName? }
+- GET  /recipients/{recipientId}
+- GET  /bundles/{bundleId}/recipients
+- POST /bundles/{bundleId}/recipients    # attach { recipientId }
+- DELETE /bundles/{bundleId}/recipients  # detach via ?recipientId=
+
+#### Portal (recipient)
+- GET /portal/me
+- GET /portal/bundles
+- GET /portal/bundles/{bundleId}/objects
+- GET /portal/bundles/{bundleId}         # download (stream) or 302 to signed URL
+
+#### Plugins & Capabilities (admin)
+- GET  /plugins
+- POST /plugins/install                  # { source, verifySignature? } → 202
+- DELETE /plugins/{pluginId}
+- GET  /capabilities                     # merged trigger/action capability registry
+
+#### Triggers / Actions / Pipelines (admin)
+- GET  /triggers; POST /triggers
+- PATCH /triggers/{id}; DELETE /triggers/{id}
+- GET  /actions;  POST /actions
+- PATCH /actions/{id};  DELETE /actions/{id}
+- GET  /pipelines; POST /pipelines
+- PATCH /pipelines/{id}; DELETE /pipelines/{id}
+
+#### Users (admin)
+- GET  /users                            # page, optional ?q=
+- PATCH /users/{id}/roles                # { roles: string[] }
+
+### 5) Fix inconsistencies in the current spec
+- Change Files GET by id schema to use File (id, key, size, contentType, metadata?, etag?, updatedAt).
+- Ensure all list endpoints return Page shape: { items, nextCursor } (remove limit from response payload; it’s a param).
+- Set Limit.max to 200 (not 100).
+- Set bearer.securityScheme.bearerFormat to opaque (not JWT).
+- Ensure every 4xx/5xx references the shared Error schema.
+- Add security blocks to any paths missing them:
+  - Admin paths → cookieAdmin
+  - CLI token list/revoke → bearer or cookieAdmin
+  - Portal paths → cookieRecipient
+
+### 6) Tooling
+Add dev scripts at repo root to work with multi-file OAS:
+- oas:lint      → redocly lint openapi/openapi.yaml
+- oas:validate  → swagger-cli validate openapi/openapi.yaml
+- oas:bundle    → redocly bundle openapi/openapi.yaml -o openapi/dist/openapi.json
+- oas:preview   → redocly preview-docs openapi/openapi.yaml
+
+Do not add server code, but include a note in the PR description that /openapi.json will be served by core in a follow-up.
+
+---
+
+## Acceptance Criteria
+
+- Spec is split into files as per layout; openapi/openapi.yaml uses $ref to include them.
+- oas:validate and oas:lint pass.
+- oas:bundle produces openapi/dist/openapi.json.
+- Security schemes are consistent and used across all paths.
+- Error responses use the shared Error schema.
+- Pagination on all list endpoints uses { items, nextCursor } and the shared Cursor/Limit params.
+- File model is first‑class (File schema) and bundle membership is expressed via BundleObject and dedicated endpoints.
+- New paths exist for: files CRUD, bundle objects attach/detach/update, portal listing/download, capabilities, whoami, health/live, health/ready, openapi.json.
+- No DB or server implementation changes are included in this PR (spec-only).
+
+---
+
+## Notes to Reviewer
+This PR intentionally defines the contract ahead of implementation so admin‑ui, portal, and CLI can develop in parallel. A follow‑up PR will add database models and route handlers that conform to this spec.

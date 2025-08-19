@@ -1,0 +1,86 @@
+bundle_objects_collection:
+  get:
+    summary: List bundle objects
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundle objects page
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    allOf:
+                      - $ref: ../components/schemas/BundleObject.yaml
+                      - type: object
+                        properties:
+                          file:
+                            $ref: ../components/schemas/File.yaml
+                nextCursor: { type: string, nullable: true }
+              required: [items]
+  post:
+    summary: Attach files to bundle
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: object
+              properties:
+                fileId: { type: string, format: uuid }
+                path: { type: string }
+                sortOrder: { type: integer }
+                required: { type: boolean }
+              required: [fileId]
+    responses:
+      '201':
+        description: Attached
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/BundleObject.yaml }
+              required: [items]
+
+bundle_objects_item:
+  patch:
+    summary: Update bundle object
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              path: { type: string }
+              sortOrder: { type: integer }
+              required: { type: boolean }
+    responses:
+      '204': { description: Updated }
+  delete:
+    summary: Detach bundle object
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    responses:
+      '204': { description: Detached }
+

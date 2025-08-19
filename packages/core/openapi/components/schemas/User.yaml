@@ -1,12 +1,9 @@
-allOf:
-  - $ref: ./ObjectMeta.yaml
-  - type: object
-    properties:
-      email:
-        type: string
-        format: email
-      roles:
-        type: array
-        items:
-          type: string
-    required: [email, roles]
+type: object
+properties:
+  id: { type: string, format: uuid }
+  email: { type: string, format: email }
+  roles:
+    type: array
+    items: { type: string }
+  createdAt: { type: string, format: date-time }
+required: [id, email, roles]
