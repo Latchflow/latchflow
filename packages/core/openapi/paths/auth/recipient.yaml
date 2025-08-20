@@ -1,6 +1,7 @@
 recipient_start:
   post:
     summary: Start recipient OTP flow
+    operationId: startRecipientOtp
     tags: [Auth (Recipient)]
     requestBody:
       required: true
@@ -14,25 +15,23 @@ recipient_start:
               bundleId:
                 type: string
             required: [recipientId, bundleId]
+          examples:
+            example:
+              value:
+                recipientId: 11111111-1111-1111-1111-111111111111
+                bundleId: 22222222-2222-2222-2222-222222222222
     responses:
       '204':
         description: OTP issued (dev logs only)
       '404':
-        description: Recipient not assigned to bundle
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+        $ref: ../../components/responses/NotFound.yaml
       '429':
-        description: Rate limited
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+        $ref: ../../components/responses/RateLimited.yaml
 
 recipient_verify:
   post:
     summary: Verify recipient OTP and establish session
+    operationId: verifyRecipientOtp
     tags: [Auth (Recipient)]
     requestBody:
       required: true
@@ -48,28 +47,28 @@ recipient_verify:
               otp:
                 type: string
             required: [recipientId, bundleId, otp]
+          examples:
+            example:
+              value:
+                recipientId: 11111111-1111-1111-1111-111111111111
+                bundleId: 22222222-2222-2222-2222-222222222222
+                otp: "123456"
     responses:
       '204':
         description: Session established via cookie
       '401':
-        description: Invalid OTP
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+        $ref: ../../components/responses/Unauthorized.yaml
       '429':
-        description: Rate limited
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+        $ref: ../../components/responses/RateLimited.yaml
 
 recipient_logout:
   post:
     summary: Logout recipient session
+    operationId: logoutRecipient
     tags: [Auth (Recipient)]
     security:
       - cookieRecipient: []
     responses:
       '204':
         description: Logged out
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }

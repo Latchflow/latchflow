@@ -1,6 +1,7 @@
 users_collection:
   get:
     summary: List users/executors
+    operationId: listUsers
     tags: [Executors/Users]
     security:
       - cookieAdmin: []
@@ -21,12 +22,14 @@ users_collection:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/User.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 users_roles:
   patch:
     summary: Update user roles
+    operationId: updateUserRoles
     tags: [Executors/Users]
     security:
       - cookieAdmin: []
@@ -48,3 +51,5 @@ users_roles:
             required: [roles]
     responses:
       '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }

@@ -5,5 +5,4 @@ properties:
     items: { type: object }
   nextCursor:
     type: string
-    nullable: true
 required: [items]

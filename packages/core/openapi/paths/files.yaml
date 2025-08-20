@@ -1,6 +1,7 @@
 files_list:
   get:
     summary: List files
+    operationId: listFiles
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -27,12 +28,14 @@ files_list:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/File.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 files_upload:
   post:
     summary: Upload file
+    operationId: uploadFile
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -61,10 +64,13 @@ files_upload:
         content:
           application/json:
             schema: { $ref: ../components/schemas/File.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_upload_url:
   post:
     summary: Create pre-signed upload URL
+    operationId: createUploadUrl
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -90,14 +96,17 @@ files_upload_url:
               type: object
               properties:
                 url: { type: string }
-                fields: { type: object, additionalProperties: true, nullable: true }
-                headers: { type: object, additionalProperties: true, nullable: true }
+                fields: { type: object, additionalProperties: true }
+                headers: { type: object, additionalProperties: true }
                 expiresAt: { type: string, format: date-time }
               required: [url, expiresAt]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_item:
   get:
     summary: Get file by id
+    operationId: getFile
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -113,12 +122,11 @@ files_item:
           application/json:
             schema: { $ref: ../components/schemas/File.yaml }
       '404':
-        description: Not found
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/Error.yaml }
+        $ref: ../components/responses/NotFound.yaml
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   delete:
     summary: Delete file
+    operationId: deleteFile
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -129,10 +137,12 @@ files_item:
         schema: { type: string, format: uuid }
     responses:
       '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 files_metadata:
   patch:
     summary: Update file metadata
+    operationId: updateFileMetadata
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -154,10 +164,13 @@ files_metadata:
             required: [metadata]
     responses:
       '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_move:
   post:
     summary: Move/rename file key
+    operationId: moveFile
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -177,10 +190,13 @@ files_move:
             required: [newKey]
     responses:
       '204': { description: Moved }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_download:
   get:
     summary: Download file
+    operationId: downloadFile
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -197,10 +213,12 @@ files_download:
             schema:
               type: string
               format: binary
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 files_batch_delete:
   post:
     summary: Batch delete files
+    operationId: deleteFilesBatch
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -217,10 +235,13 @@ files_batch_delete:
             required: [ids]
     responses:
       '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_batch_move:
   post:
     summary: Batch move files
+    operationId: moveFilesBatch
     tags: [Files]
     security:
       - cookieAdmin: []
@@ -242,3 +263,5 @@ files_batch_move:
             required: [items]
     responses:
       '204': { description: Moved }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }

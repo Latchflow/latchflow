@@ -1,6 +1,7 @@
 recipients_collection:
   get:
     summary: List recipients
+    operationId: listRecipients
     tags: [Recipients]
     security:
       - cookieAdmin: []
@@ -21,10 +22,12 @@ recipients_collection:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/Recipient.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   post:
     summary: Create recipient
+    operationId: createRecipient
     tags: [Recipients]
     security:
       - cookieAdmin: []
@@ -44,10 +47,13 @@ recipients_collection:
         content:
           application/json:
             schema: { $ref: ../components/schemas/Recipient.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 recipients_item:
   get:
     summary: Get recipient by id
+    operationId: getRecipient
     tags: [Recipients]
     security:
       - cookieAdmin: []
@@ -62,15 +68,13 @@ recipients_item:
         content:
           application/json:
             schema: { $ref: ../components/schemas/Recipient.yaml }
-      '404':
-        description: Not found
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/Error.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 bundle_recipients:
   get:
     summary: List recipients assigned to a bundle
+    operationId: listBundleRecipients
     tags: [Recipients]
     security:
       - cookieAdmin: []
@@ -92,10 +96,12 @@ bundle_recipients:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/Recipient.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   post:
     summary: Attach recipient to bundle
+    operationId: attachRecipientToBundle
     tags: [Recipients]
     security:
       - cookieAdmin: []
@@ -115,8 +121,11 @@ bundle_recipients:
             required: [recipientId]
     responses:
       '204': { description: Attached }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Detach recipient from bundle
+    operationId: detachRecipientFromBundle
     tags: [Recipients]
     security:
       - cookieAdmin: []
@@ -131,10 +140,12 @@ bundle_recipients:
         schema: { type: string, format: uuid }
     responses:
       '204': { description: Detached }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 bundle_recipients_batch:
   post:
     summary: Attach multiple recipients to bundle
+    operationId: attachRecipientsToBundleBatch
     tags: [Recipients]
     security:
       - cookieAdmin: []
@@ -156,3 +167,5 @@ bundle_recipients_batch:
             required: [recipientIds]
     responses:
       '204': { description: Attached }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }

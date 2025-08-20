@@ -1,6 +1,7 @@
 bundles_collection:
   get:
     summary: List bundles
+    operationId: listBundles
     tags: [Bundles]
     security:
       - cookieAdmin: []
@@ -18,10 +19,12 @@ bundles_collection:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/Bundle.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   post:
     summary: Create bundle
+    operationId: createBundle
     tags: [Bundles]
     security:
       - cookieAdmin: []
@@ -41,10 +44,13 @@ bundles_collection:
         content:
           application/json:
             schema: { $ref: ../components/schemas/Bundle.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 bundles_item:
   get:
     summary: Get bundle by id
+    operationId: getBundle
     tags: [Bundles]
     security:
       - cookieAdmin: []
@@ -59,13 +65,11 @@ bundles_item:
         content:
           application/json:
             schema: { $ref: ../components/schemas/Bundle.yaml }
-      '404':
-        description: Not found
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/Error.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   patch:
     summary: Update bundle
+    operationId: updateBundle
     tags: [Bundles]
     security:
       - cookieAdmin: []
@@ -85,8 +89,11 @@ bundles_item:
               description: { type: string }
     responses:
       '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Delete bundle
+    operationId: deleteBundle
     tags: [Bundles]
     security:
       - cookieAdmin: []
@@ -97,3 +104,4 @@ bundles_item:
         schema: { type: string, format: uuid }
     responses:
       '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

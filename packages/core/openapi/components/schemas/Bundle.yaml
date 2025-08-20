@@ -2,7 +2,7 @@ type: object
 properties:
   id: { type: string, format: uuid }
   name: { type: string }
-  description: { type: string, nullable: true }
+  description: { type: string }
   ownerId: { type: string, format: uuid }
   createdAt: { type: string, format: date-time }
 required: [id, name, ownerId, createdAt]

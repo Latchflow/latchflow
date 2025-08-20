@@ -1,6 +1,7 @@
 admin_start:
   post:
     summary: Start admin login via magic link
+    operationId: startAdminLogin
     tags: [Auth (Admin)]
     requestBody:
       required: true
@@ -13,19 +14,20 @@ admin_start:
                 type: string
                 format: email
             required: [email]
+          examples:
+            example:
+              value:
+                email: admin@example.com
     responses:
       '204':
         description: Magic link issued (no content)
       '400':
-        description: Invalid body
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+        $ref: ../../components/responses/ValidationError.yaml
 
 admin_callback:
   get:
     summary: Finalize admin login using magic link token
+    operationId: finalizeAdminLogin
     tags: [Auth (Admin)]
     parameters:
       - in: query
@@ -37,25 +39,24 @@ admin_callback:
       '204':
         description: Session established via cookie
       '401':
-        description: Invalid or expired token
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+        $ref: ../../components/responses/Unauthorized.yaml
 
 admin_logout:
   post:
     summary: Logout admin session
+    operationId: logoutAdmin
     tags: [Auth (Admin)]
     security:
       - cookieAdmin: []
     responses:
       '204':
         description: Logged out
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
 
 auth_me:
   get:
     summary: Get current admin user
+    operationId: getCurrentAdmin
     tags: [Auth (Admin)]
     security:
       - cookieAdmin: []
@@ -72,16 +73,12 @@ auth_me:
                 session:
                   type: object
               required: [user]
-      '401':
-        description: Not authenticated
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
 
 whoami:
   get:
     summary: Identify current principal (admin or cli)
+    operationId: whoAmI
     tags: [Auth (Admin)]
     security:
       - cookieAdmin: []
@@ -103,16 +100,12 @@ whoami:
                   type: array
                   items:
                     type: string
-      '401':
-        description: Not authenticated
-        content:
-          application/json:
-            schema:
-              $ref: ../../components/schemas/Error.yaml
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
 
 auth_sessions:
   get:
     summary: List active admin sessions for current user
+    operationId: listAdminSessions
     tags: [Auth (Admin)]
     security:
       - cookieAdmin: []
@@ -132,20 +125,17 @@ auth_sessions:
                       id: { type: string, format: uuid }
                       createdAt: { type: string, format: date-time }
                       expiresAt: { type: string, format: date-time }
-                      lastSeenAt: { type: string, format: date-time, nullable: true }
-                      ip: { type: string, nullable: true }
-                      userAgent: { type: string, nullable: true }
+                      lastSeenAt: { type: string, format: date-time }
+                      ip: { type: string }
+                      userAgent: { type: string }
                     required: [id, createdAt, expiresAt]
               required: [items]
-      '401':
-        description: Not authenticated
-        content:
-          application/json:
-            schema: { $ref: ../../components/schemas/Error.yaml }
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
 
 auth_sessions_revoke:
   post:
     summary: Revoke a specific admin session
+    operationId: revokeAdminSession
     tags: [Auth (Admin)]
     security:
       - cookieAdmin: []
@@ -160,8 +150,4 @@ auth_sessions_revoke:
             required: [sessionId]
     responses:
       '204': { description: Revoked }
-      '401':
-        description: Not authenticated
-        content:
-          application/json:
-            schema: { $ref: ../../components/schemas/Error.yaml }
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }

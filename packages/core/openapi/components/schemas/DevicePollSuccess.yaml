@@ -12,5 +12,4 @@ properties:
   expires_at:
     type: string
     format: date-time
-    nullable: true
 required: [access_token, token_type, scopes]

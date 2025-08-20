@@ -1,6 +1,7 @@
 triggers_collection:
   get:
     summary: List trigger definitions
+    operationId: listTriggers
     tags: [Triggers]
     security:
       - cookieAdmin: []
@@ -18,10 +19,12 @@ triggers_collection:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/TriggerDefinition.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   post:
     summary: Create trigger definition
+    operationId: createTrigger
     tags: [Triggers]
     security:
       - cookieAdmin: []
@@ -42,10 +45,13 @@ triggers_collection:
         content:
           application/json:
             schema: { $ref: ../components/schemas/TriggerDefinition.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 triggers_item:
   patch:
     summary: Update trigger definition
+    operationId: updateTrigger
     tags: [Triggers]
     security:
       - cookieAdmin: []
@@ -65,8 +71,11 @@ triggers_item:
               enabled: { type: boolean }
     responses:
       '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Delete trigger definition
+    operationId: deleteTrigger
     tags: [Triggers]
     security:
       - cookieAdmin: []
@@ -77,3 +86,4 @@ triggers_item:
         schema: { type: string, format: uuid }
     responses:
       '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

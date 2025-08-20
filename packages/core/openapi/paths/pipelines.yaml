@@ -1,6 +1,7 @@
 pipelines_collection:
   get:
     summary: List trigger→action pipelines
+    operationId: listPipelines
     tags: [Pipelines]
     security:
       - cookieAdmin: []
@@ -18,10 +19,12 @@ pipelines_collection:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/TriggerAction.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   post:
     summary: Create pipeline
+    operationId: createPipeline
     tags: [Pipelines]
     security:
       - cookieAdmin: []
@@ -43,10 +46,13 @@ pipelines_collection:
         content:
           application/json:
             schema: { $ref: ../components/schemas/TriggerAction.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 pipelines_item:
   patch:
     summary: Update pipeline
+    operationId: updatePipeline
     tags: [Pipelines]
     security:
       - cookieAdmin: []
@@ -66,8 +72,11 @@ pipelines_item:
               enabled: { type: boolean }
     responses:
       '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Delete pipeline
+    operationId: deletePipeline
     tags: [Pipelines]
     security:
       - cookieAdmin: []
@@ -78,3 +87,4 @@ pipelines_item:
         schema: { type: string, format: uuid }
     responses:
       '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

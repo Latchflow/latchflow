@@ -1,7 +1,21 @@
 type: object
+description: Standard error envelope for all error responses
 properties:
-  error:
+  status:
     type: string
+    enum: [error]
+    description: Fixed string indicating an error response
+  code:
+    type: string
+    description: Stable machine-readable error code
   message:
     type: string
-required: [error]
+    description: Human-friendly error description
+  details:
+    type: object
+    additionalProperties: true
+    description: Optional extra data about the error
+  requestId:
+    type: string
+    description: Correlation identifier for logs/trace
+required: [status, code]

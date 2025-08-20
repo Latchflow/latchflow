@@ -1,6 +1,7 @@
 portal_me:
   get:
     summary: Get current recipient info
+    operationId: getPortalMe
     tags: [Portal]
     security:
       - cookieRecipient: []
@@ -21,10 +22,12 @@ portal_me:
                       bundleId: { type: string, format: uuid }
                       name: { type: string }
               required: [recipient, bundles]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 portal_bundles:
   get:
     summary: List bundles available to the recipient
+    operationId: listPortalBundles
     tags: [Portal]
     security:
       - cookieRecipient: []
@@ -42,12 +45,14 @@ portal_bundles:
                 items:
                   type: array
                   items: { $ref: ../components/schemas/Bundle.yaml }
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 portal_bundle_objects:
   get:
     summary: List files in a bundle (recipient view)
+    operationId: listPortalBundleObjects
     tags: [Portal]
     security:
       - cookieRecipient: []
@@ -70,12 +75,14 @@ portal_bundle_objects:
                   type: array
                   items:
                     $ref: ../components/schemas/File.yaml
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 portal_bundle_download:
   get:
     summary: Download bundle (stream or redirect)
+    operationId: downloadPortalBundle
     tags: [Portal]
     security:
       - cookieRecipient: []
@@ -91,10 +98,12 @@ portal_bundle_download:
           application/octet-stream:
             schema: { type: string, format: binary }
       '302': { description: Redirect to signed URL }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
 
 portal_otp_resend:
   post:
     summary: Resend recipient OTP
+    operationId: resendPortalOtp
     tags: [Portal]
     requestBody:
       required: true
@@ -108,8 +117,5 @@ portal_otp_resend:
             required: [recipientId, bundleId]
     responses:
       '204': { description: Sent }
-      '429':
-        description: Rate limited
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/Error.yaml }
+      '429': { $ref: ../components/responses/RateLimited.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }

@@ -1,0 +1,12 @@
+apis:
+  core:
+    root: packages/core/openapi/openapi.yaml
+
+# Redocly v1+ config: top-level extends/rules
+extends:
+  - recommended
+rules:
+  # Allow localhost/example-style servers (needed for dev/self-hosted docs)
+  no-server-example.com: off
+  # Health endpoints don't need 4XX; readiness/liveness use 2XX/5XX
+  operation-4xx-response: off

@@ -1,6 +1,7 @@
 bundle_objects_collection:
   get:
     summary: List bundle objects
+    operationId: listBundleObjects
     tags: ["Bundle Objects"]
     security:
       - cookieAdmin: []
@@ -23,10 +24,12 @@ bundle_objects_collection:
                   type: array
                   items:
                     $ref: ../components/schemas/BundleObjectWithFile.yaml
-                nextCursor: { type: string, nullable: true }
+                nextCursor: { type: string }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
   post:
     summary: Attach files to bundle
+    operationId: attachBundleObjects
     tags: ["Bundle Objects"]
     security:
       - cookieAdmin: []
@@ -70,6 +73,8 @@ bundle_objects_collection:
                   type: array
                   items: { $ref: ../components/schemas/BundleObject.yaml }
               required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
     parameters:
       - in: path
         name: bundleId
@@ -79,6 +84,7 @@ bundle_objects_collection:
 bundle_objects_item:
   patch:
     summary: Update bundle object
+    operationId: updateBundleObject
     tags: ["Bundle Objects"]
     security:
       - cookieAdmin: []
@@ -103,8 +109,11 @@ bundle_objects_item:
               required: { type: boolean }
     responses:
       '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Detach bundle object
+    operationId: deleteBundleObject
     tags: ["Bundle Objects"]
     security:
       - cookieAdmin: []
@@ -119,3 +128,4 @@ bundle_objects_item:
         schema: { type: string, format: uuid }
     responses:
       '204': { description: Detached }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

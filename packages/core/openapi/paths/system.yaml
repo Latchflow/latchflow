@@ -1,6 +1,7 @@
 openapi_json:
   get:
     summary: Bundled OpenAPI document
+    operationId: getOpenApi
     tags: [System]
     responses:
       '200':
@@ -19,14 +20,17 @@ openapi_json:
 health_live:
   get:
     summary: Liveness probe
+    operationId: getLiveness
     tags: [Health]
     responses:
       '200': { description: Alive }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 health_ready:
   get:
     summary: Readiness probe
+    operationId: getReadiness
     tags: [Health]
     responses:
       '200': { description: Ready }
-
+      '400': { $ref: ../components/responses/ValidationError.yaml }
