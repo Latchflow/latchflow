@@ -58,8 +58,14 @@ vi.mock("../../src/runtime/trigger-runner.js", () => ({
   startTriggerRunner: vi.fn(async () => ({})),
 }));
 const listen = vi.fn(async () => {});
+const noop = vi.fn(() => {});
 vi.mock("../../src/http/express-server.js", () => ({
   createExpressServer: vi.fn(() => ({
+    get: noop,
+    post: noop,
+    put: noop,
+    delete: noop,
+    use: noop,
     listen,
   })),
 }));
