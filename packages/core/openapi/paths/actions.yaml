@@ -1,0 +1,89 @@
+actions_collection:
+  get:
+    summary: List action definitions
+    operationId: listActions
+    tags: [Actions]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Actions
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/ActionDefinition.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+  post:
+    summary: Create action definition
+    operationId: createAction
+    tags: [Actions]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              capabilityKey: { type: string }
+              config: { type: object }
+              enabled: { type: boolean }
+            required: [capabilityKey, config]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ActionDefinition.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+actions_item:
+  patch:
+    summary: Update action definition
+    operationId: updateAction
+    tags: [Actions]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              config: { type: object }
+              enabled: { type: boolean }
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+  delete:
+    summary: Delete action definition
+    operationId: deleteAction
+    tags: [Actions]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

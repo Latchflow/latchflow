@@ -1,0 +1,6 @@
+name: cursor
+in: query
+required: false
+schema:
+  type: string
+description: Continuation cursor for pagination

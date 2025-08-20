@@ -1,0 +1,55 @@
+users_collection:
+  get:
+    summary: List users/executors
+    operationId: listUsers
+    tags: [Executors/Users]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: q
+        schema: { type: string }
+    responses:
+      '200':
+        description: Users
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/User.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+users_roles:
+  patch:
+    summary: Update user roles
+    operationId: updateUserRoles
+    tags: [Executors/Users]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              roles:
+                type: array
+                items: { type: string }
+            required: [roles]
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }

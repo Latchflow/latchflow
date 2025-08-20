@@ -1,0 +1,59 @@
+plugins:
+  get:
+    summary: List registered plugins
+    operationId: listPlugins
+    tags: [Plugins]
+    security:
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Plugins
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Plugin.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+plugins_install:
+  post:
+    summary: Install plugin
+    operationId: installPlugin
+    tags: [Plugins]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              source: { type: string }
+              verifySignature: { type: boolean }
+            required: [source]
+    responses:
+      '202': { description: Installing }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+plugins_item:
+  delete:
+    summary: Uninstall plugin
+    operationId: uninstallPlugin
+    tags: [Plugins]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pluginId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Removed }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

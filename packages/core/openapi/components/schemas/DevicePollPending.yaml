@@ -1,0 +1,8 @@
+type: object
+properties:
+  status:
+    type: string
+    enum: [pending]
+  interval:
+    type: integer
+required: [status, interval]

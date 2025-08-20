@@ -1,0 +1,15 @@
+type: object
+properties:
+  access_token:
+    type: string
+  token_type:
+    type: string
+    enum: [bearer]
+  scopes:
+    type: array
+    items:
+      type: string
+  expires_at:
+    type: string
+    format: date-time
+required: [access_token, token_type, scopes]

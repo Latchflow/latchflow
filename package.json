@@ -18,12 +18,18 @@
     "db:generate": "pnpm run env:load pnpm -F @latchflow/db generate",
     "core:dev": "pnpm run env:load pnpm -F @latchflow/db build && pnpm run env:load pnpm -F @latchflow/core dev",
     "core:test": "pnpm -F @latchflow/core exec vitest",
-    "core:test:coverage": "pnpm -F @latchflow/core exec vitest --coverage"
+    "core:test:coverage": "pnpm -F @latchflow/core exec vitest --coverage",
+    "oas:lint": "redocly lint packages/core/openapi/openapi.yaml",
+    "oas:bundle": "redocly bundle packages/core/openapi/openapi.yaml -o packages/core/openapi/dist/openapi.json",
+    "oas:bundle:yaml": "redocly bundle packages/core/openapi/openapi.yaml -o packages/core/openapi/dist/openapi.yaml",
+    "oas:preview": "redocly preview-docs packages/core/openapi/openapi.yaml",
+    "oas:validate": "swagger-cli validate packages/core/openapi/openapi.yaml"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",
     "@commitlint/config-conventional": "^18.4.0",
     "@dotenvx/dotenvx": "^1.48.4",
+    "@redocly/cli": "^1.34.5",
     "@swc/core": "^1.13.3",
     "@typescript-eslint/eslint-plugin": "^7.6.0",
     "@typescript-eslint/parser": "^7.6.0",
@@ -32,6 +38,7 @@
     "husky": "^9.0.0",
     "lint-staged": "^15.0.0",
     "prettier": "^3.0.0",
+    "swagger-cli": "^4.0.4",
     "typescript": "^5.0.0",
     "vitest": "^2.1.9"
   },

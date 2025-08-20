@@ -1,0 +1,131 @@
+bundle_objects_collection:
+  get:
+    summary: List bundle objects
+    operationId: listBundleObjects
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundle objects page
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ../components/schemas/BundleObjectWithFile.yaml
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+  post:
+    summary: Attach files to bundle
+    operationId: attachBundleObjects
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - type: array
+                items:
+                  type: object
+                  properties:
+                    fileId: { type: string, format: uuid }
+                    path: { type: string }
+                    sortOrder: { type: integer }
+                    required: { type: boolean }
+                  required: [fileId]
+              - type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fileId: { type: string, format: uuid }
+                        path: { type: string }
+                        sortOrder: { type: integer }
+                        required: { type: boolean }
+                      required: [fileId]
+                required: [items]
+    responses:
+      '201':
+        description: Attached
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/BundleObject.yaml }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+
+bundle_objects_item:
+  patch:
+    summary: Update bundle object
+    operationId: updateBundleObject
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              path: { type: string }
+              sortOrder: { type: integer }
+              required: { type: boolean }
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+  delete:
+    summary: Detach bundle object
+    operationId: deleteBundleObject
+    tags: ["Bundle Objects"]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Detached }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

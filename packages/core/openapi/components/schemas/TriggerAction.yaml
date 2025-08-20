@@ -1,0 +1,7 @@
+type: object
+properties:
+  id: { type: string, format: uuid }
+  trigger: { $ref: ./TriggerDefinition.yaml }
+  action: { $ref: ./ActionDefinition.yaml }
+  createdAt: { type: string, format: date-time }
+required: [id, trigger, action]

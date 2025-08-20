@@ -1,0 +1,21 @@
+capabilities:
+  get:
+    summary: List registered trigger/action capabilities
+    operationId: listCapabilities
+    tags: [Capabilities]
+    security:
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Capability registry
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Capability.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

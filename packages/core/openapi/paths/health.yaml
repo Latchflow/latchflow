@@ -1,0 +1,21 @@
+health:
+  get:
+    summary: Health check
+    tags: [Health]
+    operationId: getHealth
+    responses:
+      '200':
+        description: Service is healthy
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [ok]
+                queue:
+                  type: string
+                storage:
+                  type: string
+              required: [status, queue, storage]

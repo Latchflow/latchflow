@@ -25,3 +25,5 @@ Thumbs.db
 
 # Logs
 **/coverage
+packages/core/openapi/dist/
+openapi/dist/

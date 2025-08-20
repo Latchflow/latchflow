@@ -1,0 +1,107 @@
+bundles_collection:
+  get:
+    summary: List bundles
+    operationId: listBundles
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundles page
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Bundle.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+  post:
+    summary: Create bundle
+    operationId: createBundle
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              description: { type: string }
+            required: [name]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Bundle.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+bundles_item:
+  get:
+    summary: Get bundle by id
+    operationId: getBundle
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Bundle
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Bundle.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+  patch:
+    summary: Update bundle
+    operationId: updateBundle
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              description: { type: string }
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+  delete:
+    summary: Delete bundle
+    operationId: deleteBundle
+    tags: [Bundles]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

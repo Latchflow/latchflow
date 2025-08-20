@@ -1,0 +1,267 @@
+files_list:
+  get:
+    summary: List files
+    operationId: listFiles
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: prefix
+        schema: { type: string }
+      - in: query
+        name: q
+        schema: { type: string }
+      - in: query
+        name: unassigned
+        schema: { type: boolean }
+    responses:
+      '200':
+        description: Files page
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/File.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+files_upload:
+  post:
+    summary: Upload file
+    operationId: uploadFile
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              key: { type: string }
+              file:
+                type: string
+                format: binary
+              contentType: { type: string }
+              metadata:
+                type: object
+                additionalProperties: { type: string }
+            required: [file]
+    responses:
+      '201':
+        description: Created
+        headers:
+          ETag:
+            schema: { type: string }
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/File.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+files_upload_url:
+  post:
+    summary: Create pre-signed upload URL
+    operationId: createUploadUrl
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              key: { type: string }
+              contentType: { type: string }
+              metadata:
+                type: object
+                additionalProperties: { type: string }
+            required: [key]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string }
+                fields: { type: object, additionalProperties: true }
+                headers: { type: object, additionalProperties: true }
+                expiresAt: { type: string, format: date-time }
+              required: [url, expiresAt]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+files_item:
+  get:
+    summary: Get file by id
+    operationId: getFile
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: File
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/File.yaml }
+      '404':
+        $ref: ../components/responses/NotFound.yaml
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+  delete:
+    summary: Delete file
+    operationId: deleteFile
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+files_metadata:
+  patch:
+    summary: Update file metadata
+    operationId: updateFileMetadata
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              metadata:
+                type: object
+                additionalProperties: { type: string }
+            required: [metadata]
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+files_move:
+  post:
+    summary: Move/rename file key
+    operationId: moveFile
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              newKey: { type: string }
+            required: [newKey]
+    responses:
+      '204': { description: Moved }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+files_download:
+  get:
+    summary: Download file
+    operationId: downloadFile
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: File stream
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+files_batch_delete:
+  post:
+    summary: Batch delete files
+    operationId: deleteFilesBatch
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              ids:
+                type: array
+                items: { type: string, format: uuid }
+            required: [ids]
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+files_batch_move:
+  post:
+    summary: Batch move files
+    operationId: moveFilesBatch
+    tags: [Files]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    newKey: { type: string }
+                  required: [id, newKey]
+            required: [items]
+    responses:
+      '204': { description: Moved }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }

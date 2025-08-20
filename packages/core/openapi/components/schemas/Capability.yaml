@@ -1,0 +1,12 @@
+type: object
+properties:
+  kind:
+    type: string
+    enum: [TRIGGER, ACTION]
+  key:
+    type: string
+  displayName:
+    type: string
+  jsonSchema:
+    type: object
+required: [kind, key, displayName]

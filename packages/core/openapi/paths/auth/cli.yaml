@@ -1,0 +1,202 @@
+cli_device_start:
+  post:
+    summary: Start CLI device authorization
+    operationId: startCliDeviceAuth
+    tags: [Auth (CLI)]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              email:
+                type: string
+                format: email
+              deviceName:
+                type: string
+          examples:
+            example:
+              value:
+                email: dev@example.com
+                deviceName: "My Laptop"
+    responses:
+      '200':
+        description: Device auth started
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/DeviceStartResponse.yaml
+      '429':
+        $ref: ../../components/responses/RateLimited.yaml
+      '400':
+        $ref: ../../components/responses/ValidationError.yaml
+
+cli_device_approve:
+  post:
+    summary: Approve a CLI device using user code (admin/executor only)
+    operationId: approveCliDevice
+    tags: [Auth (CLI)]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              user_code:
+                type: string
+            required: [user_code]
+    responses:
+      '204':
+        description: Approved
+      '401':
+        $ref: ../../components/responses/Unauthorized.yaml
+      '403': { $ref: ../../components/responses/Forbidden.yaml }
+
+cli_device_poll:
+  post:
+    summary: Poll for device authorization result
+    operationId: pollCliDevice
+    tags: [Auth (CLI)]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              device_code:
+                type: string
+            required: [device_code]
+    responses:
+      '200':
+        description: Authorization complete
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/DevicePollSuccess.yaml
+      '202':
+        description: Authorization pending
+        content:
+          application/json:
+            schema:
+              $ref: ../../components/schemas/DevicePollPending.yaml
+      '429':
+        $ref: ../../components/responses/RateLimited.yaml
+
+cli_tokens:
+  get:
+    summary: List API tokens for current admin/executor
+    operationId: listCliTokens
+    tags: [Auth (CLI)]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Tokens list
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tokens:
+                  type: array
+                  items:
+                    type: object
+              required: [tokens]
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
+  post:
+    summary: Create a new API token
+    operationId: createCliToken
+    tags: [Auth (CLI)]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              scopes:
+                type: array
+                items: { type: string }
+              ttlDays: { type: integer }
+    responses:
+      '201':
+        description: Created; token is only returned once
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                id: { type: string, format: uuid }
+                name: { type: string }
+                scopes:
+                  type: array
+                  items: { type: string }
+                expiresAt: { type: string, format: date-time }
+              required: [token, id]
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../../components/responses/ValidationError.yaml }
+
+cli_tokens_revoke:
+  post:
+    summary: Revoke an API token
+    operationId: revokeCliToken
+    tags: [Auth (CLI)]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tokenId:
+                type: string
+            required: [tokenId]
+    responses:
+      '204': { description: Revoked }
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
+
+cli_tokens_rotate:
+  post:
+    summary: Rotate an API token
+    operationId: rotateCliToken
+    tags: [Auth (CLI)]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tokenId: { type: string, format: uuid }
+            required: [tokenId]
+    responses:
+      '201':
+        description: Rotated; new token returned once
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                id: { type: string, format: uuid }
+                expiresAt: { type: string, format: date-time }
+              required: [token, id]
+      '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../../components/responses/ValidationError.yaml }

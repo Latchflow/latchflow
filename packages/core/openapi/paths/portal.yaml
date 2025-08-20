@@ -1,0 +1,121 @@
+portal_me:
+  get:
+    summary: Get current recipient info
+    operationId: getPortalMe
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    responses:
+      '200':
+        description: Recipient identity and allowed bundles
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                recipient: { $ref: ../components/schemas/Recipient.yaml }
+                bundles:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      bundleId: { type: string, format: uuid }
+                      name: { type: string }
+              required: [recipient, bundles]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+portal_bundles:
+  get:
+    summary: List bundles available to the recipient
+    operationId: listPortalBundles
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Bundles page
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/Bundle.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+portal_bundle_objects:
+  get:
+    summary: List files in a bundle (recipient view)
+    operationId: listPortalBundleObjects
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Files in bundle
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ../components/schemas/File.yaml
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+portal_bundle_download:
+  get:
+    summary: Download bundle (stream or redirect)
+    operationId: downloadPortalBundle
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Bundle archive
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      '302': { description: Redirect to signed URL }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+portal_otp_resend:
+  post:
+    summary: Resend recipient OTP
+    operationId: resendPortalOtp
+    tags: [Portal]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              recipientId: { type: string, format: uuid }
+              bundleId: { type: string, format: uuid }
+            required: [recipientId, bundleId]
+    responses:
+      '204': { description: Sent }
+      '429': { $ref: ../components/responses/RateLimited.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }

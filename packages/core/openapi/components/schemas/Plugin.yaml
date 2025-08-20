@@ -1,0 +1,9 @@
+type: object
+properties:
+  id: { type: string, format: uuid }
+  name: { type: string }
+  version: { type: string }
+  capabilities:
+    type: array
+    items: { $ref: ./Capability.yaml }
+required: [id, name, version, capabilities]

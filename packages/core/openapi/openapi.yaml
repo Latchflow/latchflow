@@ -1,0 +1,212 @@
+openapi: 3.1.0
+info:
+  title: Latchflow Core API
+  version: 0.2.0
+  description: Core HTTP API for admin UI, recipient portal, and CLI.
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit
+servers:
+  - url: http://localhost:3001
+    description: Local development
+  - url: https://{env}.api.latchflow.com
+    description: Hosted environments
+    variables:
+      env:
+        default: dev
+        enum: [dev, staging, prod]
+  - url: https://{domain}
+    description: Self-hosted deployment
+    variables:
+      domain:
+        description: Fully-qualified domain name of your deployment
+        default: api.yourdomain.tld
+tags:
+  - name: System
+    description: System-level endpoints (OpenAPI document)
+  - name: Health
+    description: Health and readiness probes
+  - name: Auth (Admin)
+    description: Admin/executor authentication and sessions
+  - name: Auth (Recipient)
+    description: Recipient OTP/passphrase authentication
+  - name: Auth (CLI)
+    description: Device authorization and API tokens for CLI
+  - name: Files
+    description: Object storage and file management
+  - name: Bundles
+    description: Bundle lifecycle and metadata
+  - name: Bundle Objects
+    description: File attachments within a bundle
+  - name: Recipients
+    description: Recipient directory and bundle assignments
+  - name: Plugins
+    description: Plugin registry and lifecycle
+  - name: Capabilities
+    description: Trigger and action capability registry
+  - name: Triggers
+    description: Trigger definitions and configuration
+  - name: Actions
+    description: Action definitions and configuration
+  - name: Pipelines
+    description: Trigger to action pipelines
+  - name: Executors/Users
+    description: Admins and executors management
+  - name: Portal
+    description: Recipient portal data and downloads
+  - name: Audit
+    description: Audit events for triggers/actions/downloads
+
+security: []
+paths:
+  /openapi.json:
+    $ref: ./paths/system.yaml#/openapi_json
+  /health/live:
+    $ref: ./paths/system.yaml#/health_live
+  /health/ready:
+    $ref: ./paths/system.yaml#/health_ready
+  /health:
+    $ref: ./paths/health.yaml#/health
+
+  /auth/admin/start:
+    $ref: ./paths/auth/admin.yaml#/admin_start
+  /auth/admin/callback:
+    $ref: ./paths/auth/admin.yaml#/admin_callback
+  /auth/admin/logout:
+    $ref: ./paths/auth/admin.yaml#/admin_logout
+  /auth/me:
+    $ref: ./paths/auth/admin.yaml#/auth_me
+  /whoami:
+    $ref: ./paths/auth/admin.yaml#/whoami
+  /auth/sessions:
+    $ref: ./paths/auth/admin.yaml#/auth_sessions
+  /auth/sessions/revoke:
+    $ref: ./paths/auth/admin.yaml#/auth_sessions_revoke
+
+  /auth/recipient/start:
+    $ref: ./paths/auth/recipient.yaml#/recipient_start
+  /auth/recipient/verify:
+    $ref: ./paths/auth/recipient.yaml#/recipient_verify
+  /auth/recipient/logout:
+    $ref: ./paths/auth/recipient.yaml#/recipient_logout
+
+  /auth/cli/device/start:
+    $ref: ./paths/auth/cli.yaml#/cli_device_start
+  /auth/cli/device/approve:
+    $ref: ./paths/auth/cli.yaml#/cli_device_approve
+  /auth/cli/device/poll:
+    $ref: ./paths/auth/cli.yaml#/cli_device_poll
+  /auth/cli/tokens:
+    $ref: ./paths/auth/cli.yaml#/cli_tokens
+  /auth/cli/tokens/revoke:
+    $ref: ./paths/auth/cli.yaml#/cli_tokens_revoke
+  /auth/cli/tokens/rotate:
+    $ref: ./paths/auth/cli.yaml#/cli_tokens_rotate
+
+  /files:
+    $ref: ./paths/files.yaml#/files_list
+  /files/upload:
+    $ref: ./paths/files.yaml#/files_upload
+  /files/upload-url:
+    $ref: ./paths/files.yaml#/files_upload_url
+  /files/{id}:
+    $ref: ./paths/files.yaml#/files_item
+  /files/{id}/move:
+    $ref: ./paths/files.yaml#/files_move
+  /files/{id}/metadata:
+    $ref: ./paths/files.yaml#/files_metadata
+  /files/batch/delete:
+    $ref: ./paths/files.yaml#/files_batch_delete
+  /files/batch/move:
+    $ref: ./paths/files.yaml#/files_batch_move
+  /files/{id}/download:
+    $ref: ./paths/files.yaml#/files_download
+
+  /bundles:
+    $ref: ./paths/bundles.yaml#/bundles_collection
+  /bundles/{bundleId}:
+    $ref: ./paths/bundles.yaml#/bundles_item
+  /bundles/{bundleId}/objects:
+    $ref: ./paths/bundle-objects.yaml#/bundle_objects_collection
+  /bundles/{bundleId}/objects/{id}:
+    $ref: ./paths/bundle-objects.yaml#/bundle_objects_item
+
+  /recipients:
+    $ref: ./paths/recipients.yaml#/recipients_collection
+  /recipients/{recipientId}:
+    $ref: ./paths/recipients.yaml#/recipients_item
+  /bundles/{bundleId}/recipients:
+    $ref: ./paths/recipients.yaml#/bundle_recipients
+  /bundles/{bundleId}/recipients/batch:
+    $ref: ./paths/recipients.yaml#/bundle_recipients_batch
+
+  /portal/me:
+    $ref: ./paths/portal.yaml#/portal_me
+  /portal/bundles:
+    $ref: ./paths/portal.yaml#/portal_bundles
+  /portal/bundles/{bundleId}/objects:
+    $ref: ./paths/portal.yaml#/portal_bundle_objects
+  /portal/bundles/{bundleId}:
+    $ref: ./paths/portal.yaml#/portal_bundle_download
+  /portal/auth/otp/resend:
+    $ref: ./paths/portal.yaml#/portal_otp_resend
+
+  /plugins:
+    $ref: ./paths/plugins.yaml#/plugins
+  /plugins/{pluginId}:
+    $ref: ./paths/plugins.yaml#/plugins_item
+  /plugins/install:
+    $ref: ./paths/plugins.yaml#/plugins_install
+  /capabilities:
+    $ref: ./paths/capabilities.yaml#/capabilities
+
+  /triggers:
+    $ref: ./paths/triggers.yaml#/triggers_collection
+  /triggers/{id}:
+    $ref: ./paths/triggers.yaml#/triggers_item
+  /actions:
+    $ref: ./paths/actions.yaml#/actions_collection
+  /actions/{id}:
+    $ref: ./paths/actions.yaml#/actions_item
+  /pipelines:
+    $ref: ./paths/pipelines.yaml#/pipelines_collection
+  /pipelines/{id}:
+    $ref: ./paths/pipelines.yaml#/pipelines_item
+
+  /users:
+    $ref: ./paths/users.yaml#/users_collection
+  /users/{id}/roles:
+    $ref: ./paths/users.yaml#/users_roles
+
+components:
+  schemas:
+    Error: { $ref: ./components/schemas/Error.yaml }
+    Page: { $ref: ./components/schemas/Page.yaml }
+    ObjectMeta: { $ref: ./components/schemas/ObjectMeta.yaml }
+    File: { $ref: ./components/schemas/File.yaml }
+    Bundle: { $ref: ./components/schemas/Bundle.yaml }
+    BundleObject: { $ref: ./components/schemas/BundleObject.yaml }
+    BundleObjectWithFile: { $ref: ./components/schemas/BundleObjectWithFile.yaml }
+    Recipient: { $ref: ./components/schemas/Recipient.yaml }
+    Plugin: { $ref: ./components/schemas/Plugin.yaml }
+    Capability: { $ref: ./components/schemas/Capability.yaml }
+    TriggerDefinition: { $ref: ./components/schemas/TriggerDefinition.yaml }
+    ActionDefinition: { $ref: ./components/schemas/ActionDefinition.yaml }
+    TriggerAction: { $ref: ./components/schemas/TriggerAction.yaml }
+    User: { $ref: ./components/schemas/User.yaml }
+    DeviceStartResponse: { $ref: ./components/schemas/DeviceStartResponse.yaml }
+    DevicePollPending: { $ref: ./components/schemas/DevicePollPending.yaml }
+    DevicePollSuccess: { $ref: ./components/schemas/DevicePollSuccess.yaml }
+  parameters:
+    Cursor: { $ref: ./components/parameters/Cursor.yaml }
+    Limit: { $ref: ./components/parameters/Limit.yaml }
+  responses:
+    Unauthorized: { $ref: ./components/responses/Unauthorized.yaml }
+    Forbidden: { $ref: ./components/responses/Forbidden.yaml }
+    NotFound: { $ref: ./components/responses/NotFound.yaml }
+    RateLimited: { $ref: ./components/responses/RateLimited.yaml }
+    ValidationError: { $ref: ./components/responses/ValidationError.yaml }
+  securitySchemes:
+    cookieAdmin: { $ref: ./components/securitySchemes/cookieAdmin.yaml }
+    cookieRecipient: { $ref: ./components/securitySchemes/cookieRecipient.yaml }
+    bearer: { $ref: ./components/securitySchemes/bearer.yaml }
