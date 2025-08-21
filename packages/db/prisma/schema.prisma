@@ -77,15 +77,57 @@ model Recipient {
   updatedAt         DateTime           @updatedAt
 }
 
+model File {
+  id          String   @id @default(uuid())
+  // Logical name/path in the admin UI (can be moved/renamed)
+  key         String   @unique
+  // Where the blob actually lives in storage (content-addressed path or provider key)
+  storageKey  String   @unique
+  contentHash String // e.g., sha256 hex (useful for ETag/dedup)
+  size        BigInt
+  contentType String
+  metadata    Json?
+  version     Int      @default(1) // bump on overwrite-in-place if you allow it
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  bundleObjects  BundleObject[]
+  downloadEvents DownloadEvent[] // back-reference if you log per-file downloads
+
+  @@index([contentHash, size])
+  @@index([updatedAt])
+}
+
 model Bundle {
   id                 String               @id @default(uuid())
   name               String
   storagePath        String
   checksum           String
+  bundleObjects      BundleObject[]
   assignments        BundleAssignment[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   ExecutorAssignment ExecutorAssignment[]
+}
+
+model BundleObject {
+  id       String @id @default(uuid())
+  bundle   Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  bundleId String
+  file     File   @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  fileId   String
+
+  // Per-bundle presentation
+  path      String? // optional "display path" inside the bundle (e.g., "docs/guide.pdf")
+  sortOrder Int     @default(0)
+  required  Boolean @default(false)
+  notes     String?
+
+  addedAt DateTime @default(now())
+
+  @@unique([bundleId, fileId]) // a file appears at most once per bundle (adjust if you want duplicates)
+  @@index([bundleId, sortOrder])
 }
 
 model BundleAssignment {
@@ -113,6 +155,8 @@ model DownloadEvent {
   downloadedAt       DateTime         @default(now())
   userAgent          String
   ip                 String
+  File               File?            @relation(fields: [fileId], references: [id])
+  fileId             String?
 }
 
 ///////////////////////////
