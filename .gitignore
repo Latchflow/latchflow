@@ -5,6 +5,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Build output
+**/dist
+
 # pnpm
 .pnpm-store
 
@@ -25,5 +28,3 @@ Thumbs.db
 
 # Logs
 **/coverage
-packages/core/openapi/dist/
-openapi/dist/

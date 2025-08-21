@@ -17,7 +17,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 - Audit Log: Every trigger, action, and download is recorded.
 
 ## Current State
-- Workspaces present: `packages/core` (service runtime, API), `packages/db` (Prisma client).
+- Workspaces present: `packages/core` (service runtime, API), `packages/db` (Prisma client), `packages/testkit/*` (shared mocks/fixtures/scenarios).
 - Planned but not yet in repo: `apps/admin-ui`, `apps/portal`, `apps/cli`, `packages/plugins/*`.
 - Docker Compose includes Postgres only; MinIO/MailHog are planned.
 - OpenAPI spec lives in `packages/core/openapi` with scripts to lint/bundle/preview.
@@ -58,6 +58,13 @@ pnpm core:dev
 - `pnpm -r lint` / `pnpm -r test`: Lint or test across workspaces.
 - `pnpm oas:preview`: Preview OpenAPI docs; `oas:bundle`/`oas:bundle:yaml` to bundle; `oas:validate` to validate.
 
+## Testkit (Shared Mocks)
+- Shared unit/integration testing kit for all apps using MSW-based handlers, fixtures, and scenarios.
+- Quick start for tests (Node):
+  - `import { scenarios, makeHandlers } from '@latchflow/testkit-msw-handlers'`
+  - `setupServer(...makeHandlers(scenarios.singleBundleHappyPath().handlers)({ http, HttpResponse }))`
+- See `packages/testkit/README.md` for detailed usage, scenarios, and CI spec-hash guidance.
+
 ## Features (In Progress)
 - Encrypted storage: Optional per-bundle encryption keys.
 - Plugin system: Extend with new triggers/actions/storage; registry is dynamic, not hardcoded.
@@ -79,6 +86,7 @@ TriggerDefinition ──▶ TriggerAction ──▶ ActionDefinition
 packages/
   core/   - Service runtime, plugin loader, API, OpenAPI spec
   db/     - Prisma schema & generated client (@latchflow/db)
+  testkit/ - Shared mocks, fixtures, scenarios, MSW adapter (@latchflow/testkit-*)
 
 # Planned (not yet present in this repo)
 apps/

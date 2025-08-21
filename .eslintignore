@@ -1,3 +1,4 @@
 # generated code
 packages/db/generated/**
 packages/db/generated/prisma/**
+packages/core/coverage/**
