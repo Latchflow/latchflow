@@ -38,6 +38,8 @@ admin_callback:
     responses:
       '204':
         description: Session established via cookie
+      '400':
+        $ref: ../../components/responses/ValidationError.yaml
       '401':
         $ref: ../../components/responses/Unauthorized.yaml
 
@@ -46,12 +48,9 @@ admin_logout:
     summary: Logout admin session
     operationId: logoutAdmin
     tags: [Auth (Admin)]
-    security:
-      - cookieAdmin: []
     responses:
       '204':
         description: Logged out
-      '401': { $ref: ../../components/responses/Unauthorized.yaml }
 
 auth_me:
   get:
@@ -151,3 +150,4 @@ auth_sessions_revoke:
     responses:
       '204': { description: Revoked }
       '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../../components/responses/ValidationError.yaml }
