@@ -27,6 +27,8 @@ recipient_start:
         $ref: ../../components/responses/NotFound.yaml
       '429':
         $ref: ../../components/responses/RateLimited.yaml
+      '400':
+        $ref: ../../components/responses/ValidationError.yaml
 
 recipient_verify:
   post:
@@ -60,6 +62,8 @@ recipient_verify:
         $ref: ../../components/responses/Unauthorized.yaml
       '429':
         $ref: ../../components/responses/RateLimited.yaml
+      '400':
+        $ref: ../../components/responses/ValidationError.yaml
 
 recipient_logout:
   post:

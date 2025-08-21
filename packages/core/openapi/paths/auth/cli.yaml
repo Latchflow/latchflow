@@ -55,6 +55,7 @@ cli_device_approve:
       '401':
         $ref: ../../components/responses/Unauthorized.yaml
       '403': { $ref: ../../components/responses/Forbidden.yaml }
+      '400': { $ref: ../../components/responses/ValidationError.yaml }
 
 cli_device_poll:
   post:
@@ -86,6 +87,8 @@ cli_device_poll:
               $ref: ../../components/schemas/DevicePollPending.yaml
       '429':
         $ref: ../../components/responses/RateLimited.yaml
+      '400':
+        $ref: ../../components/responses/ValidationError.yaml
 
 cli_tokens:
   get:
@@ -168,6 +171,7 @@ cli_tokens_revoke:
     responses:
       '204': { description: Revoked }
       '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../../components/responses/ValidationError.yaml }
 
 cli_tokens_rotate:
   post:
