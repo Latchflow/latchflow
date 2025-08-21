@@ -4,7 +4,25 @@
     "target": "ES2020",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@latchflow/testkit-api-types": [
+        "packages/testkit/api-types/src/index.ts"
+      ],
+      "@latchflow/testkit-utils": [
+        "packages/testkit/utils/src/index.ts"
+      ],
+      "@latchflow/testkit-fixtures": [
+        "packages/testkit/fixtures/src/index.ts"
+      ],
+      "@latchflow/testkit-scenarios": [
+        "packages/testkit/scenarios/src/index.ts"
+      ],
+      "@latchflow/testkit-msw-handlers": [
+        "packages/testkit/msw-handlers/src/index.ts"
+      ]
+    }
   },
   "include": ["packages/**/*.ts", "apps/**/*.ts"]
 }
