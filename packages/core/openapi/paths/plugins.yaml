@@ -4,6 +4,7 @@ plugins:
     operationId: listPlugins
     tags: [Plugins]
     security:
+      - bearer: []
       - cookieAdmin: []
     responses:
       '200':
@@ -26,6 +27,7 @@ plugins_install:
     operationId: installPlugin
     tags: [Plugins]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -48,6 +50,7 @@ plugins_item:
     operationId: uninstallPlugin
     tags: [Plugins]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path

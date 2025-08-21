@@ -4,6 +4,7 @@ pipelines_collection:
     operationId: listPipelines
     tags: [Pipelines]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - $ref: ../components/parameters/Limit.yaml
@@ -27,6 +28,7 @@ pipelines_collection:
     operationId: createPipeline
     tags: [Pipelines]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -55,6 +57,7 @@ pipelines_item:
     operationId: updatePipeline
     tags: [Pipelines]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path

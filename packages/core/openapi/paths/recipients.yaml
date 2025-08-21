@@ -4,6 +4,7 @@ recipients_collection:
     operationId: listRecipients
     tags: [Recipients]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - $ref: ../components/parameters/Limit.yaml
@@ -30,6 +31,7 @@ recipients_collection:
     operationId: createRecipient
     tags: [Recipients]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -56,6 +58,7 @@ recipients_item:
     operationId: getRecipient
     tags: [Recipients]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -77,6 +80,7 @@ bundle_recipients:
     operationId: listBundleRecipients
     tags: [Recipients]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -104,6 +108,7 @@ bundle_recipients:
     operationId: attachRecipientToBundle
     tags: [Recipients]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path

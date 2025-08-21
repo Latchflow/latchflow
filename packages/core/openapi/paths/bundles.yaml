@@ -4,6 +4,7 @@ bundles_collection:
     operationId: listBundles
     tags: [Bundles]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - $ref: ../components/parameters/Limit.yaml
@@ -27,6 +28,7 @@ bundles_collection:
     operationId: createBundle
     tags: [Bundles]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -53,6 +55,7 @@ bundles_item:
     operationId: getBundle
     tags: [Bundles]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -72,6 +75,7 @@ bundles_item:
     operationId: updateBundle
     tags: [Bundles]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -96,6 +100,7 @@ bundles_item:
     operationId: deleteBundle
     tags: [Bundles]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path

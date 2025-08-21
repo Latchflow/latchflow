@@ -9,4 +9,4 @@ properties:
     type: string
   jsonSchema:
     type: object
-required: [kind, key, displayName]
+required: [kind, key, displayName, jsonSchema]

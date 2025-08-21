@@ -4,6 +4,7 @@ capabilities:
     operationId: listCapabilities
     tags: [Capabilities]
     security:
+      - bearer: []
       - cookieAdmin: []
     responses:
       '200':
