@@ -4,6 +4,7 @@ files_list:
     operationId: listFiles
     tags: [Files]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - $ref: ../components/parameters/Limit.yaml
@@ -38,6 +39,7 @@ files_upload:
     operationId: uploadFile
     tags: [Files]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -73,6 +75,7 @@ files_upload_url:
     operationId: createUploadUrl
     tags: [Files]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -109,6 +112,7 @@ files_item:
     operationId: getFile
     tags: [Files]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -129,6 +133,7 @@ files_item:
     operationId: deleteFile
     tags: [Files]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -145,6 +150,7 @@ files_metadata:
     operationId: updateFileMetadata
     tags: [Files]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -173,6 +179,7 @@ files_move:
     operationId: moveFile
     tags: [Files]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -208,6 +215,9 @@ files_download:
     responses:
       '200':
         description: File stream
+        headers:
+          ETag:
+            schema: { type: string }
         content:
           application/octet-stream:
             schema:

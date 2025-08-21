@@ -4,6 +4,7 @@ bundle_objects_collection:
     operationId: listBundleObjects
     tags: ["Bundle Objects"]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -32,6 +33,7 @@ bundle_objects_collection:
     operationId: attachBundleObjects
     tags: ["Bundle Objects"]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -87,6 +89,7 @@ bundle_objects_item:
     operationId: updateBundleObject
     tags: ["Bundle Objects"]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -116,6 +119,7 @@ bundle_objects_item:
     operationId: deleteBundleObject
     tags: ["Bundle Objects"]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
