@@ -3,7 +3,12 @@ properties:
   id: { type: string, format: uuid }
   name: { type: string }
   version: { type: string }
+  description: { type: string }
+  author: { type: string }
+  homepageUrl: { type: string }
+  repositoryUrl: { type: string }
+  installedAt: { type: string, format: date-time }
   capabilities:
     type: array
     items: { $ref: ./Capability.yaml }
-required: [id, name, version, capabilities]
+required: [id, name, capabilities]

@@ -1,8 +1,10 @@
 type: object
 properties:
   id: { type: string, format: uuid }
-  capabilityKey: { type: string }
+  name: { type: string }
+  capabilityId: { type: string, format: uuid }
   config: { type: object }
-  enabled: { type: boolean }
+  isEnabled: { type: boolean }
   createdAt: { type: string, format: date-time }
-required: [id, capabilityKey, config, enabled]
+  updatedAt: { type: string, format: date-time }
+required: [id, name, capabilityId, config, ownerId]

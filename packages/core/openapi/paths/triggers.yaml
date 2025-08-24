@@ -37,10 +37,10 @@ triggers_collection:
           schema:
             type: object
             properties:
-              capabilityKey: { type: string }
+              name: { type: string }
+              capabilityId: { type: string, format: uuid }
               config: { type: object }
-              enabled: { type: boolean }
-            required: [capabilityKey, config]
+            required: [name, capabilityId, config]
     responses:
       '201':
         description: Created
@@ -70,8 +70,8 @@ triggers_item:
           schema:
             type: object
             properties:
+              name: { type: string }
               config: { type: object }
-              enabled: { type: boolean }
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
