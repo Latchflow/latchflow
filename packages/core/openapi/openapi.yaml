@@ -172,6 +172,14 @@ paths:
     $ref: ./paths/pipelines.yaml#/pipelines_collection
   /pipelines/{id}:
     $ref: ./paths/pipelines.yaml#/pipelines_item
+  /pipelines/{pipelineId}/steps:
+    $ref: ./paths/pipelines.yaml#/pipeline_steps_collection
+  /pipelines/{pipelineId}/steps/{stepId}:
+    $ref: ./paths/pipelines.yaml#/pipeline_steps_item
+  /pipelines/{pipelineId}/triggers:
+    $ref: ./paths/pipelines.yaml#/pipeline_triggers_collection
+  /pipelines/{pipelineId}/triggers/{triggerId}:
+    $ref: ./paths/pipelines.yaml#/pipeline_triggers_item
 
   /users:
     $ref: ./paths/users.yaml#/users_collection
@@ -192,7 +200,9 @@ components:
     Capability: { $ref: ./components/schemas/Capability.yaml }
     TriggerDefinition: { $ref: ./components/schemas/TriggerDefinition.yaml }
     ActionDefinition: { $ref: ./components/schemas/ActionDefinition.yaml }
-    TriggerAction: { $ref: ./components/schemas/TriggerAction.yaml }
+    Pipeline: { $ref: ./components/schemas/Pipeline.yaml }
+    PipelineStep: { $ref: ./components/schemas/PipelineStep.yaml }
+    PipelineTrigger: { $ref: ./components/schemas/PipelineTrigger.yaml }
     User: { $ref: ./components/schemas/User.yaml }
     DeviceStartResponse: { $ref: ./components/schemas/DeviceStartResponse.yaml }
     DevicePollPending: { $ref: ./components/schemas/DevicePollPending.yaml }
