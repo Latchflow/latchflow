@@ -33,6 +33,7 @@ enum InvocationStatus {
   PENDING
   SUCCESS
   FAILED
+  SKIPPED_DISABLED
 }
 
 enum VerificationType {
