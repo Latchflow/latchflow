@@ -61,7 +61,6 @@ model User {
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
-  TriggerDefinition   TriggerDefinition[]
   ActionInvocation    ActionInvocation[]
   Session             Session[]
   MagicLink           MagicLink[]
@@ -203,14 +202,13 @@ model TriggerDefinition {
   capability          PluginCapability     @relation(fields: [capabilityId], references: [id])
   capabilityId        String
   config              Json
-  owner               User                 @relation(fields: [ownerId], references: [id])
-  ownerId             String
   executorAssignments ExecutorAssignment[]
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
   ExecutorPermission  ExecutorPermission[]
   pipelines           PipelineTrigger[]
   events              TriggerEvent[]
+  isEnabled           Boolean  @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model TriggerEvent {
@@ -229,6 +227,7 @@ model ActionDefinition {
   capability        PluginCapability   @relation(fields: [capabilityId], references: [id])
   capabilityId      String
   config            Json
+  isEnabled         Boolean  @default(true)
   pipelineSteps     PipelineStep[]
   actionInvocations ActionInvocation[]
   createdAt         DateTime           @default(now())
