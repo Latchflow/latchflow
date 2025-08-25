@@ -13,7 +13,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 - Recipients: People or endpoints allowed to retrieve specific bundles.
 - Triggers: Events that start a release process (cron schedules, webhooks, manual overrides, dead-man’s switch, etc.).
 - Actions: What happens after a trigger (send email, publish signed URL, push webhook, etc.).
-- Pipelines/Steps: How triggers relate to actions. Defines a set of actions (steps) to be executed in order.
+- Pipelines/Steps: How triggers relate to actions. Defines a set of actions (steps) to be executed in order after a trigger is fired.
 - Executors: Humans with scoped admin permissions to manage bundles, run actions, and perform other managerial tasks.
 - Audit Log: Every trigger, action, and download is recorded.
 
