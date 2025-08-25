@@ -33,6 +33,7 @@ enum InvocationStatus {
   PENDING
   SUCCESS
   FAILED
+  SKIPPED_DISABLED
 }
 
 enum VerificationType {
@@ -60,7 +61,6 @@ model User {
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
-  TriggerDefinition   TriggerDefinition[]
   ActionInvocation    ActionInvocation[]
   Session             Session[]
   MagicLink           MagicLink[]
@@ -104,6 +104,7 @@ model Bundle {
   name               String
   storagePath        String
   checksum           String
+  description        String?
   bundleObjects      BundleObject[]
   assignments        BundleAssignment[]
   createdAt          DateTime             @default(now())
@@ -201,14 +202,13 @@ model TriggerDefinition {
   capability          PluginCapability     @relation(fields: [capabilityId], references: [id])
   capabilityId        String
   config              Json
-  owner               User                 @relation(fields: [ownerId], references: [id])
-  ownerId             String
-  actions             TriggerAction[]
-  events              TriggerEvent[]
   executorAssignments ExecutorAssignment[]
+  ExecutorPermission  ExecutorPermission[]
+  pipelines           PipelineTrigger[]
+  events              TriggerEvent[]
+  isEnabled           Boolean  @default(true)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
-  ExecutorPermission  ExecutorPermission[]
 }
 
 model TriggerEvent {
@@ -227,20 +227,11 @@ model ActionDefinition {
   capability        PluginCapability   @relation(fields: [capabilityId], references: [id])
   capabilityId      String
   config            Json
-  triggerActions    TriggerAction[]
+  isEnabled         Boolean  @default(true)
+  pipelineSteps     PipelineStep[]
   actionInvocations ActionInvocation[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
-}
-
-model TriggerAction {
-  id                  String            @id @default(uuid())
-  triggerDefinition   TriggerDefinition @relation(fields: [triggerDefinitionId], references: [id])
-  triggerDefinitionId String
-  actionDefinition    ActionDefinition  @relation(fields: [actionDefinitionId], references: [id])
-  actionDefinitionId  String
-  sortOrder           Int               @default(0)
-  isEnabled           Boolean           @default(true)
 }
 
 model ActionInvocation {
@@ -255,6 +246,51 @@ model ActionInvocation {
   startedAt          DateTime         @default(now())
   completedAt        DateTime?
   result             Json?
+}
+
+///////////////////////////
+// Piplines & Steps
+///////////////////////////
+
+model Pipeline {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isEnabled   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  steps       PipelineStep[]
+  triggers    PipelineTrigger[]
+}
+
+model PipelineStep {
+  id          String   @id @default(uuid())
+  pipelineId  String
+  actionId    String
+  sortOrder   Int      @default(0)
+  isEnabled   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pipeline    Pipeline @relation(fields: [pipelineId], references: [id])
+  action      ActionDefinition @relation(fields: [actionId], references: [id])
+
+  @@unique([pipelineId, sortOrder], map: "pipelinestep_sort_unique")
+}
+
+model PipelineTrigger {
+  pipelineId  String
+  triggerId   String
+  sortOrder   Int       @default(0)
+  isEnabled   Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  pipeline    Pipeline        @relation(fields: [pipelineId], references: [id])
+  trigger     TriggerDefinition @relation(fields: [triggerId], references: [id])
+
+  @@id([pipelineId, triggerId])
+  @@unique([triggerId, sortOrder], map: "pipelinetrigger_sort_unique")
 }
 
 ///////////////////////////

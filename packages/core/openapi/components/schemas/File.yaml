@@ -8,6 +8,7 @@ properties:
     type: object
     additionalProperties:
       type: string
+  # etag derived from contentHash field in the database
   etag: { type: string }
   updatedAt: { type: string, format: date-time }
 required: [id, key, size, contentType, updatedAt]

@@ -41,7 +41,7 @@ recipients_collection:
             type: object
             properties:
               email: { type: string, format: email }
-              displayName: { type: string }
+              name: { type: string }
             required: [email]
     responses:
       '201':

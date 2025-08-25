@@ -1,0 +1,10 @@
+type: object
+properties:
+  pipelineId: { type: string, format: uuid }
+  trigger: { $ref: ./TriggerDefinition.yaml }
+  triggerId: { type: string, format: uuid }
+  sortOrder: { type: integer }
+  isEnabled: { type: boolean }
+  createdAt: { type: string, format: date-time }
+  updatedAt: { type: string, format: date-time }
+required: [pipelineId, triggerId, isEnabled]

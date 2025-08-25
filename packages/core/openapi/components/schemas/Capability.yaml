@@ -1,5 +1,6 @@
 type: object
 properties:
+  id: { type: string, format: uuid }
   kind:
     type: string
     enum: [TRIGGER, ACTION]
@@ -9,4 +10,5 @@ properties:
     type: string
   jsonSchema:
     type: object
-required: [kind, key, displayName, jsonSchema]
+  isEnabled: { type: boolean }
+required: [kind, key, displayName]

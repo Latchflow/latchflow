@@ -1,6 +1,6 @@
 pipelines_collection:
   get:
-    summary: List trigger→action pipelines
+    summary: List pipelines
     operationId: listPipelines
     tags: [Pipelines]
     security:
@@ -19,7 +19,7 @@ pipelines_collection:
               properties:
                 items:
                   type: array
-                  items: { $ref: ../components/schemas/TriggerAction.yaml }
+                  items: { $ref: ../components/schemas/Pipeline.yaml }
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
@@ -37,17 +37,16 @@ pipelines_collection:
           schema:
             type: object
             properties:
-              triggerId: { type: string, format: uuid }
-              actionId: { type: string, format: uuid }
-              sortOrder: { type: integer }
-              enabled: { type: boolean }
-            required: [triggerId, actionId]
+              name: { type: string }
+              description: { type: string }
+              isEnabled: { type: boolean }
+            required: [name]
     responses:
       '201':
         description: Created
         content:
           application/json:
-            schema: { $ref: ../components/schemas/TriggerAction.yaml }
+            schema: { $ref: ../components/schemas/Pipeline.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
@@ -71,8 +70,9 @@ pipelines_item:
           schema:
             type: object
             properties:
-              sortOrder: { type: integer }
-              enabled: { type: boolean }
+              name: { type: string }
+              description: { type: string }
+              isEnabled: { type: boolean }
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
@@ -86,6 +86,228 @@ pipelines_item:
     parameters:
       - in: path
         name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+# Pipeline Steps sub-resource
+pipeline_steps_collection:
+  get:
+    summary: List pipeline steps
+    operationId: listPipelineSteps
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Pipeline steps
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/PipelineStep.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+  post:
+    summary: Add pipeline step
+    operationId: addPipelineStep
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              actionId: { type: string, format: uuid }
+              sortOrder: { type: integer }
+              isEnabled: { type: boolean }
+            required: [actionId]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PipelineStep.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+pipeline_steps_item:
+  patch:
+    summary: Update pipeline step
+    operationId: updatePipelineStep
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: stepId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              sortOrder: { type: integer }
+              isEnabled: { type: boolean }
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+  delete:
+    summary: Delete pipeline step
+    operationId: deletePipelineStep
+    tags: [Pipelines]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: stepId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+# Pipeline Triggers sub-resource
+pipeline_triggers_collection:
+  get:
+    summary: List pipeline triggers
+    operationId: listPipelineTriggers
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Pipeline triggers
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/PipelineTrigger.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+  post:
+    summary: Attach trigger to pipeline
+    operationId: addPipelineTrigger
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              triggerId: { type: string, format: uuid }
+              sortOrder: { type: integer }
+              isEnabled: { type: boolean }
+            required: [triggerId]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PipelineTrigger.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+
+pipeline_triggers_item:
+  patch:
+    summary: Update pipeline trigger
+    operationId: updatePipelineTrigger
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: triggerId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              sortOrder: { type: integer }
+              isEnabled: { type: boolean }
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+  delete:
+    summary: Detach trigger from pipeline
+    operationId: deletePipelineTrigger
+    tags: [Pipelines]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pipelineId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: triggerId
         required: true
         schema: { type: string, format: uuid }
     responses:

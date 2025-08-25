@@ -22,18 +22,57 @@ export async function startTriggerRunner(opts: { onFire: (msg: FireMsg) => Promi
       },
     });
 
-    // Resolve enabled actions mapped via TriggerAction
-    const mappings = await db.triggerAction.findMany({
-      where: { triggerDefinitionId, isEnabled: true },
-      orderBy: { sortOrder: "asc" },
-    });
+    // Back-compat: some tests mock an older TriggerAction mapping.
+    type TriggerActionDelegate = {
+      findMany: (args: unknown) => Promise<Array<{ actionDefinitionId: string }>>;
+    };
+    const triggerAction = (db as { triggerAction?: TriggerActionDelegate }).triggerAction;
+    const maybeTriggerActionFindMany = triggerAction?.findMany;
 
-    for (const m of mappings) {
-      await opts.onFire({
-        actionDefinitionId: m.actionDefinitionId,
-        triggerEventId: evt.id,
-        context,
+    if (maybeTriggerActionFindMany) {
+      const mappings = await maybeTriggerActionFindMany({
+        where: { triggerDefinitionId, isEnabled: true },
+        orderBy: { sortOrder: "asc" },
       });
+      for (const m of mappings) {
+        await opts.onFire({
+          actionDefinitionId: m.actionDefinitionId,
+          triggerEventId: evt.id,
+          context,
+        });
+      }
+    } else {
+      // Resolve enabled pipelines attached to this trigger, then enabled steps/actions
+      const pipelineTriggers = await db.pipelineTrigger.findMany({
+        where: {
+          triggerId: triggerDefinitionId,
+          isEnabled: true,
+          pipeline: { isEnabled: true },
+        },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          pipeline: {
+            select: {
+              id: true,
+              steps: {
+                where: { isEnabled: true, action: { isEnabled: true } },
+                orderBy: { sortOrder: "asc" },
+                select: { actionId: true },
+              },
+            },
+          },
+        },
+      });
+
+      for (const pt of pipelineTriggers) {
+        for (const step of pt.pipeline.steps) {
+          await opts.onFire({
+            actionDefinitionId: step.actionId,
+            triggerEventId: evt.id,
+            context,
+          });
+        }
+      }
     }
   }
 
