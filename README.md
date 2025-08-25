@@ -2,10 +2,6 @@
 
 Trigger-gated secure file release system — store encrypted bundles and release them only when specific conditions are met.
 
-```
-Trigger → Action
-```
-
 Latchflow began as a “digital legacy” tool — a way to pass files to specific people after your death — but its trigger-driven architecture makes it useful for many other release scenarios: timed publishing, workflow automation, or conditional data sharing.
 
 ## Core Concepts
@@ -24,7 +20,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 - OpenAPI spec lives in `packages/core/openapi` with scripts to lint/bundle/preview.
 
 ## Quick Start
-Prerequisites: Node 20+, pnpm 9/10, Docker.
+Prerequisites: Node 20+, pnpm 9/10, Docker. Dev container/Codespace config included for convenience.
 
 1) Install deps
 ```
@@ -109,7 +105,7 @@ packages/plugins/
 - Run all tests with `pnpm -r test` or Core-only with `pnpm core:test`.
 
 ## Roadmap
-- Admin UI, Recipient Portal, CLI, and built-in plugins are planned additions.
+- CLI, Admin UI, Recipient Portal, CLI, and built-in plugins are planned additions.
 - See `docs/ROADMAP.md` for phased milestones.
 
 ## See Also
