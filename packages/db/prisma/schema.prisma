@@ -61,11 +61,33 @@ model User {
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
-  ActionInvocation    ActionInvocation[]
-  Session             Session[]
-  MagicLink           MagicLink[]
-  ApiToken            ApiToken[]
-  DeviceAuth          DeviceAuth[]
+  actionInvocations   ActionInvocation[]
+  sessions            Session[]
+  magicLinks          MagicLink[]
+  apiTokens           ApiToken[]
+  deviceAuths         DeviceAuth[]
+
+  // Back-relations for creator/updater across models
+  createdRecipients        Recipient[]        @relation("createdRecipients")
+  updatedRecipients        Recipient[]        @relation("updatedRecipients")
+  createdFiles             File[]             @relation("createdFiles")
+  updatedFiles             File[]             @relation("updatedFiles")
+  createdBundles           Bundle[]           @relation("createdBundles")
+  updatedBundles           Bundle[]           @relation("updatedBundles")
+  createdBundleObjects     BundleObject[]     @relation("createdBundleObjects")
+  updatedBundleObjects     BundleObject[]     @relation("updatedBundleObjects")
+  createdBundleAssignments BundleAssignment[] @relation("createdBundleAssignments")
+  updatedBundleAssignments BundleAssignment[] @relation("updatedBundleAssignments")
+  createdTriggers          TriggerDefinition[] @relation("createdTriggers")
+  updatedTriggers          TriggerDefinition[] @relation("updatedTriggers")
+  createdActions           ActionDefinition[]  @relation("createdActions")
+  updatedActions           ActionDefinition[]  @relation("updatedActions")
+  createdPipelines         Pipeline[]          @relation("createdPipelines")
+  updatedPipelines         Pipeline[]          @relation("updatedPipelines")
+  createdPipelineSteps     PipelineStep[]      @relation("createdPipelineSteps")
+  updatedPipelineSteps     PipelineStep[]      @relation("updatedPipelineSteps")
+  createdPipelineTriggers  PipelineTrigger[]   @relation("createdPipelineTriggers")
+  updatedPipelineTriggers  PipelineTrigger[]   @relation("updatedPipelineTriggers")
 }
 
 model Recipient {
@@ -75,6 +97,11 @@ model Recipient {
   bundleAssignments BundleAssignment[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  createdBy  String
+  updatedBy  String?
+
+  creator    User     @relation("createdRecipients", fields: [createdBy], references: [id])
+  updater    User?    @relation("updatedRecipients", fields: [updatedBy], references: [id])
 }
 
 model File {
@@ -87,13 +114,16 @@ model File {
   size        BigInt
   contentType String
   metadata    Json?
-  version     Int      @default(1) // bump on overwrite-in-place if you allow it
+  version     Int      @default(1)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  createdBy  String
+  updatedBy  String?
+  creator    User     @relation("createdFiles", fields: [createdBy], references: [id])
+  updater    User?    @relation("updatedFiles", fields: [updatedBy], references: [id])
 
-  // Relations
   bundleObjects  BundleObject[]
-  downloadEvents DownloadEvent[] // back-reference if you log per-file downloads
+  downloadEvents DownloadEvent[]
 
   @@index([contentHash, size])
   @@index([updatedAt])
@@ -109,23 +139,31 @@ model Bundle {
   assignments        BundleAssignment[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
-  ExecutorAssignment ExecutorAssignment[]
+  createdBy  String
+  updatedBy  String?
+
+  creator    User     @relation("createdBundles", fields: [createdBy], references: [id])
+  updater    User?    @relation("updatedBundles", fields: [updatedBy], references: [id])
+  executorAssignments ExecutorAssignment[]
 }
 
 model BundleObject {
   id       String @id @default(uuid())
-  bundle   Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
   bundleId String
-  file     File   @relation(fields: [fileId], references: [id], onDelete: Restrict)
   fileId   String
-
-  // Per-bundle presentation
-  path      String? // optional "display path" inside the bundle (e.g., "docs/guide.pdf")
+  path      String?
   sortOrder Int     @default(0)
   required  Boolean @default(false)
   notes     String?
 
   addedAt DateTime @default(now())
+  createdBy  String
+  updatedBy  String?
+
+  creator    User     @relation("createdBundleObjects", fields: [createdBy], references: [id])
+  updater    User?    @relation("updatedBundleObjects", fields: [updatedBy], references: [id])
+  file     File   @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  bundle   Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
 
   @@unique([bundleId, fileId]) // a file appears at most once per bundle (adjust if you want duplicates)
   @@index([bundleId, sortOrder])
@@ -133,9 +171,7 @@ model BundleObject {
 
 model BundleAssignment {
   id               String            @id @default(uuid())
-  bundle           Bundle            @relation(fields: [bundleId], references: [id])
   bundleId         String
-  recipient        Recipient         @relation(fields: [recipientId], references: [id])
   recipientId      String
   maxDownloads     Int?
   cooldownSeconds  Int?
@@ -145,6 +181,13 @@ model BundleAssignment {
   downloadEvents   DownloadEvent[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  createdBy        String
+  updatedBy        String?
+
+  creator          User     @relation("createdBundleAssignments", fields: [createdBy], references: [id])
+  updater          User?    @relation("updatedBundleAssignments", fields: [updatedBy], references: [id])
+  recipient        Recipient         @relation(fields: [recipientId], references: [id])
+  bundle           Bundle            @relation(fields: [bundleId], references: [id])
 }
 
 model DownloadEvent {
@@ -156,7 +199,7 @@ model DownloadEvent {
   downloadedAt       DateTime         @default(now())
   userAgent          String
   ip                 String
-  File               File?            @relation(fields: [fileId], references: [id])
+  file               File?            @relation(fields: [fileId], references: [id])
   fileId             String?
 }
 
@@ -186,8 +229,8 @@ model PluginCapability {
   jsonSchema        Json?
   isEnabled         Boolean             @default(true)
   createdAt         DateTime            @default(now())
-  TriggerDefinition TriggerDefinition[]
-  ActionDefinition  ActionDefinition[]
+  triggers         TriggerDefinition[]
+  actions          ActionDefinition[]
 
   @@unique([pluginId, key])
 }
@@ -199,7 +242,6 @@ model PluginCapability {
 model TriggerDefinition {
   id                  String               @id @default(uuid())
   name                String
-  capability          PluginCapability     @relation(fields: [capabilityId], references: [id])
   capabilityId        String
   config              Json
   executorAssignments ExecutorAssignment[]
@@ -209,6 +251,12 @@ model TriggerDefinition {
   isEnabled           Boolean  @default(true)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  createdBy           String
+  updatedBy           String?
+
+  creator             User     @relation("createdTriggers", fields: [createdBy], references: [id])
+  updater             User?    @relation("updatedTriggers", fields: [updatedBy], references: [id])
+  capability          PluginCapability     @relation(fields: [capabilityId], references: [id])
 }
 
 model TriggerEvent {
@@ -218,13 +266,12 @@ model TriggerEvent {
   firedAt             DateTime           @default(now())
   context             Json
   actionInvocations   ActionInvocation[]
-  DownloadEvent       DownloadEvent[]
+  downloadEvents      DownloadEvent[]
 }
 
 model ActionDefinition {
   id                String             @id @default(uuid())
   name              String
-  capability        PluginCapability   @relation(fields: [capabilityId], references: [id])
   capabilityId      String
   config            Json
   isEnabled         Boolean  @default(true)
@@ -232,6 +279,12 @@ model ActionDefinition {
   actionInvocations ActionInvocation[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  createdBy         String
+  updatedBy         String?
+
+  creator           User     @relation("createdActions", fields: [createdBy], references: [id])
+  updater           User?    @relation("updatedActions", fields: [updatedBy], references: [id])
+  capability        PluginCapability   @relation(fields: [capabilityId], references: [id])
 }
 
 model ActionInvocation {
@@ -257,10 +310,15 @@ model Pipeline {
   name        String
   description String?
   isEnabled   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
   steps       PipelineStep[]
   triggers    PipelineTrigger[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy  String
+  updatedBy  String?
+
+  creator    User     @relation("createdPipelines", fields: [createdBy], references: [id])
+  updater    User?    @relation("updatedPipelines", fields: [updatedBy], references: [id])
 }
 
 model PipelineStep {
@@ -271,7 +329,11 @@ model PipelineStep {
   isEnabled   Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  createdBy   String
+  updatedBy   String?
 
+  creator     User     @relation("createdPipelineSteps", fields: [createdBy], references: [id])
+  updater     User?    @relation("updatedPipelineSteps", fields: [updatedBy], references: [id])
   pipeline    Pipeline @relation(fields: [pipelineId], references: [id])
   action      ActionDefinition @relation(fields: [actionId], references: [id])
 
@@ -285,7 +347,11 @@ model PipelineTrigger {
   isEnabled   Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  createdBy   String
+  updatedBy   String?
 
+  creator     User     @relation("createdPipelineTriggers", fields: [createdBy], references: [id])
+  updater     User?    @relation("updatedPipelineTriggers", fields: [updatedBy], references: [id])
   pipeline    Pipeline        @relation(fields: [pipelineId], references: [id])
   trigger     TriggerDefinition @relation(fields: [triggerId], references: [id])
 
@@ -387,7 +453,7 @@ model ApiToken {
   lastUsedAt DateTime?
   expiresAt  DateTime?
   revokedAt  DateTime?
-  DeviceAuth DeviceAuth[]
+  deviceAuths DeviceAuth[]
 
   @@index([userId])
 }
