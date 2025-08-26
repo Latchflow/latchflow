@@ -29,6 +29,8 @@ const prisma = {
   pipelineTrigger: mkModel(),
   bundle: mkModel(),
   bundleObject: mkModel(),
+  triggerDefinition: mkModel(),
+  actionDefinition: mkModel(),
   changeLog: mkModel(),
 };
 
