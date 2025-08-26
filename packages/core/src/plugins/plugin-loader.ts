@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { DbClient } from "../db.js";
+import type { DbClient } from "../db/db.js";
 import type { Prisma } from "@latchflow/db";
 
 export const CapabilitySchema = z.object({

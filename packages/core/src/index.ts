@@ -1,5 +1,5 @@
-import { loadConfig } from "./config.js";
-import { getDb } from "./db.js";
+import { loadConfig } from "./config/config.js";
+import { getDb } from "./db/db.js";
 import { createExpressServer } from "./http/express-server.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerAdminAuthRoutes } from "./routes/auth/admin.js";
