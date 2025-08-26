@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { HttpServer } from "../../http/http-server.js";
-import { getDb } from "../../db.js";
+import { getDb } from "../../db/db.js";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
-import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config.js";
+import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/config.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
 import { requireAdmin } from "../../middleware/require-admin.js";
 

@@ -1,5 +1,5 @@
 import type { HttpHandler, RequestLike } from "../http/http-server.js";
-import { getDb } from "../db.js";
+import { getDb } from "../db/db.js";
 import { sha256Hex } from "../auth/tokens.js";
 
 type WithToken = RequestLike & {

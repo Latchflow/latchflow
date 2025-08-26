@@ -2,10 +2,6 @@
 
 Trigger-gated secure file release system — store encrypted bundles and release them only when specific conditions are met.
 
-```
-Trigger → Action
-```
-
 Latchflow began as a “digital legacy” tool — a way to pass files to specific people after your death — but its trigger-driven architecture makes it useful for many other release scenarios: timed publishing, workflow automation, or conditional data sharing.
 
 ## Core Concepts
@@ -13,7 +9,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 - Recipients: People or endpoints allowed to retrieve specific bundles.
 - Triggers: Events that start a release process (cron schedules, webhooks, manual overrides, dead-man’s switch, etc.).
 - Actions: What happens after a trigger (send email, publish signed URL, push webhook, etc.).
-- Pipelines/Steps: How triggers relate to actions. Defines a set of actions (steps) to be executed in order.
+- Pipelines/Steps: How triggers relate to actions. Defines a set of actions (steps) to be executed in order after a trigger is fired.
 - Executors: Humans with scoped admin permissions to manage bundles, run actions, and perform other managerial tasks.
 - Audit Log: Every trigger, action, and download is recorded.
 
@@ -24,7 +20,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 - OpenAPI spec lives in `packages/core/openapi` with scripts to lint/bundle/preview.
 
 ## Quick Start
-Prerequisites: Node 20+, pnpm 9/10, Docker.
+Prerequisites: Node 20+, pnpm 9/10, Docker. Dev container/Codespace config included for convenience.
 
 1) Install deps
 ```
@@ -106,10 +102,14 @@ packages/plugins/
 ## Security & Testing
 - Never embed secrets; always use environment variables.
 - Tests use Vitest; no external network calls.
+- Test colocation convention:
+  - Unit tests live next to the code they cover and use `*.test.ts` or `*.spec.ts` filenames (e.g., `src/history/changelog.test.ts`).
+  - A single global setup file lives at `packages/core/src/test/setup.ts`.
+  - The `src/test` directory is reserved for setup/bootstrap only; do not place tests there.
 - Run all tests with `pnpm -r test` or Core-only with `pnpm core:test`.
 
 ## Roadmap
-- Admin UI, Recipient Portal, CLI, and built-in plugins are planned additions.
+- CLI, Admin UI, Recipient Portal, CLI, and built-in plugins are planned additions.
 - See `docs/ROADMAP.md` for phased milestones.
 
 ## See Also
