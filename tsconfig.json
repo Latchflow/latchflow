@@ -25,4 +25,9 @@
     }
   },
   "include": ["packages/**/*.ts", "apps/**/*.ts"]
+  ,
+  "exclude": [
+    "**/vitest.config.ts",
+    "**/vitest.config.mts"
+  ]
 }

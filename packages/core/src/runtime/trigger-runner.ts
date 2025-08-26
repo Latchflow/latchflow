@@ -1,4 +1,4 @@
-import { getDb } from "../db.js";
+import { getDb } from "../db/db.js";
 import type { Prisma } from "@latchflow/db";
 
 type FireMsg = {

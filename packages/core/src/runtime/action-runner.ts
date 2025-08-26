@@ -1,5 +1,5 @@
 import { LatchflowQueue } from "../queue/types.js";
-import { getDb } from "../db.js";
+import { getDb } from "../db/db.js";
 import type { Prisma } from "@latchflow/db";
 
 export async function startActionConsumer(

@@ -1,0 +1,214 @@
+import { describe, it, expect, vi } from "vitest";
+import { registerRecipientAuthRoutes } from "./recipient.js";
+import type { HttpHandler } from "../../http/http-server.js";
+import { sha256Hex } from "../../auth/tokens.js";
+
+const db = {
+  bundleAssignment: { findFirst: vi.fn(async (): Promise<any> => null) },
+  recipientOtp: {
+    deleteMany: vi.fn(async (): Promise<any> => {}),
+    create: vi.fn(async (): Promise<any> => ({})),
+    findFirst: vi.fn(async (): Promise<any> => null),
+    update: vi.fn(async (): Promise<any> => ({})),
+    delete: vi.fn(async (): Promise<any> => ({})),
+  },
+  recipientSession: {
+    create: vi.fn(async (): Promise<any> => ({ jti: "rs1" })),
+    updateMany: vi.fn(async (): Promise<any> => ({})),
+  },
+};
+
+vi.mock("../../db/db.js", () => ({ getDb: () => db }));
+
+function makeServer() {
+  const handlers = new Map<string, HttpHandler>();
+  const server = {
+    post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+    get: (_p: string, _h: HttpHandler) => {},
+  } as any;
+  const config = {
+    AUTH_COOKIE_SECURE: false,
+    RECIPIENT_OTP_LENGTH: 6,
+    RECIPIENT_OTP_TTL_MIN: 10,
+    RECIPIENT_SESSION_TTL_HOURS: 2,
+  } as any;
+  registerRecipientAuthRoutes(server, config);
+  return { handlers };
+}
+
+describe("recipient auth routes", () => {
+  it("/auth/recipient/start 404 when not assigned", async () => {
+    db.bundleAssignment.findFirst.mockResolvedValueOnce(null);
+    const { handlers } = makeServer();
+    const h = handlers.get("POST /auth/recipient/start")!;
+    let status = 0;
+    let body: any = null;
+    await h({ ip: "1.1.1.1", body: { recipientId: "r", bundleId: "b" } } as any, {
+      status(c: number) {
+        status = c;
+        return this as any;
+      },
+      json(p: unknown) {
+        body = p;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(status).toBe(404);
+    expect((body as any)?.code).toBe("NOT_FOUND");
+  });
+
+  it("/auth/recipient/start is rate-limited after 10 calls per minute", async () => {
+    db.bundleAssignment.findFirst.mockResolvedValue(null);
+    const { handlers } = makeServer();
+    const h = handlers.get("POST /auth/recipient/start")!;
+    for (let i = 0; i < 10; i++) {
+      await h(
+        { ip: "2.2.2.2", body: { recipientId: "r", bundleId: "b" } } as any,
+        {
+          status() {
+            return this as any;
+          },
+          json() {},
+          header() {
+            return this as any;
+          },
+          redirect() {},
+        } as any,
+      );
+    }
+    let status = 0;
+    let body: any = null;
+    await h(
+      { ip: "2.2.2.2", body: { recipientId: "r", bundleId: "b" } } as any,
+      {
+        status(c: number) {
+          status = c;
+          return this as any;
+        },
+        json(p: any) {
+          body = p;
+        },
+        header() {
+          return this as any;
+        },
+        redirect() {},
+      } as any,
+    );
+    expect(status).toBe(429);
+    expect(body?.code).toBe("RATE_LIMITED");
+  });
+
+  it("/auth/recipient/verify returns 400 on invalid body", async () => {
+    const { handlers } = makeServer();
+    const h = handlers.get("POST /auth/recipient/verify")!;
+    let status = 0;
+    let body: any = null;
+    await h({ ip: "3.3.3.3", body: {} } as any, {
+      status(c: number) {
+        status = c;
+        return this as any;
+      },
+      json(p: any) {
+        body = p;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(status).toBe(400);
+    expect(body?.code).toBe("BAD_REQUEST");
+  });
+
+  it("/auth/recipient/verify is rate-limited after 10 quick calls", async () => {
+    const { handlers } = makeServer();
+    const h = handlers.get("POST /auth/recipient/verify")!;
+    for (let i = 0; i < 10; i++) {
+      await h(
+        { ip: "4.4.4.4", body: {} } as any,
+        {
+          status() {
+            return this as any;
+          },
+          json() {},
+          header() {
+            return this as any;
+          },
+          redirect() {},
+        } as any,
+      );
+    }
+    let status = 0;
+    let body: any = null;
+    await h(
+      { ip: "4.4.4.4", body: {} } as any,
+      {
+        status(c: number) {
+          status = c;
+          return this as any;
+        },
+        json(p: any) {
+          body = p;
+        },
+        header() {
+          return this as any;
+        },
+        redirect() {},
+      } as any,
+    );
+    expect(status).toBe(429);
+    expect(body?.code).toBe("RATE_LIMITED");
+  });
+
+  it("success flow: start returns 204 when assigned; verify sets cookie", async () => {
+    // Assigned pair
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({ id: "as1" });
+    // OTP will exist and match
+    db.recipientOtp.findFirst.mockResolvedValueOnce({
+      id: "o1",
+      codeHash: sha256Hex("123456"),
+      attempts: 0,
+      expiresAt: new Date(Date.now() + 60000),
+    } as any);
+
+    const { handlers } = makeServer();
+    const start = handlers.get("POST /auth/recipient/start")!;
+    let code = 0;
+    await start({ ip: "1.1.1.1", body: { recipientId: "r", bundleId: "b" } } as any, {
+      status(c: number) {
+        code = c;
+        return this as any;
+      },
+      json() {},
+      header() {
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(code).toBe(204);
+
+    const verify = handlers.get("POST /auth/recipient/verify")!;
+    const headers: Record<string, string | string[]> = {};
+    code = 0;
+    await verify(
+      { ip: "1.1.1.1", body: { recipientId: "r", bundleId: "b", otp: "123456" } } as any,
+      {
+        status(c: number) {
+          code = c;
+          return this as any;
+        },
+        json() {},
+        header(n: string, v: string | string[]) {
+          headers[n] = v;
+          return this as any;
+        },
+        redirect() {},
+      } as any,
+    );
+    expect(code).toBe(204);
+    expect(String(headers["Set-Cookie"]).includes("lf_recipient_sess=rs1")).toBe(true);
+  });
+});

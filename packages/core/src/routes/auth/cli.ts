@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { HttpServer } from "../../http/http-server.js";
-import { getDb } from "../../db.js";
+import { getDb } from "../../db/db.js";
 import {
   formatApiToken,
   makeDeviceCode,
@@ -8,7 +8,7 @@ import {
   randomTokenBase64Url,
   sha256Hex,
 } from "../../auth/tokens.js";
-import { type AppConfig } from "../../config.js";
+import { type AppConfig } from "../../config/config.js";
 import { requireAdmin } from "../../middleware/require-admin.js";
 
 export function registerCliAuthRoutes(server: HttpServer, config: AppConfig) {
@@ -171,14 +171,12 @@ export function registerCliAuthRoutes(server: HttpServer, config: AppConfig) {
     const nextAllowed = pollNextAllowedAt.get(deviceCodeHash) ?? 0;
     if (nowMs < nextAllowed) {
       const retryInSec = Math.ceil((nextAllowed - nowMs) / 1000);
-      res
-        .status(429)
-        .json({
-          status: "error",
-          code: "SLOW_DOWN",
-          interval: record.intervalSec,
-          retry_in: retryInSec,
-        });
+      res.status(429).json({
+        status: "error",
+        code: "SLOW_DOWN",
+        interval: record.intervalSec,
+        retry_in: retryInSec,
+      });
       return;
     }
     pollNextAllowedAt.set(deviceCodeHash, nowMs + record.intervalSec * 1000);
