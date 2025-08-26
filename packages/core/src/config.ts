@@ -106,6 +106,19 @@ const EnvSchema = z.object({
       }
     }),
   API_TOKEN_PREFIX: z.string().default("lfk_"),
+
+  // History/audit knobs
+  HISTORY_SNAPSHOT_INTERVAL: z
+    .string()
+    .default("20")
+    .transform((v) => Number(v))
+    .pipe(z.number().int().positive()),
+  HISTORY_MAX_CHAIN_DEPTH: z
+    .string()
+    .default("200")
+    .transform((v) => Number(v))
+    .pipe(z.number().int().positive()),
+  SYSTEM_USER_ID: z.string().default("system"),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema> & {
@@ -115,6 +128,9 @@ export type AppConfig = z.infer<typeof EnvSchema> & {
   AUTH_COOKIE_SECURE: boolean;
   API_TOKEN_TTL_DAYS?: number;
   API_TOKEN_SCOPES_DEFAULT: string[];
+  HISTORY_SNAPSHOT_INTERVAL: number;
+  HISTORY_MAX_CHAIN_DEPTH: number;
+  SYSTEM_USER_ID: string;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
