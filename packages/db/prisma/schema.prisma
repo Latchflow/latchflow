@@ -49,6 +49,21 @@ enum PermissionType {
   OVERRIDE_RELEASE
 }
 
+// Provenance enums for ChangeLog
+enum ActorType {
+  USER
+  ACTION
+  SYSTEM
+}
+
+enum ChangeKind {
+  ADD_CHILD
+  UPDATE_CHILD
+  REMOVE_CHILD
+  REORDER
+  UPDATE_PARENT
+}
+
 ///////////////////////////
 // CORE MODELS
 ///////////////////////////
@@ -88,6 +103,10 @@ model User {
   updatedPipelineSteps     PipelineStep[]      @relation("updatedPipelineSteps")
   createdPipelineTriggers  PipelineTrigger[]   @relation("createdPipelineTriggers")
   updatedPipelineTriggers  PipelineTrigger[]   @relation("updatedPipelineTriggers")
+
+  // Back-relations for ChangeLog provenance
+  changeLogsAsActorUser    ChangeLog[]         @relation("ChangeLogActorUser")
+  changeLogsOnBehalfOf     ChangeLog[]         @relation("ChangeLogOnBehalfUser")
 }
 
 model Recipient {
@@ -285,6 +304,9 @@ model ActionDefinition {
   creator           User     @relation("createdActions", fields: [createdBy], references: [id])
   updater           User?    @relation("updatedActions", fields: [updatedBy], references: [id])
   capability        PluginCapability   @relation(fields: [capabilityId], references: [id])
+
+  // Back-relation for ChangeLog provenance
+  changeLogs        ChangeLog[]
 }
 
 model ActionInvocation {
@@ -299,6 +321,48 @@ model ActionInvocation {
   startedAt          DateTime         @default(now())
   completedAt        DateTime?
   result             Json?
+
+  // Back-relation for ChangeLog provenance
+  changeLogs         ChangeLog[]
+}
+
+// Append-only history for aggregate roots and independent roots
+model ChangeLog {
+  id                       String               @id @default(uuid())
+  entityType               String
+  entityId                 String
+  version                  Int
+  isSnapshot               Boolean
+  state                    Json?
+  diff                     Json?
+  hash                     String
+
+  actorType                ActorType
+  actorUserId              String?
+  actorUser                User?                @relation("ChangeLogActorUser", fields: [actorUserId], references: [id])
+
+  actorInvocationId        String?
+  actorInvocation          ActionInvocation?    @relation(fields: [actorInvocationId], references: [id])
+
+  actorActionDefinitionId  String?
+  actorActionDefinition    ActionDefinition?    @relation(fields: [actorActionDefinitionId], references: [id])
+
+  onBehalfOfUserId         String?
+  onBehalfOfUser           User?                @relation("ChangeLogOnBehalfUser", fields: [onBehalfOfUserId], references: [id])
+
+  changeNote               String?
+  changedPath              String?
+  changeKind               ChangeKind?
+
+  createdAt                DateTime             @default(now())
+
+  @@unique([entityType, entityId, version])
+  @@index([entityType, entityId, isSnapshot])
+  @@index([entityType, entityId, isSnapshot, version])
+  @@index([createdAt])
+  @@index([actorType])
+  @@index([actorUserId, createdAt])
+  @@index([actorActionDefinitionId, createdAt])
 }
 
 ///////////////////////////
