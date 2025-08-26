@@ -32,13 +32,11 @@ New table:
 - No organization/tenant scoping changes.
 
 ## Schema Changes (Prisma)
-- Add createdBy and updatedBy to the scoped entities above.
-  - `createdByUserId` (string, nullable)
-  - `updatedByUserId` (string, nullable)
-  - `createdByActionId` (string, nullable)
-  - `updatedByActionId` (string, nullable)
-  - Check that exactly one of the `createdBy` fields is not null.
-  - Check that exactly one of the `updatedBy` fields is not null.
+- Add createdBy and updatedBy to the scoped entities above (User FK only; action provenance is recorded in ChangeLog):
+  - `createdBy` (string, non-null)
+  - `updatedBy` (string, nullable)
+  - Service invariant: on create, set `updatedBy = createdBy` and `updatedAt = createdAt`.
+  - Effective principal rule (see Runtime/Service): entity-level createdBy/updatedBy always store the effective human principal, never an action id.
 
 -- Add ChangeLog table:
   - `id` (cuid)
@@ -71,6 +69,10 @@ New table:
 
 ## Runtime/Service Changes
 - Add a provenance middleware/util that resolves the current actor userId for admin routes and service calls.
+- Effective principal mapping: entity `createdBy`/`updatedBy` are always set to the effective human principal derived from context:
+  - If `actorType = USER`: use `actorUserId`.
+  - If `actorType = ACTION` and `onBehalfOfUserId` present: use `onBehalfOfUserId`.
+  - Else (cron/system): use reserved `SYSTEM_USER_ID`.
 - Wrap each config mutation in a single transaction:
   1) Load current materialized aggregate state for the owner entity (aggregate root or independent root).
   2) Apply the mutation to the live row(s). For child edits, only the child rows and the parent aggregate's updatedBy/updatedAt are changed.
@@ -128,8 +130,8 @@ Example — Pipeline (aggregate root)
       "isEnabled": true
     }
   ],
-  "createdByUserId": "usr_abc",
-  "updatedByUserId": "usr_abc"
+  "createdBy": "usr_abc",
+  "updatedBy": "usr_abc"
 }
 ```
 
@@ -147,8 +149,8 @@ Example — Bundle (aggregate root)
     { "id": "ba_2", "recipientId": "rcp_2", "maxDownloads": 1, "cooldownSeconds": null,  "verificationType": null }
   ],
   "policy": { "rateLimitPerRecipient": 2 },
-  "createdByUserId": "usr_abc",
-  "updatedByUserId": "usr_xyz"
+  "createdBy": "usr_abc",
+  "updatedBy": "usr_xyz"
 }
 ```
 
@@ -172,18 +174,17 @@ Hashing and diffing
 - TriggerDefinition (independent root): include `id`, `name`, `capabilityId`, redacted `config`, `isEnabled`, keep root `createdBy`/`updatedBy`. Exclude `createdAt`, `updatedAt`.
 - ActionDefinition (independent root): include `id`, `name`, `capabilityId`, redacted `config`, `isEnabled`, keep root `createdBy`/`updatedBy`. Exclude `createdAt`, `updatedAt`.
 
-## API Changes (in this PR, backend only)
-- No route shape changes required to land this.
-- Internally record createdBy/updatedBy on create/update endpoints for the affected entities.
-- Prepare follow‑up routes for history:
+### API Changes (in this PR, backend only)
+- Don't touch the actual endpoint logic. This will be handled in an upcoming PR.
+- Update OpenAPI spec:
+  - Add createdBy/updatedBy to create/update endpoints for the affected entities.
   - GET /{entity}/{id}/history (list versions)
   - GET /{entity}/{id}/history/{version} (materialized state at version)
-  These can be added in a subsequent PR.
 
 ## Migration Plan
 1) Add columns createdBy and updatedBy to target tables.
-   - Backfill: set createdBy to a “system” user id for existing rows, or null if we allow nullable.
-   - Leave updatedBy null for existing rows.
+   - Service-layer invariant: on create, set `updatedBy = createdBy` and `updatedAt = createdAt`.
+   - Dev environment note: no production backfill needed; dev uses throwaway volumes. Optionally run a one-time no-op backfill: `UPDATE <table> SET updatedBy = createdBy WHERE updatedBy IS NULL`.
 
 2) Create ChangeLog table and supporting indexes and CHECK constraint.
 
@@ -205,7 +206,7 @@ Hashing and diffing
    - Reordering steps produces a diff and materializes correctly.
    - Bundle child edits (objects/assignments) behave identically at the Bundle aggregate.
    - Hash mismatch detection rejects corrupted chains.
-   - updatedBy reflects the actor on both the touched child and the parent; createdBy set on create.
+   - updatedBy reflects the actor on both the touched child and the parent; on create, `updatedBy === createdBy`.
 
 6) Add seed/migration shims:
    - Provide a “system” user id or allow null createdBy for seeds.
