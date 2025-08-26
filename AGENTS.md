@@ -76,7 +76,9 @@ pnpm -r test
 
 ## Testing Guidance
 
-- Unit tests live alongside source files.
+- Unit tests live alongside source files using `*.test.ts` or `*.spec.ts` names.
+- A single global setup file for Core lives at `packages/core/src/test/setup.ts`.
+- Do not add tests under `src/test` beyond the setup file; colocate tests with their source instead.
 - E2E tests spin up local services (Postgres, MinIO, MailHog).
 - All tests must be runnable with pnpm -r test from repo root.
 - Mock S3/email in tests — no external dependencies.
