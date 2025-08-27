@@ -4,8 +4,31 @@ plugins:
     operationId: listPlugins
     tags: [Plugins]
     security:
-      - bearer: []
       - cookieAdmin: []
+    parameters:
+      - in: query
+        name: q
+        schema: { type: string }
+        description: Free-text match against name, description, author
+      - in: query
+        name: kind
+        schema: { type: string, enum: [TRIGGER, ACTION] }
+        description: Only plugins that have at least one capability of this kind
+      - in: query
+        name: capabilityKey
+        schema: { type: string }
+        description: Substring match against capability key
+      - in: query
+        name: enabled
+        schema: { type: boolean }
+        description: Only plugins with at least one enabled capability
+      - in: query
+        name: limit
+        schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      - in: query
+        name: cursor
+        schema: { type: string }
+        description: Opaque pagination cursor
     responses:
       '200':
         description: Plugins
@@ -27,7 +50,6 @@ plugins_install:
     operationId: installPlugin
     tags: [Plugins]
     security:
-      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -50,7 +72,6 @@ plugins_item:
     operationId: uninstallPlugin
     tags: [Plugins]
     security:
-      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path

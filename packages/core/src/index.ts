@@ -16,6 +16,7 @@ import {
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
+import { registerPluginRoutes } from "./routes/admin/plugins.js";
 
 export async function main() {
   const config = loadConfig();
@@ -100,6 +101,7 @@ export async function main() {
   registerAdminAuthRoutes(server, config);
   registerRecipientAuthRoutes(server, config);
   registerCliAuthRoutes(server, config);
+  registerPluginRoutes(server);
   registerOpenApiRoute(server);
   await server.listen(config.PORT);
   // eslint-disable-next-line no-console

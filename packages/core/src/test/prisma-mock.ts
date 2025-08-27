@@ -31,4 +31,6 @@ export const prisma = {
   triggerDefinition: mkModel(),
   actionDefinition: mkModel(),
   changeLog: mkModel(),
+  plugin: mkModel(),
+  pluginCapability: mkModel(),
 };
