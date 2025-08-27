@@ -140,7 +140,6 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
           id: true,
           createdAt: true,
           expiresAt: true,
-          lastSeenAt: true,
           ip: true,
           userAgent: true,
           revokedAt: true,
@@ -149,7 +148,6 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
         id: string;
         createdAt: Date | string;
         expiresAt: Date | string;
-        lastSeenAt?: Date | string | null;
         ip?: string | null;
         userAgent?: string | null;
         revokedAt?: Date | string | null;

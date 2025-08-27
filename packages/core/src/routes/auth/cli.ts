@@ -280,10 +280,9 @@ export function registerCliAuthRoutes(server: HttpServer, config: AppConfig) {
         reqScopes && reqScopes.length > 0 ? reqScopes : config.API_TOKEN_SCOPES_DEFAULT;
       const raw = randomTokenBase64Url(32);
       const tokenHash = sha256Hex(raw);
+      const days = ttlDays ?? config.API_TOKEN_TTL_DAYS;
       const expiresAt =
-        typeof (ttlDays ?? config.API_TOKEN_TTL_DAYS) === "number"
-          ? new Date(Date.now() + (ttlDays ?? config.API_TOKEN_TTL_DAYS) * 86400_000)
-          : undefined;
+        typeof days === "number" ? new Date(Date.now() + days * 86400_000) : undefined;
       const token = await db.apiToken.create({
         data: {
           userId: (user as unknown as { id: string }).id,

@@ -99,8 +99,8 @@ describe("plugin routes", () => {
       },
     );
     expect(db.plugin.findMany).toHaveBeenCalled();
-    const calls = db.plugin.findMany.mock.calls;
-    const arg = calls[calls.length - 1]?.[0] || {};
+    const calls = (db.plugin.findMany as unknown as { mock: { calls: any[][] } }).mock.calls;
+    const arg = (calls.at(-1)?.[0] as any) ?? ({} as any);
     expect(arg.take).toBe(10);
     expect(arg.cursor).toEqual({ id: "p3" });
     expect(arg.where?.OR?.length).toBeGreaterThan(0);
@@ -209,8 +209,9 @@ describe("plugin routes", () => {
       },
     );
     expect(db.pluginCapability.findMany).toHaveBeenCalled();
-    const calls = db.pluginCapability.findMany.mock.calls;
-    const arg = calls[calls.length - 1]?.[0] || {};
+    const calls = (db.pluginCapability.findMany as unknown as { mock: { calls: any[][] } }).mock
+      .calls;
+    const arg = (calls.at(-1)?.[0] as any) ?? ({} as any);
     expect(arg.take).toBe(5);
     expect(arg.cursor).toEqual({ id: "c3" });
     expect(arg.where?.kind).toBe("ACTION");
