@@ -76,17 +76,60 @@ actions_item:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
-  delete:
-    summary: Delete action definition
-    operationId: deleteAction
+
+# ActionDefinition versions (history)
+action_versions_collection:
+  get:
+    summary: List action definition versions
+    operationId: listActionVersions
     tags: [Actions]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
         name: id
         required: true
         schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
     responses:
-      '204': { description: Deleted }
+      '200':
+        description: Versions
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/ChangeLogVersion.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+action_versions_item:
+  get:
+    summary: Get action definition version
+    operationId: getActionVersion
+    tags: [Actions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: version
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '200':
+        description: Materialized action definition at version
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ChangeLogMaterialized.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
