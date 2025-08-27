@@ -70,9 +70,6 @@ recipient_logout:
     summary: Logout recipient session
     operationId: logoutRecipient
     tags: [Auth (Recipient)]
-    security:
-      - cookieRecipient: []
     responses:
       '204':
         description: Logged out
-      '401': { $ref: ../../components/responses/Unauthorized.yaml }

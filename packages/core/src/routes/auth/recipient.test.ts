@@ -14,6 +14,7 @@ const db = {
   },
   recipientSession: {
     create: vi.fn(async (): Promise<any> => ({ jti: "rs1" })),
+    findUnique: vi.fn(async (): Promise<any> => null),
     updateMany: vi.fn(async (): Promise<any> => ({})),
   },
 };
@@ -210,5 +211,48 @@ describe("recipient auth routes", () => {
     );
     expect(code).toBe(204);
     expect(String(headers["Set-Cookie"]).includes("lf_recipient_sess=rs1")).toBe(true);
+  });
+
+  it("/auth/recipient/logout is idempotent without session cookie (204 + clear)", async () => {
+    const { handlers } = makeServer();
+    const h = handlers.get("POST /auth/recipient/logout")!;
+    let status = 0;
+    const headers: Record<string, string | string[]> = {};
+    await h({ headers: {} } as any, {
+      status(c: number) {
+        status = c;
+        return this as any;
+      },
+      json() {},
+      header(n: string, v: string | string[]) {
+        headers[n] = v;
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(status).toBe(204);
+    expect(String(headers["Set-Cookie"]).includes("Max-Age=0")).toBe(true);
+  });
+
+  it("/auth/recipient/logout revokes session and clears cookie when authenticated", async () => {
+    const { handlers } = makeServer();
+    const h = handlers.get("POST /auth/recipient/logout")!;
+    let status = 0;
+    const headers: Record<string, string | string[]> = {};
+    await h({ headers: { cookie: "lf_recipient_sess=rs1" } } as any, {
+      status(c: number) {
+        status = c;
+        return this as any;
+      },
+      json() {},
+      header(n: string, v: string | string[]) {
+        headers[n] = v;
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(status).toBe(204);
+    expect(String(headers["Set-Cookie"]).includes("Max-Age=0")).toBe(true);
+    expect(db.recipientSession.updateMany).toHaveBeenCalled();
   });
 });
