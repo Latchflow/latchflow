@@ -12,6 +12,7 @@ const mkModel = () => ({
 });
 
 export const prisma = {
+  $queryRaw: vi.fn(),
   session: mkModel(),
   user: mkModel(),
   magicLink: mkModel(),

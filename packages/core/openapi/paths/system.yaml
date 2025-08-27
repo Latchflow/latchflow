@@ -34,3 +34,9 @@ health_ready:
     responses:
       '200': { description: Ready }
       '400': { $ref: ../components/responses/ValidationError.yaml }
+      '503':
+        description: One or more dependencies are not ready
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/Error.yaml
