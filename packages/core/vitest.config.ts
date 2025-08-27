@@ -10,6 +10,14 @@ export default defineConfig({
         find: /^\.\.\/\.\.\/src\//,
         replacement: path.join(fileURLToPath(new URL("./", import.meta.url)), "src/"),
       },
+      // Redirect Prisma client to a local mock for tests to avoid resolving the real package
+      {
+        find: /^@latchflow\/db$/,
+        replacement: path.join(
+          fileURLToPath(new URL("./", import.meta.url)),
+          "src/test/prisma-mock.ts",
+        ),
+      },
     ],
   },
   test: {

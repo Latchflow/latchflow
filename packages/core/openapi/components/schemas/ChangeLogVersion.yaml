@@ -1,0 +1,24 @@
+type: object
+properties:
+  version: { type: integer, minimum: 1 }
+  isSnapshot: { type: boolean }
+  hash: { type: string, description: "sha256 hex of materialized post-change state" }
+  changeNote: { type: [string, 'null'] }
+  changedPath:
+    anyOf:
+      - { type: string }
+      - { type: 'null' }
+    description: "JSON Pointer to primary changed path"
+  changeKind:
+    anyOf:
+      - { type: string, enum: [ADD_CHILD, UPDATE_CHILD, REMOVE_CHILD, REORDER, UPDATE_PARENT] }
+      - { type: 'null' }
+  createdAt: { type: string, format: date-time }
+  actorType:
+    type: string
+    enum: [USER, ACTION, SYSTEM]
+  actorUserId: { type: [string, 'null'] }
+  actorInvocationId: { type: [string, 'null'] }
+  actorActionDefinitionId: { type: [string, 'null'] }
+  onBehalfOfUserId: { type: [string, 'null'] }
+required: [version, isSnapshot, hash, createdAt, actorType]

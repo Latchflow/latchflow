@@ -130,11 +130,19 @@ paths:
     $ref: ./paths/bundle-objects.yaml#/bundle_objects_collection
   /bundles/{bundleId}/objects/{id}:
     $ref: ./paths/bundle-objects.yaml#/bundle_objects_item
+  /bundles/{bundleId}/versions:
+    $ref: ./paths/bundles.yaml#/bundle_versions_collection
+  /bundles/{bundleId}/versions/{version}:
+    $ref: ./paths/bundles.yaml#/bundle_versions_item
 
   /recipients:
     $ref: ./paths/recipients.yaml#/recipients_collection
   /recipients/{recipientId}:
     $ref: ./paths/recipients.yaml#/recipients_item
+  /recipients/{recipientId}/versions:
+    $ref: ./paths/recipients.yaml#/recipient_versions_collection
+  /recipients/{recipientId}/versions/{version}:
+    $ref: ./paths/recipients.yaml#/recipient_versions_item
   /bundles/{bundleId}/recipients:
     $ref: ./paths/recipients.yaml#/bundle_recipients
   /bundles/{bundleId}/recipients/batch:
@@ -164,10 +172,18 @@ paths:
     $ref: ./paths/triggers.yaml#/triggers_collection
   /triggers/{id}:
     $ref: ./paths/triggers.yaml#/triggers_item
+  /triggers/{id}/versions:
+    $ref: ./paths/triggers.yaml#/trigger_versions_collection
+  /triggers/{id}/versions/{version}:
+    $ref: ./paths/triggers.yaml#/trigger_versions_item
   /actions:
     $ref: ./paths/actions.yaml#/actions_collection
   /actions/{id}:
     $ref: ./paths/actions.yaml#/actions_item
+  /actions/{id}/versions:
+    $ref: ./paths/actions.yaml#/action_versions_collection
+  /actions/{id}/versions/{version}:
+    $ref: ./paths/actions.yaml#/action_versions_item
   /pipelines:
     $ref: ./paths/pipelines.yaml#/pipelines_collection
   /pipelines/{id}:
@@ -180,6 +196,10 @@ paths:
     $ref: ./paths/pipelines.yaml#/pipeline_triggers_collection
   /pipelines/{pipelineId}/triggers/{triggerId}:
     $ref: ./paths/pipelines.yaml#/pipeline_triggers_item
+  /pipelines/{id}/versions:
+    $ref: ./paths/pipelines.yaml#/pipeline_versions_collection
+  /pipelines/{id}/versions/{version}:
+    $ref: ./paths/pipelines.yaml#/pipeline_versions_item
 
   /users:
     $ref: ./paths/users.yaml#/users_collection
@@ -200,6 +220,8 @@ components:
     Capability: { $ref: ./components/schemas/Capability.yaml }
     TriggerDefinition: { $ref: ./components/schemas/TriggerDefinition.yaml }
     ActionDefinition: { $ref: ./components/schemas/ActionDefinition.yaml }
+    ChangeLogVersion: { $ref: ./components/schemas/ChangeLogVersion.yaml }
+    ChangeLogMaterialized: { $ref: ./components/schemas/ChangeLogMaterialized.yaml }
     Pipeline: { $ref: ./components/schemas/Pipeline.yaml }
     PipelineStep: { $ref: ./components/schemas/PipelineStep.yaml }
     PipelineTrigger: { $ref: ./components/schemas/PipelineTrigger.yaml }

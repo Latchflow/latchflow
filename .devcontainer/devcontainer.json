@@ -17,7 +17,12 @@
   },
   "customizations": {
     "vscode": {
-      "settings": { "terminal.integrated.defaultProfile.linux": "bash" }
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "ms-vscode.vscode-typescript-next"
+      ]
     }
   },
   "mounts": [

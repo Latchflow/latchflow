@@ -1,0 +1,18 @@
+type: object
+properties:
+  version: { type: integer, minimum: 1 }
+  isSnapshot: { type: boolean }
+  hash: { type: string }
+  createdAt: { type: string, format: date-time }
+  actorType:
+    type: string
+    enum: [USER, ACTION, SYSTEM]
+  actorUserId: { type: [string, 'null'] }
+  actorInvocationId: { type: [string, 'null'] }
+  actorActionDefinitionId: { type: [string, 'null'] }
+  onBehalfOfUserId: { type: [string, 'null'] }
+  state:
+    type: object
+    description: Canonical aggregate snapshot for the specific entity version
+    additionalProperties: true
+required: [version, isSnapshot, hash, createdAt, state, actorType]

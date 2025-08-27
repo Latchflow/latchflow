@@ -92,6 +92,63 @@ pipelines_item:
       '204': { description: Deleted }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
 
+# Pipeline versions (history)
+pipeline_versions_collection:
+  get:
+    summary: List pipeline versions
+    operationId: listPipelineVersions
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Versions
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/ChangeLogVersion.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
+pipeline_versions_item:
+  get:
+    summary: Get pipeline version
+    operationId: getPipelineVersion
+    tags: [Pipelines]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: version
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '200':
+        description: Materialized pipeline at version
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ChangeLogMaterialized.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+
 # Pipeline Steps sub-resource
 pipeline_steps_collection:
   get:

@@ -1,174 +1,242 @@
-# PLAN.md — Patch OpenAPI Spec for Missing Admin, Portal, and Observability Endpoints (Spec-Only)
+# PLAN — Add createdBy/updatedBy provenance and ChangeLog history
+
+## Summary
+Introduce provenance fields (createdBy, updatedBy) across key config entities and implement an append‑only ChangeLog with diffs plus configurable snapshotting. We will use an aggregate‑root ChangeLog strategy: history chains live on aggregates (e.g., Pipeline, Bundle) and capture their embedded children, avoiding duplicate per‑child logs. This aligns the data model with our audit‑first philosophy and enables “who changed what when” plus time‑travel reads.
+
+We want to provide a knob that allows a user to choose whether they prefer to keep change records slim to preserve more disk space or make versions easier to reproduce by storing full snapshots more often so we've decided to make the interval between full snapshots adjustable via the `HISTORY_SNAPSHOT_INTERVAL` param.
+
+## Goals
+- Provenance: capture the actor for creations and updates.
+- History: persist every configuration change as an immutable log entry.
+- Recovery: allow reconstructing any past version quickly via periodic snapshots.
+- Minimal friction: app‑layer implementation; no DB triggers.
 
 ## Scope
-Update only the OpenAPI (OAS) to cover the full MVP contract. Do NOT change DB or server code in this PR. The goal is to make the spec authoritative so frontends/CLI can proceed in parallel.
+Entities receiving provenance fields (at minimum):
+- Pipeline (aggregate root)
+- PipelineStep (child of Pipeline)
+- PipelineTrigger (child of Pipeline)
+- Recipient (independent root)
+- Bundle (aggregate root)
+- BundleObject (child of Bundle)
+- BundleAssignment (child of Bundle)
+- TriggerDefinition (independent root)
+- ActionDefinition (independent root)
 
-## What to keep (already good)
-- Auth families (Admin magic-link, Recipient OTP, CLI device flow + API tokens)
-- Files as first‑class objects, independent of bundles
-- Bundles, Recipients, Plugins (list/install/uninstall), Health
-- Split-file OAS structure and bundling scripts
+New table:
+- ChangeLog (aggregate history; entries are written for aggregate roots and independent roots only)
 
-## Changes to make
+## Non‑Goals
+- Runtime event history is unchanged: TriggerEvent, ActionInvocation, DownloadEvent remain as is.
+- No UI for history browsing in this PR; we only add the backend foundation.
+- No organization/tenant scoping changes.
 
-### 1) System & Observability
-Add new path file openapi/paths/system.yaml and wire in root:
-- GET /openapi.json — public; serves bundled JSON
-- GET /health/live — public; liveness
-- GET /health/ready — public; readiness (DB, queue, storage checks)
-Keep GET /health (summary { status, queue, storage }) as-is.
+## Schema Changes (Prisma)
+- Add createdBy and updatedBy to the scoped entities above (User FK only; action provenance is recorded in ChangeLog):
+  - `createdBy` (string, non-null)
+  - `updatedBy` (string, nullable)
+  - Service invariant: on create, set `updatedBy = createdBy` and `updatedAt = createdAt`.
+  - Effective principal rule (see Runtime/Service): entity-level createdBy/updatedBy always store the effective human principal, never an action id.
 
-### 2) Auth utilities (Admin & CLI)
-In openapi/paths/auth/admin.yaml:
-- GET /whoami — works with cookieAdmin OR bearer; returns { kind: "admin"|"cli", user, scopes? }
-- GET /auth/sessions — list the caller’s active admin sessions (metadata only; spec now, impl later)
-- POST /auth/sessions/revoke — body { sessionId }; 204
+-- Add ChangeLog table:
+  - `id` (cuid)
+  - `entityType` (string enum in code; aggregate/independent roots only: PIPELINE, BUNDLE, RECIPIENT, TRIGGER_DEFINITION, ACTION_DEFINITION)
+  - `entityId` (uuid/string)
+  - `version` (int, increments per entityType+entityId)
+  - `isSnapshot` (boolean)
+  - `state` (JSONB, nullable; present when isSnapshot=true)
+  - `diff` (JSONB, nullable; present when isSnapshot=false)
+  - `hash` (text; sha256 of the materialized post‑change state)
+  - `actorType` (enum "USER" | "ACTION" | "SYSTEM"; SYSTEM reserved for scheduled/maintenance tasks)
+  - `actorUserId` (nullable, only used if change was made by a human user)
+  - `actorInvocationId` (nullable, FK to ActionInvocation.id; primary runtime provenance for ACTION)
+  - `actorActionDefinitionId` (nullable, FK to ActionDefinition.id; which action definition effected the change)
+  - `onBehalfOfUserId` (nullable, used to identify the user who kicked off an action that caused a change)
+  - `changeNote` (text, nullable; optional human or auto-generated note describing the change)
+  - `createdAt` (timestamp default now)
+  - Unique index on (entityType, entityId, version)
+  - Secondary index on (entityType, entityId, isSnapshot)
+  - Optional: `changedPath` (text JSON Pointer to the primary changed subpath within the aggregate), `changeKind` (enum ChangeKind: ADD_CHILD | UPDATE_CHILD | REMOVE_CHILD | REORDER | UPDATE_PARENT)
 
-In openapi/paths/auth/cli.yaml:
-- POST /auth/cli/tokens — create a token with { name?, scopes?, ttlDays? }; returns masked preview + token once
-- POST /auth/cli/tokens/rotate — body { tokenId }; returns new token, old revoked
+- Prisma enums:
+  - Add `ChangeKind` enum with values: `ADD_CHILD`, `UPDATE_CHILD`, `REMOVE_CHILD`, `REORDER`, `UPDATE_PARENT`.
+  - Update `actorType` enum in code/migrations to include `SYSTEM`.
 
-Security notes in each op:
-- cookieAdmin for admin pages
-- bearer for CLI token endpoints (also allow cookieAdmin where we want UI to manage tokens)
+- Guardrails in SQL migration:
+  - CHECK constraint to enforce exactly one of state or diff per row depending on isSnapshot.
+  - DEFERRABLE unique constraints for sortOrder if not already present (PipelineStep by pipelineId, PipelineTrigger by triggerId).
+  - Indexes via raw SQL: add DESC index on (entityType, entityId, version DESC) and a partial index on (entityType, entityId, version DESC) WHERE isSnapshot = true for nearest-snapshot scans.
 
-### 3) Files (Admin) — fuller object management
-In openapi/paths/files.yaml:
-- GET /files — add query params:
-  - prefix (string)
-  - q (string; optional free-text over key/metadata)
-  - unassigned (boolean; files not referenced by any bundle) — spec only, impl later
-  Returns Page<File>
-- POST /files/upload — keep multipart upload; clarify 201 + ETag header
-- POST /files/upload-url — returns { url, fields?, headers?, expiresAt } for pre-signed large uploads (optional path; spec now)
-- GET /files/{id} — response schema = File
-- PATCH /files/{id}/metadata — body { metadata: object<string,string> } → 204
-- POST /files/{id}/move — body { newKey } → 204
-- POST /files/batch/delete — body { ids: string[] } → 204
-- POST /files/batch/move — body { items: { id, newKey }[] } → 204
-- DELETE /files/{id} — 204
-- GET /files/{id}/download — stream binary (admin)
+## Runtime/Service Changes
+- Add a provenance middleware/util that resolves the current actor userId for admin routes and service calls.
+- Effective principal mapping: entity `createdBy`/`updatedBy` are always set to the effective human principal derived from context:
+  - If `actorType = USER`: use `actorUserId`.
+  - If `actorType = ACTION` and `onBehalfOfUserId` present: use `onBehalfOfUserId`.
+  - Else (cron/system): use reserved `SYSTEM_USER_ID`.
+- Wrap each config mutation in a single transaction:
+  1) Load current materialized aggregate state for the owner entity (aggregate root or independent root).
+  2) Apply the mutation to the live row(s). For child edits, only the child rows and the parent aggregate's updatedBy/updatedAt are changed.
+  3) Compute next version and write ChangeLog against the owner entity (aggregate root):
+     - If snapshot interval reached or structural change, write snapshot row of the canonical aggregate (parent + embedded children).
+     - Otherwise compute JSON Patch diff vs prior materialized aggregate state and write diff row.
+     - Compute and store sha256 hash of the post‑change materialized aggregate state.
+  4) Do not write ChangeLog rows for child tables; rely on the parent’s chain. Ensure parent aggregates are “touched” (updatedAt/updatedBy) on child edits.
 
-### 4) Bundles (Admin)
-In openapi/paths/bundles.yaml:
-- GET /bundles — Page<Bundle>
-- POST /bundles — { name, description? } → 201
-- GET /bundles/{bundleId} — Bundle
-- PATCH /bundles/{bundleId} — { name?, description? } → 204
-- DELETE /bundles/{bundleId} — 204
-- GET /bundles/{bundleId}/objects — Page<BundleObjectWithFile>
-  - Define BundleObjectWithFile schema: { bundleObject: BundleObject, file: File }
+### Concurrency & Versioning
+- Lock owner row: for each mutation, `SELECT ... FOR UPDATE` the owner aggregate row (Pipeline/Bundle or independent root) to serialize concurrent mutations.
+- Version allocation: read latest version for (entityType, entityId) inside the txn, compute next, and insert the ChangeLog row.
+- Optimistic retry (optional): if skipping the row lock, catch unique violations on (entityType, entityId, version), refetch latest version, recompute, and retry up to a small cap.
+- Reorders: ensure child sort-order uniques are DEFERRABLE and run reorders within a single transaction with constraints initially deferred.
 
-### 5) Bundle Objects (Admin) — attach/detach/update
-New file openapi/paths/bundle-objects.yaml:
-- POST /bundles/{bundleId}/objects — body accepts one or many:
-  - { fileId, path?, sortOrder?, required? } | { items: [...] }
-  → 201 with created objects
-- PATCH /bundles/{bundleId}/objects/{id} — { path?, sortOrder?, required? } → 204
-- DELETE /bundles/{bundleId}/objects/{id} → 204
+- Config
+  - Add env or config knob: HISTORY_SNAPSHOT_INTERVAL (default: 20).
+  - Add MAX_CHAIN_DEPTH safety cap (default: 200) to force a snapshot if chains grow too long.
+  - Define canonical aggregate serialization (stable ordering and redaction rules) for PIPELINE and BUNDLE materialization.
 
-### 6) Recipients (Admin)
-In openapi/paths/recipients.yaml:
-- GET /recipients — Page<Recipient> with optional q
-- POST /recipients — { email, displayName? } → 201
-- GET /recipients/{recipientId} — Recipient
-- GET /bundles/{bundleId}/recipients — { recipients: Recipient[] }
-- POST /bundles/{bundleId}/recipients — { recipientId } → 204
-- DELETE /bundles/{bundleId}/recipients — query recipientId → 204
-- POST /bundles/{bundleId}/recipients/batch — { recipientIds: string[] } → 204
+## Aggregate State Shape (Canonical)
+- Principles: aggregate root embeds its children; exclude secrets, large blobs, volatile and non-config/runtime fields; keep ordering deterministic; keep payload minimal but sufficient to fully reconstruct. Examples are illustrative; defer to the Prisma schema for exact fields.
+- Canonicalization rules:
+  - Object keys sorted lexicographically during stringification for hashing.
+  - Arrays sorted by `sortOrder` then `id` (as string compare) when present.
+  - Omit volatile fields from canonical state to reduce noise: `createdAt`, `updatedAt` (timestamps), and DB-only linkage fields (FK backrefs). Keep `createdBy*/updatedBy*` only on the aggregate root object, not duplicated on children.
+  - Redact secret-bearing config fields. Prefer references (`secretRef`) over placeholder masking so materialization can recover the effective config without exposing secrets in history.
+  - Normalize: omit `undefined`, keep `null` as `null`; booleans and numbers use JSON primitives.
 
-### 7) Portal (Recipient)
-In openapi/paths/portal.yaml:
-- GET /portal/me — recipient identity + allowed bundles (array of { bundleId, name })
-- GET /portal/bundles — list accessible bundles (Page<Bundle>)
-- GET /portal/bundles/{bundleId}/objects — Page<File> limited to attached files
-- GET /portal/bundles/{bundleId} — download (stream) or 302 to signed URL
-- POST /portal/auth/otp/resend — rate-limited resend; 204
+Example — Pipeline (aggregate root)
+```json
+{
+  "id": "pl_123",
+  "name": "Weekly Publishing",
+  "description": "Publishes bundles every Friday",
+  "isEnabled": true,
+  "steps": [
+    {
+      "id": "ps_1",
+      "actionId": "act_publish_s3",
+      "sortOrder": 1,
+      "isEnabled": true
+    },
+    {
+      "id": "ps_2",
+      "actionId": "act_email_notify",
+      "sortOrder": 2,
+      "isEnabled": true
+    }
+  ],
+  "triggers": [
+    {
+      "triggerId": "tr_cron_friday",
+      "sortOrder": 1,
+      "isEnabled": true
+    }
+  ],
+  "createdBy": "usr_abc",
+  "updatedBy": "usr_abc"
+}
+```
 
-### 8) Plugins & Capabilities (Admin)
-In openapi/paths/plugins.yaml (keep):
-- GET /plugins
-- POST /plugins/install — { source, verifySignature? } → 202
-- DELETE /plugins/{pluginId} → 204
-Add openapi/paths/capabilities.yaml:
-- GET /capabilities — { items: Capability[] } (merged registry; used to build forms)
-- Optional soon: POST /plugins/{pluginId}/enable and /disable (spec placeholders ok)
+Example — Bundle (aggregate root)
+```json
+{
+  "id": "b_456",
+  "name": "Q3 Finance Pack",
+  "objects": [
+    { "id": "bo_1", "fileId": "file_1", "path": "report.pdf", "required": true, "notes": null, "sortOrder": 1 },
+    { "id": "bo_2", "fileId": "file_2", "path": "notes.txt",  "required": false, "notes": null, "sortOrder": 2 }
+  ],
+  "assignments": [
+    { "id": "ba_1", "recipientId": "rcp_1", "maxDownloads": 3, "cooldownSeconds": 3600, "verificationType": "OTP" },
+    { "id": "ba_2", "recipientId": "rcp_2", "maxDownloads": 1, "cooldownSeconds": null,  "verificationType": null }
+  ],
+  "policy": { "rateLimitPerRecipient": 2 },
+  "createdBy": "usr_abc",
+  "updatedBy": "usr_xyz"
+}
+```
 
-### 9) Triggers / Actions / Pipelines (Admin)
-In openapi/paths/triggers.yaml and actions.yaml:
-- GET list, POST create, PATCH update, DELETE remove (already largely present; normalize shapes)
-In openapi/paths/pipelines.yaml:
-- GET /pipelines — Page<TriggerAction>
-- POST /pipelines — { triggerId, actionId, sortOrder, enabled? } → 201
-- PATCH /pipelines/{id} — { sortOrder?, enabled? } → 204
-- DELETE /pipelines/{id} → 204
-Optional stubs (commented in file): POST /triggers/{id}/test, POST /actions/{id}/test
+Hashing and diffing
+- Hash the canonical JSON string of the aggregate after applying redaction and ordering rules.
+- JSON Patch diffs are computed against the canonical aggregate object; `changedPath` should be a JSON Pointer within this shape (e.g., `/steps/1/actionId`, `/steps/0/sortOrder`, `/assignments/0/maxDownloads`).
 
-### 10) Users (Admin)
-In openapi/paths/users.yaml:
-- GET /users — Page<User> with optional q
-- PATCH /users/{id}/roles — { roles: string[] } → 204
-- Optional: GET /users/{id} (spec only)
+## Exclusions Per Entity (Volatile and Non-Config)
+- General exclusions across all aggregates/children:
+  - Timestamps: `createdAt`, `updatedAt`, and child `addedAt`/`lastDownloadAt`.
+  - DB linkage keys within children that are redundant in the aggregate: e.g., `pipelineId` on `PipelineStep`/`PipelineTrigger`, `bundleId` on `BundleObject`/`BundleAssignment`.
+  - Creator/updater on children: exclude `createdBy`/`updatedBy` from child objects in canonical state; retain on the aggregate root.
+  - Runtime/derived fields: counters, statuses, verification flags, and checksums not part of configuration.
+- Pipeline (aggregate root): include `id`, `name`, `description`, `isEnabled`, ordered `steps` and `triggers`. Exclude `createdAt`, `updatedAt`.
+- PipelineStep (child): include `id`, `actionId`, `sortOrder`, `isEnabled`. Exclude `pipelineId`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`.
+- PipelineTrigger (child): include `triggerId`, `sortOrder`, `isEnabled`. Exclude `pipelineId`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`.
+- Bundle (aggregate root): include `id`, `name`, ordered `objects` and `assignments`, and any policy/config fields. Exclude `createdAt`, `updatedAt`, `storagePath`, `checksum` if these are derived from the underlying files/storage.
+- BundleObject (child): include `id`, `fileId`, `path`, `required`, `notes`, `sortOrder`. Exclude `bundleId`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `addedAt`.
+- BundleAssignment (child): include `id`, `recipientId`, `maxDownloads`, `cooldownSeconds`, `verificationType`. Exclude `bundleId`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `verificationMet`, `lastDownloadAt`.
+- Recipient (independent root): include `id`, `email`, `name`, `isEnabled` if present, and keep root `createdBy`/`updatedBy`. Exclude `createdAt`, `updatedAt`.
+- TriggerDefinition (independent root): include `id`, `name`, `capabilityId`, redacted `config`, `isEnabled`, keep root `createdBy`/`updatedBy`. Exclude `createdAt`, `updatedAt`.
+- ActionDefinition (independent root): include `id`, `name`, `capabilityId`, redacted `config`, `isEnabled`, keep root `createdBy`/`updatedBy`. Exclude `createdAt`, `updatedAt`.
 
-### 11) Components — schemas/parameters/security
-Update or add schemas in openapi/components/schemas:
-- Error: { error, message? }
-- Page: { items: [], nextCursor?: string }
-- File: { id(uuid), key, size(int), contentType, metadata(object<string,string>), etag?, createdAt?, updatedAt }
-- ObjectMeta: keep if referenced elsewhere; prefer File for file endpoints
-- Bundle, Recipient, Plugin, Capability, TriggerDefinition, ActionDefinition, TriggerAction, User
-- BundleObject: { id, bundleId, fileId, path?, sortOrder?, required?, addedAt }
-- BundleObjectWithFile: { bundleObject: BundleObject, file: File }
-- DeviceStartResponse, DevicePollPending, DevicePollSuccess (ensure token_type enum includes bearer)
-Parameters:
-- Cursor (string), Limit (int 1..200 default 50)
-Security:
-- cookieAdmin (cookie lf_admin_sess), cookieRecipient (cookie lf_recipient_sess), bearer (http bearer, bearerFormat: opaque)
+### API Changes (in this PR, backend only)
+- Don't touch the actual endpoint logic. This will be handled in an upcoming PR.
+- Update OpenAPI spec:
+  - Add createdBy/updatedBy to create/update endpoints for the affected entities.
+  - GET /{entity}/{id}/history (list versions)
+  - GET /{entity}/{id}/history/{version} (materialized state at version)
 
-### 12) Error & security consistency
-- Ensure every 4xx/5xx uses components/schemas/Error
-- Each path declares the right security:
-  - Admin routes → cookieAdmin (and optionally bearer for CLI-manageable ops)
-  - CLI routes → bearer (also allow cookieAdmin where the UI manages tokens)
-  - Portal routes → cookieRecipient
-- Document 429 for rate-limited auth starts/verifies and device poll
+## Migration Plan
+1) Add columns createdBy and updatedBy to target tables.
+   - Service-layer invariant: on create, set `updatedBy = createdBy` and `updatedAt = createdAt`.
+   - Dev environment note: no production backfill needed; dev uses throwaway volumes. Optionally run a one-time no-op backfill: `UPDATE <table> SET updatedBy = createdBy WHERE updatedBy IS NULL`.
 
-### 13) Root wiring
-In openapi/openapi.yaml:
-- Add tags: System, Capabilities, Bundle Objects
-- Reference new/updated path files with $ref fragments (anchors where used)
-- Reference all components via $ref
-- Keep servers / info as-is
+2) Create ChangeLog table and supporting indexes and CHECK constraint.
 
-### 14) Tooling (already present; reaffirm)
-- oas:lint = redocly lint openapi/openapi.yaml
-- oas:validate = swagger-cli validate openapi/openapi.yaml
-- oas:bundle = redocly bundle openapi/openapi.yaml -o openapi/dist/openapi.json
-- oas:preview = redocly preview-docs openapi/openapi.yaml
+3) Add service‑layer helpers for:
+   - serializeAggregate(entityType, id): canonical aggregate JSON (parent + children) without blobs/secrets for PIPELINE and BUNDLE; canonical entity JSON for independent roots
+   - computePatch(prev, next): RFC6902 JSON Patch
+   - applyPatch(state, patch): materialize forward
+   - appendChangeLog(tx, args): writes a row with versioning and hashing
+   - materializeVersion(entityType, id, version): loads nearest snapshot and applies diffs to reconstruct the aggregate/entity
 
-No server/DB changes in this PR. Add a note in the PR description that routes will be implemented to match the new contract in subsequent PRs.
+4) Update mutations for entities in scope to:
+   - require actor id
+   - write ChangeLog inside the same transaction for the owner (aggregate root or independent root) only
+   - update updatedBy on the touched entity and the parent aggregate where applicable
+
+5) Add unit tests:
+   - Creating a Pipeline writes ChangeLog v1 snapshot of the aggregate; updates to the Pipeline or its children write diffs; every Nth change writes a snapshot.
+   - Child edits (e.g., add/remove/reorder steps, add/remove triggers) write exactly one ChangeLog row on the Pipeline and none on child tables.
+   - Reordering steps produces a diff and materializes correctly.
+   - Bundle child edits (objects/assignments) behave identically at the Bundle aggregate.
+   - Hash mismatch detection rejects corrupted chains.
+   - updatedBy reflects the actor on both the touched child and the parent; on create, `updatedBy === createdBy`.
+
+6) Add seed/migration shims:
+   - Provide a “system” user id or allow null createdBy for seeds.
+   - Backfill initial v1 snapshots for existing aggregates/entities to anchor history going forward (Pipeline, Bundle, Recipient, TriggerDefinition, ActionDefinition).
+
+7) Enums and metadata:
+   - Add Prisma enum `ChangeKind` and wire `ChangeLog.changeKind` (nullable) to it.
+   - Extend `actorType` to include `SYSTEM`; backfill existing rows as USER/ACTION accordingly; set `SYSTEM` for future scheduled/maintenance changes.
+
+## Rollback Plan
+- Schema: keep ChangeLog table and columns; code paths can be turned off by a feature flag if necessary.
+- Data: since ChangeLog is append‑only, it’s safe to leave in place; we can prune by entity later.
+
+## Observability
+- Add structured logs around ChangeLog writes and version materialization latency.
+- Emit counters: changelog_writes_total, changelog_snapshots_total, changelog_materialize_failures_total.
+
+## Security and Compliance
+- Ensure createdBy/updatedBy come from authenticated admin context; never accept them from client payloads.
+- Exclude secrets and large blobs from snapshots; store references instead.
+- Hash the materialized aggregate/entity state to make the history chain tamper‑evident.
+
+## Open Questions
+- Do we need per‑entity overrides for snapshot interval or per‑aggregate overrides?
+- Should we expose effectiveUpdatedAt for triggers derived from attached pipelines in a read projection (not persisted)?
+- Do we want a changeNote field in ChangeLog to allow commit‑style messages from the UI?
 
 ## Acceptance Criteria
-- Spec split remains valid; oas:validate and oas:lint pass without errors
-- oas:bundle produces openapi/dist/openapi.json
-- New endpoints appear with correct security blocks:
-  - System: /openapi.json, /health/live, /health/ready
-  - Auth utils: /whoami, /auth/sessions, /auth/sessions/revoke
-  - CLI token mgmt: /auth/cli/tokens (create), /auth/cli/tokens/rotate
-  - Files: list (prefix/q/unassigned), upload, upload-url, get, metadata patch, move, batch ops, delete, download
-  - Bundles: CRUD + /objects listing
-  - Bundle Objects: attach (single/batch), update, delete
-  - Recipients: CRUD + attach/detach/list per bundle (+ batch attach)
-  - Portal: me, bundles, bundle objects, download, otp/resend
-  - Plugins & Capabilities: list/install/uninstall + /capabilities
-  - Triggers/Actions/Pipelines: complete CRUD sets
-  - Users: list + patch roles
-- All list endpoints return Page shape { items, nextCursor }
-- All error responses use the shared Error schema
-- File schema is first‑class and used by file endpoints; Bundle membership handled via BundleObject endpoints
-- No DB/server code changes included
-
-## Notes
-- Where behavior is “stream or 302”, document both responses; front-ends should handle either.
-- The unassigned filter for /files is spec’d now; implementation later may require an index.
-- Keep enums/strings broad enough (roles, scopes) to avoid breaking changes later.
+- All scoped entities persist createdBy/updatedBy correctly.
+- ChangeLog entries are written only for aggregate roots and independent roots, capturing child edits under the parent aggregate chain, with the configured snapshot cadence.
+- Materializing any historical version returns a consistent aggregate/entity object.
+- Tests cover create, update, reorder, snapshot cadence, and tamper detection.
+- No changes to public API response shapes in this PR.
