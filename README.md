@@ -103,7 +103,7 @@ packages/plugins/
 - Never embed secrets; always use environment variables.
 - Tests use Vitest; no external network calls.
 - Test colocation convention:
-  - Unit tests live next to the code they cover and use `*.test.ts` or `*.spec.ts` filenames (e.g., `src/history/changelog.test.ts`).
+  - Unit tests live next to the code they cover, in a single test file that shares the same basename. For `src/history/changelog.ts`, use `src/history/changelog.test.ts`. Do not split tests for a module across multiple files.
   - A single global setup file lives at `packages/core/src/test/setup.ts`.
   - The `src/test` directory is reserved for setup/bootstrap only; do not place tests there.
 - Run all tests with `pnpm -r test` or Core-only with `pnpm core:test`.
