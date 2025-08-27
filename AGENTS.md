@@ -76,7 +76,8 @@ pnpm -r test
 
 ## Testing Guidance
 
-- Unit tests live alongside source files using `*.test.ts` or `*.spec.ts` names.
+- Unit tests live alongside the source files they cover using `*.test.ts` only.
+- Use a single test file per source file, with the same basename. Example: `src/foo/bar.ts` → `src/foo/bar.test.ts`. Do not split tests for a single module across multiple files.
 - A single global setup file for Core lives at `packages/core/src/test/setup.ts`.
 - Do not add tests under `src/test` beyond the setup file; colocate tests with their source instead.
 - E2E tests spin up local services (Postgres, MinIO, MailHog).

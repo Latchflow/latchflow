@@ -3,7 +3,7 @@
 - Tools: Vitest for unit/integration tests; MSW-based shared testkit for HTTP-layer mocking; Docker services (Postgres, MinIO, MailHog) for E2E when needed.
 
 **Conventions**
-- Colocation: place unit tests next to the code they cover using `*.test.ts` or `*.spec.ts`.
+- Colocation: place unit tests next to the code they cover using `*.test.ts` only. Use a single test file per source file with the same basename. Example: `src/foo/util.ts` → `src/foo/util.test.ts`. Do not split tests for a single module across multiple files.
 - Global setup (Core): `packages/core/src/test/setup.ts` is reserved for bootstrap only (e.g., virtual mocks). Do not add tests under `src/test`.
 - No external network calls: mock everything (use MSW/fixtures for HTTP and in-memory/test doubles for other IO).
 - Run everything from repo root: `pnpm -r test` (workspace-aware).
@@ -71,6 +71,7 @@
   - Hitting real external services.
   - Large fixture blobs checked into source; prefer builders and focused fixtures.
   - Catch-all “integration tests” that do everything; split into focused layers (unit, integration-with-mocks, e2e-with-local-services).
+  - Splitting tests for a single module across multiple files; keep them in one `*.test.ts` sharing the module basename.
 
 **CI Considerations**
 - Run `pnpm -r lint` and `pnpm -r test`.
@@ -81,4 +82,3 @@
 - Where do I put a test-wide mock or polyfill? Use the workspace’s setup file (e.g., Core’s `src/test/setup.ts`).
 - How do I add a new scenario to the testkit? Add it under `packages/testkit` and publish it for all apps; avoid duplicating scenarios across apps.
 - Can I add snapshot tests? Yes, but prefer specific assertions for logic-heavy code; snapshot rendering for UI is OK if stable.
-
