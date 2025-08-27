@@ -17,12 +17,11 @@
     }
     ,
     {
-      "files": ["src/test/**/*.ts"],
-      "excludedFiles": ["src/test/setup.ts"],
+      "files": ["src/test/**/*.test.ts", "src/test/**/*.spec.ts"],
       "rules": {
         "no-restricted-syntax": [
           "error",
-          { "selector": "Program", "message": "Only setup.ts is allowed under src/test; colocate tests next to source." }
+          { "selector": "Program", "message": "Do not place test files under src/test; colocate tests next to source." }
         ]
       }
     }

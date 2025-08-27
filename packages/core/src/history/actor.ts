@@ -1,4 +1,4 @@
-import type { AppConfig } from "../config.js";
+import type { AppConfig } from "../config/config.js";
 import type { ActorType as PrismaActorType } from "@latchflow/db";
 
 export type ActorType = PrismaActorType;

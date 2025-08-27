@@ -1,4 +1,4 @@
-import type { DbClient } from "../db.js";
+import type { DbClient } from "../db/db.js";
 
 export type EntityType =
   | "PIPELINE"

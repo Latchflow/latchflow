@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 
 import { appendChangeLog, materializeVersion } from "./changelog.js";
 import type { ActorContext } from "./actor.js";
+import { getDb } from "../db/db.js";
 
-// Shared prisma mock from test setup
-import { prisma as db } from "@latchflow/db";
+const db = getDb() as any;
 
 function resetDb() {
-  const models = Object.values(db as any) as any[];
+  const models = Object.values(db) as any[];
   for (const m of models) {
     for (const k of Object.keys(m)) {
       const fn = (m as any)[k];

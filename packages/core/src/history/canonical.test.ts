@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
 import { canonicalStringify, serializeAggregate } from "./canonical.js";
+import { getDb } from "../db/db.js";
 
-// Access the shared prisma mock from test setup
-import { prisma as db } from "@latchflow/db";
+const db = getDb() as any;
 
 function resetDb() {
-  const models = Object.values(db as any) as any[];
+  const models = Object.values(db) as any[];
   for (const m of models) {
     for (const k of Object.keys(m)) {
       const fn = (m as any)[k];
