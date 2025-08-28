@@ -47,6 +47,30 @@ pnpm db:generate
 pnpm core:dev
 ```
 
+### Admin Login in Development (No Email)
+
+If you don't have an SMTP server (MailHog) configured, enable a dev-only helper that returns a login URL directly from the API instead of sending an email.
+
+1) Enable dev auth in your environment:
+```
+ALLOW_DEV_AUTH=true
+```
+2) Start the login flow by posting your email to the core service:
+```
+curl -sS -X POST http://localhost:3001/auth/admin/start \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com"}'
+```
+3) In dev mode, you'll receive a JSON payload containing a `login_url`:
+```
+{"login_url":"/auth/admin/callback?token=..."}
+```
+4) Open that URL in your browser against your core service host (e.g., `http://localhost:3001`) to complete login and set the admin session cookie.
+
+Notes:
+- This behavior is disabled by default and should not be enabled in production.
+- On first successful login when no admins exist, the user is granted ADMIN automatically (bootstrap).
+
 ## Scripts
 - `pnpm db:migrate`: Runs Prisma migrate in `@latchflow/db`.
 - `pnpm db:generate`: Generates Prisma client in `@latchflow/db`.

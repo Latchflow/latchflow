@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
+import { $Enums } from "@latchflow/db";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
 import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/config.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
@@ -18,19 +19,34 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       return;
     }
     const { email } = parsed.data;
-    // Upsert user with default roles if new
-    const user = await db.user.upsert({
-      where: { email },
-      update: {},
-      create: { email, roles: ["EXECUTOR"] },
-    });
+
+    // If *no* users exist yet, create a new user with no roles (will be auto-upgraded to ADMIN on first login)
+    const userCount = await db.user.count();
+    const user =
+      userCount > 0
+        ? await db.user.findUnique({ where: { email } })
+        : await db.user.upsert({
+            where: { email },
+            update: {},
+            create: { email, roles: [] },
+          });
+
+    if (!user) {
+      res.status(404).json({ status: "error", code: "NOT_FOUND", message: "User not found" });
+      return;
+    }
 
     const token = randomToken(32);
     const tokenHash = sha256Hex(token);
     const expiresAt = new Date(Date.now() + config.ADMIN_MAGICLINK_TTL_MIN * 60_000);
     await db.magicLink.create({ data: { userId: user.id, tokenHash, expiresAt } });
 
-    // Dev-only: log the callback URL
+    // Dev helper: optionally return login_url instead of relying on email delivery
+    if (config.ALLOW_DEV_AUTH) {
+      res.status(200).json({ login_url: `/auth/admin/callback?token=${token}` });
+      return;
+    }
+    // Dev-only: log the callback URL (partial token)
     // eslint-disable-next-line no-console
     console.log(
       `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
@@ -46,7 +62,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Missing token" });
       return;
     }
-    const { token } = parsed.data as { token: string };
+    const { token } = parsed.data;
     const tokenHash = sha256Hex(token);
     const now = new Date();
     const link = await db.magicLink.findUnique({ where: { tokenHash } });
@@ -55,6 +71,29 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       return;
     }
     await db.magicLink.update({ where: { id: link.id }, data: { consumedAt: now } });
+
+    // Auto-bootstrap: if there are no admins yet, grant ADMIN to this verified user
+    try {
+      const adminCount = await db.user.count({ where: { roles: { has: "ADMIN" } } });
+      if (adminCount === 0) {
+        const u = await db.user.findUnique({
+          where: { id: link.userId },
+          select: { id: true, email: true, roles: true },
+        });
+        if (u) {
+          const roles = Array.from(
+            new Set([...(u.roles ?? []), $Enums.UserRole.ADMIN]),
+          ) as $Enums.UserRole[];
+          await db.user.update({ where: { id: u.id }, data: { roles } });
+          // eslint-disable-next-line no-console
+          console.log(`[auth] Bootstrap: granted ADMIN to ${u.email}`);
+        }
+      }
+    } catch (e) {
+      // Do not block login on bootstrap errors; proceed with session creation
+      // eslint-disable-next-line no-console
+      console.warn("[auth] Bootstrap check failed:", (e as Error).message);
+    }
 
     const jti = randomToken(32);
     const sessTtlSec = config.AUTH_SESSION_TTL_HOURS * 3600;

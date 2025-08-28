@@ -26,6 +26,56 @@ users_collection:
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
 
+users_invite:
+  post:
+    summary: Invite a user (issue magic link)
+    description: |
+      Upserts a user by email and unions the provided roles with any existing roles.
+      Issues a one-time magic link for login. Implementations may return a `login_url`
+      for copy-paste delivery or send an email if SMTP is configured.
+    operationId: inviteUser
+    tags: [Executors/Users]
+    security:
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              email:
+                type: string
+                format: email
+              roles:
+                type: array
+                items: { type: string }
+            required: [email]
+          examples:
+            basic:
+              value:
+                email: teammate@example.com
+                roles: [EXECUTOR]
+            admin:
+              value:
+                email: admin2@example.com
+                roles: [ADMIN, EXECUTOR]
+    responses:
+      '201':
+        description: Invitation created
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_url:
+                  type: string
+                  description: Magic-link callback URL usable by the invitee
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '409':
+        description: Invite not allowed (e.g., last-admin constraints)
+
 users_roles:
   patch:
     summary: Update user roles
@@ -53,3 +103,40 @@ users_roles:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
+      '409':
+        description: Cannot remove ADMIN from the last remaining admin user
+
+users_revoke:
+  post:
+    summary: Revoke a user's access tokens and/or sessions
+    description: |
+      Soft-revoke user access by invalidating active sessions and/or CLI API tokens.
+      Avoids hard deletion since users are referenced widely by audit trails.
+    operationId: revokeUserAccess
+    tags: [Executors/Users]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              sessions:
+                type: boolean
+                default: true
+              tokens:
+                type: boolean
+                default: true
+    responses:
+      '204': { description: Revoked }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '409':
+        description: Cannot revoke access in a way that leaves zero admins in the system
