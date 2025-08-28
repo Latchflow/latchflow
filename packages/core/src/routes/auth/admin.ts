@@ -113,4 +113,78 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
         .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
     }
   });
+
+  // GET /whoami (admin cookie path)
+  server.get("/whoami", async (req, res) => {
+    try {
+      const { user } = await requireAdmin(req);
+      const roles = (user as unknown as { roles: string[] }).roles;
+      res.status(200).json({ kind: "admin", user: { id: user.id, email: user.email, roles } });
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      res
+        .status(err.status ?? 401)
+        .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
+    }
+  });
+
+  // GET /auth/sessions (list sessions for current user)
+  server.get("/auth/sessions", async (req, res) => {
+    try {
+      const { user } = await requireAdmin(req);
+      const now = new Date();
+      const items = (await db.session.findMany({
+        where: { userId: user.id, OR: [{ revokedAt: null }, { revokedAt: undefined }] },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          createdAt: true,
+          expiresAt: true,
+          ip: true,
+          userAgent: true,
+          revokedAt: true,
+        },
+      })) as Array<{
+        id: string;
+        createdAt: Date | string;
+        expiresAt: Date | string;
+        ip?: string | null;
+        userAgent?: string | null;
+        revokedAt?: Date | string | null;
+      }>;
+      const active = items
+        .filter((s) => !s.revokedAt && new Date(s.expiresAt) > now)
+        .map(({ revokedAt, ...rest }) => rest);
+      res.status(200).json({ items: active });
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      res
+        .status(err.status ?? 401)
+        .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
+    }
+  });
+
+  // POST /auth/sessions/revoke
+  server.post("/auth/sessions/revoke", async (req, res) => {
+    try {
+      const { user } = await requireAdmin(req);
+      const Body = z.object({ sessionId: z.string().min(1) });
+      const parsed = Body.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
+        return;
+      }
+      const { sessionId } = parsed.data;
+      await db.session.updateMany({
+        where: { id: sessionId, userId: user.id },
+        data: { revokedAt: new Date() },
+      });
+      res.status(204).json({});
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      res
+        .status(err.status ?? 401)
+        .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
+    }
+  });
 }

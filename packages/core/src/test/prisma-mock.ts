@@ -12,6 +12,7 @@ const mkModel = () => ({
 });
 
 export const prisma = {
+  $queryRaw: vi.fn(),
   session: mkModel(),
   user: mkModel(),
   magicLink: mkModel(),
@@ -30,4 +31,6 @@ export const prisma = {
   triggerDefinition: mkModel(),
   actionDefinition: mkModel(),
   changeLog: mkModel(),
+  plugin: mkModel(),
+  pluginCapability: mkModel(),
 };

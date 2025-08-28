@@ -129,7 +129,7 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
     res.status(204).json({});
   });
 
-  // POST /auth/recipient/logout
+  // POST /auth/recipient/logout (idempotent)
   server.post("/auth/recipient/logout", async (req, res) => {
     const cookies = parseCookies(req);
     const jti = cookies[RECIPIENT_SESSION_COOKIE];

@@ -16,6 +16,7 @@ import {
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
+import { registerPluginRoutes } from "./routes/admin/plugins.js";
 
 export async function main() {
   const config = loadConfig();
@@ -43,9 +44,10 @@ export async function main() {
       config: config.STORAGE_CONFIG_JSON,
     },
   );
+  const bucket = config.STORAGE_BUCKET ?? "latchflow-dev";
   const _storageService = createStorageService({
     driver: storage,
-    bucket: config.STORAGE_BUCKET ?? "latchflow-dev",
+    bucket,
     keyPrefix: config.STORAGE_KEY_PREFIX,
   });
 
@@ -69,10 +71,37 @@ export async function main() {
 
   // Start HTTP server
   const server = createExpressServer();
-  registerHealthRoutes(server, { queueName, storageName });
+  // Health checks for readiness
+  const checkDb = async () => {
+    const db = getDb();
+    type MinimalDb = {
+      user?: { count: () => Promise<number> };
+      $queryRaw?: (strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>;
+    };
+    const maybe = db as unknown as MinimalDb;
+    if (maybe.user?.count) {
+      await maybe.user.count();
+      return;
+    }
+    if (maybe.$queryRaw) {
+      await maybe.$queryRaw`SELECT 1`;
+    }
+  };
+  const checkStorage = async () => {
+    const key = `${config.STORAGE_KEY_PREFIX ? config.STORAGE_KEY_PREFIX + "/" : ""}__healthcheck__`;
+    await storage.put({ bucket, key, body: Buffer.from("ok") });
+    await storage.del({ bucket, key });
+  };
+  const checkQueue = async () => {
+    // For now we assume queue was loaded successfully; no-op
+    return;
+  };
+
+  registerHealthRoutes(server, { queueName, storageName, checkDb, checkQueue, checkStorage });
   registerAdminAuthRoutes(server, config);
   registerRecipientAuthRoutes(server, config);
   registerCliAuthRoutes(server, config);
+  registerPluginRoutes(server);
   registerOpenApiRoute(server);
   await server.listen(config.PORT);
   // eslint-disable-next-line no-console

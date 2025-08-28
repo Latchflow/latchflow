@@ -260,4 +260,90 @@ export function registerCliAuthRoutes(server: HttpServer, config: AppConfig) {
         .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
     }
   });
+
+  // POST /auth/cli/tokens (create a new API token)
+  server.post("/auth/cli/tokens", async (req, res) => {
+    try {
+      const { user } = await requireAdmin(req);
+      const Body = z.object({
+        name: z.string().min(1).optional(),
+        scopes: z.array(z.string()).optional(),
+        ttlDays: z.number().int().positive().optional(),
+      });
+      const parsed = Body.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
+        return;
+      }
+      const { name, scopes: reqScopes, ttlDays } = parsed.data;
+      const scopes =
+        reqScopes && reqScopes.length > 0 ? reqScopes : config.API_TOKEN_SCOPES_DEFAULT;
+      const raw = randomTokenBase64Url(32);
+      const tokenHash = sha256Hex(raw);
+      const days = ttlDays ?? config.API_TOKEN_TTL_DAYS;
+      const expiresAt =
+        typeof days === "number" ? new Date(Date.now() + days * 86400_000) : undefined;
+      const token = await db.apiToken.create({
+        data: {
+          userId: (user as unknown as { id: string }).id,
+          name: name || "CLI Token",
+          scopes,
+          tokenHash,
+          expiresAt,
+        },
+      });
+      res.status(201).json({
+        token: formatApiToken(config.API_TOKEN_PREFIX, raw),
+        id: token.id,
+        name: token.name,
+        scopes: token.scopes,
+        expiresAt: token.expiresAt ?? undefined,
+      });
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      res
+        .status(err.status ?? 401)
+        .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
+    }
+  });
+
+  // POST /auth/cli/tokens/rotate
+  server.post("/auth/cli/tokens/rotate", async (req, res) => {
+    try {
+      const { user } = await requireAdmin(req);
+      const Body = z.object({ tokenId: z.string().min(1) });
+      const parsed = Body.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
+        return;
+      }
+      const { tokenId } = parsed.data;
+      const existing = await db.apiToken.findUnique({ where: { id: tokenId } });
+      if (
+        !existing ||
+        existing.userId !== (user as unknown as { id: string }).id ||
+        (existing as { revokedAt?: Date | null }).revokedAt
+      ) {
+        res.status(401).json({ status: "error", code: "UNAUTHORIZED", message: "Invalid token" });
+        return;
+      }
+      const raw = randomTokenBase64Url(32);
+      const tokenHash = sha256Hex(raw);
+      const expiresAt =
+        typeof config.API_TOKEN_TTL_DAYS === "number"
+          ? new Date(Date.now() + config.API_TOKEN_TTL_DAYS * 86400_000)
+          : undefined;
+      await db.apiToken.updateMany({ where: { id: tokenId }, data: { tokenHash, expiresAt } });
+      res.status(201).json({
+        token: formatApiToken(config.API_TOKEN_PREFIX, raw),
+        id: tokenId,
+        expiresAt,
+      });
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      res
+        .status(err.status ?? 401)
+        .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
+    }
+  });
 }

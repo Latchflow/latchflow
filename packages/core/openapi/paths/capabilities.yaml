@@ -4,8 +4,28 @@ capabilities:
     operationId: listCapabilities
     tags: [Capabilities]
     security:
-      - bearer: []
       - cookieAdmin: []
+    parameters:
+      - in: query
+        name: kind
+        schema: { type: string, enum: [TRIGGER, ACTION] }
+      - in: query
+        name: key
+        schema: { type: string }
+        description: Substring match against capability key
+      - in: query
+        name: pluginId
+        schema: { type: string, format: uuid }
+      - in: query
+        name: enabled
+        schema: { type: boolean }
+      - in: query
+        name: limit
+        schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      - in: query
+        name: cursor
+        schema: { type: string }
+        description: Opaque pagination cursor
     responses:
       '200':
         description: Capability registry
