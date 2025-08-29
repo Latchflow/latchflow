@@ -1,13 +1,25 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerAdminAuthRoutes } from "./admin.js";
 import type { HttpHandler } from "../../http/http-server.js";
 
 // Mutable in-file DB stub so tests can tailor behavior per case
 const db = {
-  user: { upsert: vi.fn(async ({ create }: any) => ({ id: "u1", email: create.email })) },
+  $transaction: vi.fn(async (fn: any, _opts?: any) => await fn(db)),
+  user: {
+    upsert: vi.fn(async ({ create }: any) => ({
+      id: "u1",
+      email: create.email,
+      roles: create.roles,
+    })),
+    count: vi.fn(async () => 0),
+    findUnique: vi.fn(async () => null as any),
+    findFirst: vi.fn(async () => null as any),
+    update: vi.fn(async () => ({}) as any),
+  },
   magicLink: {
     create: vi.fn(async (): Promise<any> => ({ id: "m1" })),
     findUnique: vi.fn(async (): Promise<any> => null),
+    updateMany: vi.fn(async (): Promise<any> => ({ count: 0 })),
     update: vi.fn(async (): Promise<any> => ({})),
   },
   session: {
@@ -19,6 +31,31 @@ const db = {
 };
 
 vi.mock("../../db/db.js", () => ({ getDb: () => db }));
+
+beforeEach(() => {
+  // Reset and restore default implementations to avoid cross-test leakage
+  db.$transaction.mockReset().mockImplementation(async (fn: any) => await fn(db));
+
+  db.user.upsert.mockReset().mockImplementation(async ({ create }: any) => ({
+    id: "u1",
+    email: create.email,
+    roles: create.roles,
+  }));
+  db.user.count.mockReset().mockResolvedValue(0);
+  db.user.findUnique.mockReset().mockResolvedValue(null as any);
+  db.user.findFirst.mockReset().mockResolvedValue(null as any);
+  db.user.update.mockReset().mockResolvedValue({} as any);
+
+  db.magicLink.create.mockReset().mockResolvedValue({ id: "m1" } as any);
+  db.magicLink.updateMany.mockReset().mockResolvedValue({ count: 0 } as any);
+  db.magicLink.findUnique.mockReset().mockResolvedValue(null as any);
+  db.magicLink.update.mockReset().mockResolvedValue({} as any);
+
+  db.session.create.mockReset().mockResolvedValue({ jti: "s1" } as any);
+  db.session.findUnique.mockReset().mockResolvedValue(null as any);
+  db.session.findMany.mockReset().mockResolvedValue([] as any[]);
+  db.session.updateMany.mockReset().mockResolvedValue({} as any);
+});
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -57,13 +94,15 @@ describe("admin auth routes", () => {
     expect(body?.code).toBe("BAD_REQUEST");
   });
 
-  it("/auth/admin/start upserts user and returns 204", async () => {
+  it("/auth/admin/start creates magic link and returns 204 when user exists/created", async () => {
     const { server, handlers } = makeServer();
     const config = {
       ADMIN_MAGICLINK_TTL_MIN: 15,
       AUTH_SESSION_TTL_HOURS: 12,
       AUTH_COOKIE_SECURE: false,
     } as any;
+    // Let the tx callback run; emulate existing user fast-path
+    db.user.findUnique.mockResolvedValueOnce({ id: "u1", email: "a@b.co", roles: [] } as any);
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("POST /auth/admin/start")!;
     let code = 0;
@@ -79,8 +118,43 @@ describe("admin auth routes", () => {
       redirect() {},
     });
     expect(code).toBe(204);
-    expect(db.user.upsert).toHaveBeenCalled();
     expect(db.magicLink.create).toHaveBeenCalled();
+  });
+
+  it("/auth/admin/start returns 200 with login_url when ALLOW_DEV_AUTH=true", async () => {
+    const { server, handlers } = makeServer();
+    const config = {
+      ADMIN_MAGICLINK_TTL_MIN: 15,
+      AUTH_SESSION_TTL_HOURS: 12,
+      AUTH_COOKIE_SECURE: false,
+      ALLOW_DEV_AUTH: true,
+    } as any;
+    // Existing user fast-path so route reaches dev-auth branch
+    db.user.findUnique.mockResolvedValueOnce({
+      id: "u1",
+      email: "dev@example.com",
+      roles: [],
+    } as any);
+    registerAdminAuthRoutes(server, config);
+    const handler = handlers.get("POST /auth/admin/start")!;
+    let code = 0;
+    let body: any = null;
+    await handler({ body: { email: "dev@example.com" } } as any, {
+      status(c: number) {
+        code = c;
+        return this as any;
+      },
+      json(p: any) {
+        body = p;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(code).toBe(200);
+    expect(typeof body?.login_url).toBe("string");
+    expect(body.login_url.includes("/auth/admin/callback?token=")).toBe(true);
   });
 
   it("/auth/admin/logout clears cookie and returns 204", async () => {
@@ -134,8 +208,8 @@ describe("admin auth routes", () => {
   it("/auth/admin/callback 401 when token invalid/expired", async () => {
     const { server, handlers } = makeServer();
     const config = { AUTH_COOKIE_SECURE: false } as any;
-    // findUnique returns null to simulate invalid token
-    db.magicLink.findUnique.mockResolvedValueOnce(null as any);
+
+    db.magicLink.updateMany.mockResolvedValueOnce({ count: 0 } as any);
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("GET /auth/admin/callback")!;
     let code = 0;
@@ -165,6 +239,7 @@ describe("admin auth routes", () => {
       ADMIN_UI_ORIGIN: "https://admin",
     } as any;
     // Return a valid magic link for the provided token
+    db.magicLink.updateMany.mockResolvedValueOnce({ count: 1 } as any);
     db.magicLink.findUnique.mockImplementationOnce(async () => ({
       id: "m1",
       userId: "u1",
@@ -172,6 +247,10 @@ describe("admin auth routes", () => {
       expiresAt: new Date(Date.now() + 60_000),
       consumedAt: null,
     }));
+    // Pretend there are multiple users so bootstrap doesn't run in this test
+    db.user.count.mockResolvedValueOnce(2);
+    // Active user check passes
+    db.user.findUnique.mockResolvedValueOnce({ id: "u1", isActive: true } as any);
     db.session.create.mockResolvedValueOnce({ jti: "sess1" } as any);
 
     registerAdminAuthRoutes(server, config);
@@ -197,6 +276,79 @@ describe("admin auth routes", () => {
     expect(code).toBe(0); // redirect path, no json
     expect(redirected[0]).toBe("https://admin");
     expect(String(headers["Set-Cookie"]).includes("lf_admin_sess=sess1")).toBe(true);
+  });
+
+  it("/auth/admin/start returns 204 for unknown email post-bootstrap (no enumeration)", async () => {
+    const { server, handlers } = makeServer();
+    const config = {
+      ADMIN_MAGICLINK_TTL_MIN: 15,
+      AUTH_SESSION_TTL_HOURS: 12,
+      AUTH_COOKIE_SECURE: false,
+    } as any;
+    // Users exist already
+    db.user.count.mockResolvedValueOnce(2);
+    // Unknown email
+    db.user.findUnique.mockResolvedValueOnce(null as any);
+    registerAdminAuthRoutes(server, config);
+    const handler = handlers.get("POST /auth/admin/start")!;
+    let code = 0;
+    let body: any = null;
+    await handler({ body: { email: "nobody@example.com" } } as any, {
+      status(c: number) {
+        code = c;
+        return this as any;
+      },
+      json(p: any) {
+        body = p;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(code).toBe(204);
+  });
+
+  it("/auth/admin/callback issues session when only one user exists (bootstrap tested separately)", async () => {
+    const { server, handlers } = makeServer();
+    const config = { AUTH_SESSION_TTL_HOURS: 12, AUTH_COOKIE_SECURE: false } as any;
+
+    db.magicLink.updateMany.mockResolvedValueOnce({ count: 1 } as any);
+
+    // Valid magic link for token
+    db.magicLink.findUnique.mockResolvedValue({
+      id: "m1",
+      userId: "u1",
+      tokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: null,
+    } as any);
+
+    // Only one user in the system → bootstrap path enabled
+    db.user.count.mockResolvedValueOnce(1);
+
+    // 1) active-user check (outside tx), 2) in-tx fetch with roles
+    db.user.findUnique
+      .mockResolvedValueOnce({ id: "u1", isActive: true } as any)
+      .mockResolvedValueOnce({ id: "u1", email: "first@example.com", roles: [] } as any);
+
+    registerAdminAuthRoutes(server, config);
+    const handler = handlers.get("GET /auth/admin/callback")!;
+    let code = 0;
+
+    await handler({ query: { token: "tok123" } } as any, {
+      status(c: number) {
+        code = c;
+        return this as any;
+      },
+      json() {},
+      header() {
+        return this as any;
+      },
+      redirect() {},
+    });
+
+    expect(code).toBe(204);
   });
 
   it("GET /auth/me returns 401 when not authenticated", async () => {

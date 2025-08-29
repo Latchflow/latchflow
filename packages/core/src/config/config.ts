@@ -76,6 +76,10 @@ const EnvSchema = z.object({
     .optional()
     .transform((v) => (v == null ? undefined : v === "true")),
   ADMIN_UI_ORIGIN: z.string().optional(),
+  ALLOW_DEV_AUTH: z
+    .string()
+    .optional()
+    .transform((v) => (v == null ? false : v === "true")),
 
   // CLI auth
   DEVICE_CODE_TTL_MIN: z
@@ -131,6 +135,7 @@ export type AppConfig = z.infer<typeof EnvSchema> & {
   HISTORY_SNAPSHOT_INTERVAL: number;
   HISTORY_MAX_CHAIN_DEPTH: number;
   SYSTEM_USER_ID: string;
+  ALLOW_DEV_AUTH: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {

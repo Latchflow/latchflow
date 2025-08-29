@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
+import { Prisma } from "@latchflow/db";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
 import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/config.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
 import { requireAdmin } from "../../middleware/require-admin.js";
+import { bootstrapGrantAdminIfOnlyUserTx } from "../../auth/bootstrap.js";
 
 export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
@@ -18,24 +20,60 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       return;
     }
     const { email } = parsed.data;
-    // Upsert user with default roles if new
-    const user = await db.user.upsert({
-      where: { email },
-      update: {},
-      create: { email, roles: ["EXECUTOR"] },
-    });
+
+    // If no users exist yet, atomically create a new user with no roles
+    // (will be auto-upgraded to ADMIN on first login).
+    // Use a SERIALIZABLE transaction so simultaneous calls don't create
+    // more than one initial user across different emails.
+    let user = null as Awaited<ReturnType<typeof db.user.findUnique>> | null;
+    try {
+      user = await db.$transaction(
+        async (tx) => {
+          // First, prefer an existing user for this email if present
+          const existing = await tx.user.findUnique({ where: { email } });
+          if (existing) return existing;
+
+          // Check whether ANY user exists yet (COUNT under serializable)
+          const existingCount = await tx.user.count();
+          if (existingCount > 0) return null;
+
+          // Create first user (no roles yet)
+          return tx.user.upsert({
+            where: { email },
+            update: {},
+            create: { email, roles: [] },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (err) {
+      // If another concurrent request won the race, fall back to lookup.
+      // Do not surface details to caller to avoid user enumeration.
+      user = await db.user.findUnique({ where: { email } });
+    }
+
+    if (!user) {
+      console.log(`[auth] Magic link requested for non-existent user: ${email}`);
+      res.status(204); // Do not reveal whether the user exists
+      return;
+    }
 
     const token = randomToken(32);
     const tokenHash = sha256Hex(token);
     const expiresAt = new Date(Date.now() + config.ADMIN_MAGICLINK_TTL_MIN * 60_000);
     await db.magicLink.create({ data: { userId: user.id, tokenHash, expiresAt } });
 
-    // Dev-only: log the callback URL
+    // Dev helper: optionally return login_url instead of relying on email delivery
+    if (config.ALLOW_DEV_AUTH) {
+      res.status(200).json({ login_url: `/auth/admin/callback?token=${token}` });
+      return;
+    }
+    // Dev-only: log the callback URL (partial token)
     // eslint-disable-next-line no-console
     console.log(
       `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
     );
-    res.status(204).json({});
+    res.status(204);
   });
 
   // GET /auth/admin/callback
@@ -46,15 +84,53 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Missing token" });
       return;
     }
-    const { token } = parsed.data as { token: string };
+    const { token } = parsed.data;
     const tokenHash = sha256Hex(token);
     const now = new Date();
-    const link = await db.magicLink.findUnique({ where: { tokenHash } });
-    if (!link || link.consumedAt || link.expiresAt <= now) {
+
+    // Consume the token (atomic check+set)
+    const { count } = await db.magicLink.updateMany({
+      where: { tokenHash, consumedAt: null, expiresAt: { gt: now } },
+      data: { consumedAt: now },
+    });
+    if (count === 0) {
       res.status(401).json({ status: "error", code: "INVALID_TOKEN", message: "Invalid token" });
       return;
     }
-    await db.magicLink.update({ where: { id: link.id }, data: { consumedAt: now } });
+
+    // Check the token again to get userId
+    const link = await db.magicLink.findUnique({
+      where: { tokenHash },
+      select: { id: true, userId: true },
+    });
+    if (!link) {
+      res.status(401).json({ status: "error", code: "INVALID_TOKEN", message: "Invalid token" });
+      return;
+    }
+
+    // Issue a session for the user (if active)
+    const targetUser = await db.user.findUnique({
+      where: { id: link.userId },
+      select: { id: true, isActive: true },
+    });
+    if (!targetUser || targetUser.isActive === false) {
+      res.status(403).json({ status: "error", code: "INACTIVE_USER", message: "User is inactive" });
+      return;
+    }
+
+    // Auto-bootstrap: grant ADMIN/EXECUTOR only when this is the only user in the system.
+    try {
+      await db.$transaction(
+        async (tx) => {
+          await bootstrapGrantAdminIfOnlyUserTx(tx, link.userId);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (e) {
+      // Do not block login on bootstrap errors
+      // eslint-disable-next-line no-console
+      console.warn("[auth] Bootstrap check failed:", (e as Error).message);
+    }
 
     const jti = randomToken(32);
     const sessTtlSec = config.AUTH_SESSION_TTL_HOURS * 3600;
@@ -80,7 +156,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       res.redirect(config.ADMIN_UI_ORIGIN);
       return;
     }
-    res.status(204).json({});
+    res.status(204);
   });
 
   // POST /auth/admin/logout

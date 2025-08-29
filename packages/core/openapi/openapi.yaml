@@ -203,10 +203,18 @@ paths:
 
   /users:
     $ref: ./paths/users.yaml#/users_collection
+  /users/invite:
+    $ref: ./paths/users.yaml#/users_invite
   /users/{id}/roles:
     $ref: ./paths/users.yaml#/users_roles
+  /users/{id}/revoke:
+    $ref: ./paths/users.yaml#/users_revoke
 
 components:
+  securitySchemes:
+    cookieAdmin: { $ref: ./components/securitySchemes/cookieAdmin.yaml }
+    cookieRecipient: { $ref: ./components/securitySchemes/cookieRecipient.yaml }
+    bearer: { $ref: ./components/securitySchemes/bearer.yaml }
   schemas:
     Error: { $ref: ./components/schemas/Error.yaml }
     Page: { $ref: ./components/schemas/Page.yaml }

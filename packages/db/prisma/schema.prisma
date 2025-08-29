@@ -72,6 +72,8 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   name                String?
+  isActive            Boolean              @default(true)
+  deactivatedAt       DateTime?
   roles               UserRole[]
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
@@ -107,6 +109,8 @@ model User {
   // Back-relations for ChangeLog provenance
   changeLogsAsActorUser    ChangeLog[]         @relation("ChangeLogActorUser")
   changeLogsOnBehalfOf     ChangeLog[]         @relation("ChangeLogOnBehalfUser")
+
+  @@index([isActive])
 }
 
 model Recipient {
