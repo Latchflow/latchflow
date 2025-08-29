@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { HttpServer } from "../../http/http-server.js";
+import type { HttpServer, RequestLike } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import { requireAdmin } from "../../middleware/require-admin.js";
 import type { Prisma } from "@latchflow/db";
@@ -11,7 +11,7 @@ export function registerUserAdminRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
 
   // Helper to assert caller is ADMIN
-  async function assertAdmin(req: Express.Request) {
+  async function assertAdmin(req: RequestLike) {
     const { user } = await requireAdmin(req);
     const roles = (user as unknown as { roles: string[] }).roles ?? [];
     if (!roles.includes("ADMIN")) {
