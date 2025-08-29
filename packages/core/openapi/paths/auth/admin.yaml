@@ -42,8 +42,6 @@ admin_start:
         description: Magic link issued (no content)
       '400':
         $ref: ../../components/responses/ValidationError.yaml
-      '404':
-        $ref: ../../components/responses/NotFound.yaml
 
 admin_callback:
   get:

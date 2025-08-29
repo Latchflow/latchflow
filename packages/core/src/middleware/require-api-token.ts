@@ -34,6 +34,8 @@ export function requireApiToken(
       if (!apiToken || apiToken.revokedAt) throw httpError(401, "Invalid token");
       if (apiToken.expiresAt && apiToken.expiresAt <= new Date())
         throw httpError(401, "Token expired");
+      const ownerActive = (apiToken.user as unknown as { isActive?: boolean }).isActive;
+      if (ownerActive === false) throw httpError(403, "Inactive user");
       const hasScope = (s: string) => apiToken.scopes.includes(s);
       for (const s of requiredScopes) {
         if (!hasScope(s)) throw httpError(403, "Insufficient scope");

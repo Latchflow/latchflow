@@ -21,7 +21,11 @@ export async function requireAdmin(req: RequestLike) {
   if (!session || session.revokedAt || session.expiresAt <= now) {
     throw httpError(401, "Invalid or expired admin session");
   }
-  const roles = (session.user as unknown as RolesCarrier).roles;
+  const roles = (session.user as unknown as RolesCarrier & { isActive?: boolean }).roles;
+  const isActive = (session.user as unknown as { isActive?: boolean }).isActive;
+  if (isActive === false) {
+    throw httpError(403, "Inactive user");
+  }
   if (!roles?.includes("ADMIN") && !roles?.includes("EXECUTOR")) {
     throw httpError(403, "Insufficient role");
   }
