@@ -246,7 +246,3 @@ components:
     NotFound: { $ref: ./components/responses/NotFound.yaml }
     RateLimited: { $ref: ./components/responses/RateLimited.yaml }
     ValidationError: { $ref: ./components/responses/ValidationError.yaml }
-  securitySchemes:
-    cookieAdmin: { $ref: ./components/securitySchemes/cookieAdmin.yaml }
-    cookieRecipient: { $ref: ./components/securitySchemes/cookieRecipient.yaml }
-    bearer: { $ref: ./components/securitySchemes/bearer.yaml }
