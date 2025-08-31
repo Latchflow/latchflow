@@ -72,9 +72,12 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   name                String?
+  displayName         String?
+  avatarUrl           String?
   isActive            Boolean              @default(true)
   deactivatedAt       DateTime?
   roles               UserRole[]
+  role                UserRole?
   executorAssignments ExecutorAssignment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -83,6 +86,13 @@ model User {
   magicLinks          MagicLink[]
   apiTokens           ApiToken[]
   deviceAuths         DeviceAuth[]
+  // Authorization v1 groundwork
+  permissionPresetId  String?
+  permissionPreset    PermissionPreset?    @relation(fields: [permissionPresetId], references: [id])
+  directPermissions   Json?
+  permissionsHash     String               @default("")
+  mfaEnabled          Boolean              @default(false)
+  mfaEnforced         Boolean              @default(false)
 
   // Back-relations for creator/updater across models
   createdRecipients        Recipient[]         @relation("createdRecipients")
@@ -105,12 +115,17 @@ model User {
   updatedPipelineSteps     PipelineStep[]      @relation("updatedPipelineSteps")
   createdPipelineTriggers  PipelineTrigger[]   @relation("createdPipelineTriggers")
   updatedPipelineTriggers  PipelineTrigger[]   @relation("updatedPipelineTriggers")
+  createdPermissionPresets PermissionPreset[]  @relation("createdPermissionPresets")
+  updatedPermissionPresets PermissionPreset[]  @relation("updatedPermissionPresets")
 
   // Back-relations for ChangeLog provenance
   changeLogsAsActorUser ChangeLog[] @relation("ChangeLogActorUser")
   changeLogsOnBehalfOf  ChangeLog[] @relation("ChangeLogOnBehalfUser")
 
   @@index([isActive])
+  @@index([isActive, role])
+  @@index([permissionsHash])
+  @@index([permissionPresetId])
 }
 
 model Recipient {
@@ -272,6 +287,7 @@ model TriggerDefinition {
   pipelines           PipelineTrigger[]
   events              TriggerEvent[]
   isEnabled           Boolean              @default(true)
+  systemOwned         Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   createdBy           String
@@ -299,6 +315,7 @@ model ActionDefinition {
   capabilityId      String
   config            Json
   isEnabled         Boolean            @default(true)
+  systemOwned       Boolean            @default(false)
   pipelineSteps     PipelineStep[]
   actionInvocations ActionInvocation[]
   createdAt         DateTime           @default(now())
@@ -312,6 +329,25 @@ model ActionDefinition {
 
   // Back-relation for ChangeLog provenance
   changeLogs ChangeLog[]
+}
+
+///////////////////////////
+// AUTHZ PRESET MODEL
+///////////////////////////
+
+model PermissionPreset {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  version   Int      @default(1)
+  rules     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+  updatedBy String?
+
+  creator User  @relation("createdPermissionPresets", fields: [createdBy], references: [id])
+  updater User? @relation("updatedPermissionPresets", fields: [updatedBy], references: [id])
+  users   User[]
 }
 
 model ActionInvocation {
