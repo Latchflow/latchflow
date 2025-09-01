@@ -5,7 +5,7 @@ admin_start:
       Initiates email-based admin authentication by issuing a one-time magic link token.
 
       Behavior:
-      - Bootstrap (zero users exist): the server upserts a user record with no roles for the
+      - Bootstrap (zero users exist): the server upserts a user record with the role of EXECUTOR and no permissions for the
         provided email to allow issuing a magic link. The ADMIN role is granted during callback.
       - Post-bootstrap (one or more users exist): the email MUST already belong to an existing user
         (or be previously invited). Unknown emails result in a Not Found error.

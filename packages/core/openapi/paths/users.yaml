@@ -30,7 +30,7 @@ users_invite:
   post:
     summary: Invite a user (issue magic link)
     description: |
-      Upserts a user by email and unions the provided roles with any existing roles.
+      Upserts a user by email.
       Issues a one-time magic link for login. Implementations may return a `login_url`
       for copy-paste delivery or send an email if SMTP is configured.
     operationId: inviteUser
@@ -47,19 +47,21 @@ users_invite:
               email:
                 type: string
                 format: email
-              roles:
-                type: array
-                items: { type: string }
+                description: Email address of the invitee
+              role:
+                type: string
+                enum: [ADMIN, EXECUTOR]
+                description: Role to assign to the user. Defaults to EXECUTOR.
             required: [email]
           examples:
             basic:
               value:
                 email: teammate@example.com
-                roles: [EXECUTOR]
+                role: EXECUTOR
             admin:
               value:
                 email: admin2@example.com
-                roles: [ADMIN, EXECUTOR]
+                role: ADMIN
     responses:
       '201':
         description: Invitation created
@@ -75,36 +77,6 @@ users_invite:
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '409':
         description: Invite not allowed (e.g., last-admin constraints)
-
-users_roles:
-  patch:
-    summary: Update user roles
-    operationId: updateUserRoles
-    tags: [Executors/Users]
-    security:
-      - cookieAdmin: []
-    parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string, format: uuid }
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              roles:
-                type: array
-                items: { type: string }
-            required: [roles]
-    responses:
-      '204': { description: Updated }
-      '401': { $ref: ../components/responses/Unauthorized.yaml }
-      '400': { $ref: ../components/responses/ValidationError.yaml }
-      '409':
-        description: Cannot remove ADMIN from the last remaining admin user
 
 users_revoke:
   post:

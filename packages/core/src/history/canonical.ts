@@ -1,11 +1,14 @@
 import type { DbClient } from "../db/db.js";
+import { createHash } from "node:crypto";
 
 export type EntityType =
   | "PIPELINE"
   | "BUNDLE"
   | "RECIPIENT"
   | "TRIGGER_DEFINITION"
-  | "ACTION_DEFINITION";
+  | "ACTION_DEFINITION"
+  | "USER"
+  | "PERMISSION_PRESET";
 
 export type Canonical = Record<string, unknown>;
 
@@ -132,6 +135,58 @@ export async function serializeAggregate(
       isEnabled: a.isEnabled,
       createdBy: a.createdBy,
       updatedBy: a.updatedBy ?? null,
+    };
+  }
+  if (entityType === "USER") {
+    const u = await db.user.findUnique({ where: { id } });
+    if (!u) return null;
+    type UserProjection = {
+      id: string;
+      isActive?: boolean | null;
+      displayName?: string | null;
+      avatarUrl?: string | null;
+      mfaEnabled?: boolean | null;
+      mfaEnforced?: boolean | null;
+      permissionPresetId?: string | null;
+      permissionsHash?: string | null;
+      role?: string | null;
+    };
+    const uu = u as unknown as UserProjection;
+    const out = {
+      id: uu.id,
+      role: uu.role ?? "EXECUTOR",
+      isActive: uu.isActive ?? true,
+      displayName: uu.displayName ?? null,
+      avatarUrl: uu.avatarUrl ?? null,
+      mfaEnabled: uu.mfaEnabled ?? false,
+      mfaEnforced: uu.mfaEnforced ?? false,
+      permissionPresetId: uu.permissionPresetId ?? null,
+      permissionsHash: uu.permissionsHash ?? "",
+    } as const;
+    return out as unknown as Canonical;
+  }
+  if (entityType === "PERMISSION_PRESET") {
+    const p = await db.permissionPreset.findUnique({ where: { id } });
+    if (!p) return null;
+    type PresetProjection = {
+      id: string;
+      name: string;
+      version?: number | null;
+      rules?: unknown;
+      createdBy: string;
+      updatedBy?: string | null;
+    };
+    const pp = p as unknown as PresetProjection;
+    const rulesHash = createHash("sha256")
+      .update(JSON.stringify(pp.rules ?? []))
+      .digest("hex");
+    return {
+      id: pp.id,
+      name: pp.name,
+      version: pp.version ?? 1,
+      rulesHash,
+      createdBy: pp.createdBy,
+      updatedBy: pp.updatedBy ?? null,
     };
   }
   return null;

@@ -15,7 +15,7 @@ vi.mock("../db/db.js", () => {
         revokedAt: null,
         expiresAt: null,
         scopes: ["core:read"],
-        user: { id: "u1", email: "e", roles: ["ADMIN"] },
+        user: { id: "u1", email: "e", role: "ADMIN" },
       };
     }
     return null;

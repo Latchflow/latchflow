@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasAll, hasAny } from "../auth/scopes.js";
+import { hasAll, hasAny } from "./scopes.js";
 
 describe("auth scopes helpers", () => {
   it("hasAll checks all required", () => {

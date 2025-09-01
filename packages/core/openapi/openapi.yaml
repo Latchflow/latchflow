@@ -205,8 +205,6 @@ paths:
     $ref: ./paths/users.yaml#/users_collection
   /users/invite:
     $ref: ./paths/users.yaml#/users_invite
-  /users/{id}/roles:
-    $ref: ./paths/users.yaml#/users_roles
   /users/{id}/revoke:
     $ref: ./paths/users.yaml#/users_revoke
 

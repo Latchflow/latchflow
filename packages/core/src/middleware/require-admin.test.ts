@@ -24,7 +24,7 @@ describe("requireAdmin", () => {
       jti: "abc",
       revokedAt: null,
       expiresAt: new Date(Date.now() + 60_000),
-      user: { id: "u1", email: "e", roles: ["VIEWER"] },
+      user: { id: "u1", email: "e", role: "EXECUTOR" },
     });
     const { requireAdmin } = await import("../middleware/require-admin.js");
     const req = { headers: { cookie: "lf_admin_sess=abc" } } as any;
@@ -38,7 +38,7 @@ describe("requireAdmin", () => {
       jti: "abc",
       revokedAt: null,
       expiresAt: new Date(Date.now() + 60_000),
-      user: { id: "u1", email: "e", roles: ["EXECUTOR"] },
+      user: { id: "u1", email: "e", role: "ADMIN" },
     });
     const { requireAdmin } = await import("../middleware/require-admin.js");
     const req = { headers: { cookie: "lf_admin_sess=abc" } } as any;

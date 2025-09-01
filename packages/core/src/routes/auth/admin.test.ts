@@ -9,7 +9,7 @@ const db = {
     upsert: vi.fn(async ({ create }: any) => ({
       id: "u1",
       email: create.email,
-      roles: create.roles,
+      role: create.role,
     })),
     count: vi.fn(async () => 0),
     findUnique: vi.fn(async () => null as any),
@@ -39,7 +39,7 @@ beforeEach(() => {
   db.user.upsert.mockReset().mockImplementation(async ({ create }: any) => ({
     id: "u1",
     email: create.email,
-    roles: create.roles,
+    role: create.role,
   }));
   db.user.count.mockReset().mockResolvedValue(0);
   db.user.findUnique.mockReset().mockResolvedValue(null as any);
@@ -102,7 +102,11 @@ describe("admin auth routes", () => {
       AUTH_COOKIE_SECURE: false,
     } as any;
     // Let the tx callback run; emulate existing user fast-path
-    db.user.findUnique.mockResolvedValueOnce({ id: "u1", email: "a@b.co", roles: [] } as any);
+    db.user.findUnique.mockResolvedValueOnce({
+      id: "u1",
+      email: "a@b.co",
+      role: "EXECUTOR",
+    } as any);
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("POST /auth/admin/start")!;
     let code = 0;
@@ -133,7 +137,7 @@ describe("admin auth routes", () => {
     db.user.findUnique.mockResolvedValueOnce({
       id: "u1",
       email: "dev@example.com",
-      roles: [],
+      role: "EXECUTOR",
     } as any);
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("POST /auth/admin/start")!;
@@ -327,10 +331,10 @@ describe("admin auth routes", () => {
     // Only one user in the system → bootstrap path enabled
     db.user.count.mockResolvedValueOnce(1);
 
-    // 1) active-user check (outside tx), 2) in-tx fetch with roles
+    // 1) active-user check (outside tx), 2) in-tx fetch with role
     db.user.findUnique
       .mockResolvedValueOnce({ id: "u1", isActive: true } as any)
-      .mockResolvedValueOnce({ id: "u1", email: "first@example.com", roles: [] } as any);
+      .mockResolvedValueOnce({ id: "u1", email: "first@example.com", role: "EXECUTOR" } as any);
 
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("GET /auth/admin/callback")!;
@@ -383,7 +387,7 @@ describe("admin auth routes", () => {
       jti: "sess1",
       expiresAt: now,
       revokedAt: null,
-      user: { id: "u1", email: "a@b.co", roles: ["ADMIN"] },
+      user: { id: "u1", email: "a@b.co", role: "ADMIN" },
     } as any);
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("GET /auth/me")!;
@@ -404,7 +408,7 @@ describe("admin auth routes", () => {
     });
     expect(code).toBe(200);
     expect(body?.user?.email).toBe("a@b.co");
-    expect(body?.user?.roles).toEqual(["ADMIN"]);
+    expect(body?.user?.role).toEqual("ADMIN");
   });
 
   it("GET /whoami returns kind=admin when authenticated", async () => {
@@ -415,7 +419,7 @@ describe("admin auth routes", () => {
       jti: "sess1",
       expiresAt: now,
       revokedAt: null,
-      user: { id: "u1", email: "a@b.co", roles: ["EXECUTOR"] },
+      user: { id: "u1", email: "a@b.co", role: "ADMIN" },
     } as any);
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("GET /whoami")!;
@@ -447,7 +451,7 @@ describe("admin auth routes", () => {
       jti: "sess1",
       expiresAt: now,
       revokedAt: null,
-      user: { id: "u1", email: "a@b.co", roles: ["ADMIN"] },
+      user: { id: "u1", email: "a@b.co", role: "ADMIN" },
     } as any);
     db.session.findMany.mockResolvedValueOnce([
       {
@@ -489,7 +493,7 @@ describe("admin auth routes", () => {
       jti: "sess1",
       expiresAt: now,
       revokedAt: null,
-      user: { id: "u1", email: "a@b.co", roles: ["ADMIN"] },
+      user: { id: "u1", email: "a@b.co", role: "ADMIN" },
     } as any);
     registerAdminAuthRoutes(server, config);
     const handler = handlers.get("POST /auth/sessions/revoke")!;

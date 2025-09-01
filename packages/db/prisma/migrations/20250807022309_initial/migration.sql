@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "public"."UserRole" AS ENUM ('ADMIN', 'EXECUTOR', 'RECIPIENT');
+CREATE TYPE "public"."UserRole" AS ENUM ('ADMIN', 'EXECUTOR');
 
 -- CreateEnum
 CREATE TYPE "public"."CapabilityKind" AS ENUM ('TRIGGER', 'ACTION');

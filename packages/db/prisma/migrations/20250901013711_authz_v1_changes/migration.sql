@@ -1,3 +1,27 @@
+/*
+  Warnings:
+
+  - You are about to drop the column `roles` on the `User` table. All the data in the column will be lost.
+  - You are about to drop the `ExecutorAssignment` table. If the table is not empty, all the data it contains will be lost.
+  - You are about to drop the `ExecutorPermission` table. If the table is not empty, all the data it contains will be lost.
+
+*/
+
+-- DropForeignKey
+ALTER TABLE "public"."ExecutorAssignment" DROP CONSTRAINT "ExecutorAssignment_bundleId_fkey";
+
+-- DropForeignKey
+ALTER TABLE "public"."ExecutorAssignment" DROP CONSTRAINT "ExecutorAssignment_executorId_fkey";
+
+-- DropForeignKey
+ALTER TABLE "public"."ExecutorAssignment" DROP CONSTRAINT "ExecutorAssignment_triggerDefinitionId_fkey";
+
+-- DropForeignKey
+ALTER TABLE "public"."ExecutorPermission" DROP CONSTRAINT "ExecutorPermission_activatedAfterTriggerId_fkey";
+
+-- DropForeignKey
+ALTER TABLE "public"."ExecutorPermission" DROP CONSTRAINT "ExecutorPermission_assignmentId_fkey";
+
 -- AlterTable
 ALTER TABLE "public"."ActionDefinition" ADD COLUMN     "systemOwned" BOOLEAN NOT NULL DEFAULT false;
 
@@ -5,14 +29,21 @@ ALTER TABLE "public"."ActionDefinition" ADD COLUMN     "systemOwned" BOOLEAN NOT
 ALTER TABLE "public"."TriggerDefinition" ADD COLUMN     "systemOwned" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
-ALTER TABLE "public"."User" ADD COLUMN     "avatarUrl" TEXT,
+ALTER TABLE "public"."User" DROP COLUMN "roles",
+ADD COLUMN     "avatarUrl" TEXT,
 ADD COLUMN     "directPermissions" JSONB,
 ADD COLUMN     "displayName" TEXT,
 ADD COLUMN     "mfaEnabled" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN     "mfaEnforced" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN     "permissionPresetId" TEXT,
 ADD COLUMN     "permissionsHash" TEXT NOT NULL DEFAULT '',
-ADD COLUMN     "role" "public"."UserRole";
+ADD COLUMN     "role" "public"."UserRole" NOT NULL DEFAULT 'EXECUTOR';
+
+-- DropTable
+DROP TABLE "public"."ExecutorAssignment";
+
+-- DropTable
+DROP TABLE "public"."ExecutorPermission";
 
 -- CreateTable
 CREATE TABLE "public"."PermissionPreset" (

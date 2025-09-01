@@ -14,9 +14,9 @@ const db = {
 
 vi.mock("../../db/db.js", () => ({ getDb: () => db }));
 
-// Default: requireAdmin passes
-vi.mock("../../middleware/require-admin.js", () => ({
-  requireAdmin: vi.fn(async () => ({ user: { id: "u1", roles: ["ADMIN"] } })),
+// Default: requireSession passes
+vi.mock("../../middleware/require-session.js", () => ({
+  requireSession: vi.fn(async () => ({ user: { id: "u1", role: "ADMIN" } })),
 }));
 
 async function makeServer() {
