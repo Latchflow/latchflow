@@ -23,6 +23,7 @@ bundles_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   post:
     summary: Create bundle
     operationId: createBundle
@@ -47,6 +48,7 @@ bundles_collection:
           application/json:
             schema: { $ref: ../components/schemas/Bundle.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 bundles_item:
@@ -70,6 +72,7 @@ bundles_item:
             schema: { $ref: ../components/schemas/Bundle.yaml }
       '404': { $ref: ../components/responses/NotFound.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   patch:
     summary: Update bundle
     operationId: updateBundle
@@ -94,6 +97,7 @@ bundles_item:
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Delete bundle
@@ -110,6 +114,7 @@ bundles_item:
     responses:
       '204': { description: Deleted }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 # Bundle versions (history)
 bundle_versions_collection:
@@ -141,6 +146,7 @@ bundle_versions_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 bundle_versions_item:
   get:

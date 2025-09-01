@@ -25,6 +25,7 @@ users_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 users_invite:
   post:
@@ -75,6 +76,7 @@ users_invite:
                   description: Magic-link callback URL usable by the invitee
       '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '409':
         description: Invite not allowed (e.g., last-admin constraints)
 
@@ -109,6 +111,7 @@ users_revoke:
     responses:
       '204': { description: Revoked }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
       '409':
         description: Cannot revoke access in a way that leaves zero admins in the system

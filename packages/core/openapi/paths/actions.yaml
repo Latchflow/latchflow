@@ -23,6 +23,7 @@ actions_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   post:
     summary: Create action definition
     operationId: createAction
@@ -48,6 +49,7 @@ actions_collection:
           application/json:
             schema: { $ref: ../components/schemas/ActionDefinition.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 actions_item:
@@ -75,6 +77,7 @@ actions_item:
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 # ActionDefinition versions (history)
@@ -107,6 +110,7 @@ action_versions_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 action_versions_item:
   get:
@@ -133,3 +137,4 @@ action_versions_item:
             schema: { $ref: ../components/schemas/ChangeLogMaterialized.yaml }
       '404': { $ref: ../components/responses/NotFound.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }

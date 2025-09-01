@@ -42,6 +42,8 @@ admin_start:
         description: Magic link issued (no content)
       '400':
         $ref: ../../components/responses/ValidationError.yaml
+      '403':
+        $ref: ../../components/responses/Forbidden.yaml
 
 admin_callback:
   get:
@@ -65,6 +67,8 @@ admin_callback:
         $ref: ../../components/responses/ValidationError.yaml
       '401':
         $ref: ../../components/responses/Unauthorized.yaml
+      '403':
+        $ref: ../../components/responses/Forbidden.yaml
 
 admin_logout:
   post:
@@ -74,6 +78,8 @@ admin_logout:
     responses:
       '204':
         description: Logged out
+      '403':
+        $ref: ../../components/responses/Forbidden.yaml
 
 auth_me:
   get:
@@ -96,6 +102,7 @@ auth_me:
                   type: object
               required: [user]
       '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../../components/responses/Forbidden.yaml }
 
 whoami:
   get:
@@ -123,6 +130,7 @@ whoami:
                   items:
                     type: string
       '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../../components/responses/Forbidden.yaml }
 
 auth_sessions:
   get:
@@ -153,6 +161,7 @@ auth_sessions:
                     required: [id, createdAt, expiresAt]
               required: [items]
       '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../../components/responses/Forbidden.yaml }
 
 auth_sessions_revoke:
   post:
@@ -173,4 +182,5 @@ auth_sessions_revoke:
     responses:
       '204': { description: Revoked }
       '401': { $ref: ../../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../../components/responses/Forbidden.yaml }
       '400': { $ref: ../../components/responses/ValidationError.yaml }

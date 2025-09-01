@@ -23,6 +23,7 @@ triggers_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   post:
     summary: Create trigger definition
     operationId: createTrigger
@@ -48,6 +49,7 @@ triggers_collection:
           application/json:
             schema: { $ref: ../components/schemas/TriggerDefinition.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 triggers_item:
@@ -75,6 +77,7 @@ triggers_item:
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 # TriggerDefinition versions (history)
@@ -107,6 +110,7 @@ trigger_versions_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 trigger_versions_item:
   get:

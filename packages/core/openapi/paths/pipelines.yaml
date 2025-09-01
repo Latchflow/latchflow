@@ -23,6 +23,7 @@ pipelines_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   post:
     summary: Create pipeline
     operationId: createPipeline
@@ -48,6 +49,7 @@ pipelines_collection:
           application/json:
             schema: { $ref: ../components/schemas/Pipeline.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 pipelines_item:
@@ -76,6 +78,7 @@ pipelines_item:
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Delete pipeline
@@ -91,6 +94,7 @@ pipelines_item:
     responses:
       '204': { description: Deleted }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 # Pipeline versions (history)
 pipeline_versions_collection:
@@ -122,6 +126,7 @@ pipeline_versions_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 pipeline_versions_item:
   get:
@@ -209,6 +214,7 @@ pipeline_steps_collection:
           application/json:
             schema: { $ref: ../components/schemas/PipelineStep.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 pipeline_steps_item:
