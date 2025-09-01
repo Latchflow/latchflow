@@ -80,4 +80,24 @@ describe("requirePermission (v1)", () => {
     expect(r.status).toBe(200);
     expect(r.body?.ok).toBe(true);
   });
+
+  it("logs decision with route signature when provided", async () => {
+    vi.doMock("./require-session.js", () => ({
+      requireSession: vi.fn(async () => ({ user: { id: "a1", role: "ADMIN", roles: ["ADMIN"] } })),
+    }));
+    const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const { requirePermission } = await import("./require-permission.js");
+    const handler: HttpHandler = async (_req, res) => {
+      res.status(200).json({ ok: true });
+    };
+    const wrapped = requirePermission("GET /plugins")(handler);
+    const r = mkRes();
+    await wrapped({ headers: {} } as any, r.res);
+    expect(r.status).toBe(200);
+    const arg = (spy.mock.calls[0]?.[0] as string) ?? "{}";
+    const obj = JSON.parse(arg);
+    expect(obj.kind).toBe("authz_decision");
+    expect(obj.signature).toBe("GET /plugins");
+    spy.mockRestore();
+  });
 });

@@ -22,8 +22,10 @@ export function requirePermission(
       // v1 policy lookup
       const entry: PolicyEntry | undefined =
         typeof entryOrSignature === "string" ? POLICY[entryOrSignature] : entryOrSignature;
+      const signature: string | undefined =
+        typeof entryOrSignature === "string" ? entryOrSignature : undefined;
       if (!entry) {
-        logDecision({ decision: "DENY", reason: "NO_POLICY", userId: ctx.userId });
+        logDecision({ decision: "DENY", reason: "NO_POLICY", userId: ctx.userId, signature });
         throw httpError(403, "Policy not found");
       }
       // Admins always allowed in v1
@@ -34,6 +36,7 @@ export function requirePermission(
           resource: entry.resource,
           action: entry.action,
           userId: ctx.userId,
+          signature,
         });
         return handler(req, res);
       }
@@ -46,6 +49,7 @@ export function requirePermission(
           action: entry.action,
           userId: ctx.userId,
           role: ctx.role,
+          signature,
         });
         return handler(req, res);
       }
@@ -56,6 +60,7 @@ export function requirePermission(
         action: entry.action,
         userId: ctx.userId,
         role: ctx.role,
+        signature,
       });
       throw httpError(403, "Insufficient permission");
     };
