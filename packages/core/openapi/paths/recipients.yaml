@@ -26,6 +26,7 @@ recipients_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   post:
     summary: Create recipient
     operationId: createRecipient
@@ -51,6 +52,7 @@ recipients_collection:
             schema: { $ref: ../components/schemas/Recipient.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 recipients_item:
   get:
@@ -73,6 +75,7 @@ recipients_item:
             schema: { $ref: ../components/schemas/Recipient.yaml }
       '404': { $ref: ../components/responses/NotFound.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 # Recipient versions (history)
 recipient_versions_collection:
@@ -104,6 +107,7 @@ recipient_versions_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 recipient_versions_item:
   get:
@@ -130,6 +134,7 @@ recipient_versions_item:
             schema: { $ref: ../components/schemas/ChangeLogMaterialized.yaml }
       '404': { $ref: ../components/responses/NotFound.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 bundle_recipients:
   get:
@@ -184,6 +189,7 @@ bundle_recipients:
     responses:
       '204': { description: Attached }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Detach recipient from bundle

@@ -28,6 +28,7 @@ bundle_objects_collection:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   post:
     summary: Attach files to bundle
     operationId: attachBundleObjects
@@ -76,6 +77,7 @@ bundle_objects_collection:
                   items: { $ref: ../components/schemas/BundleObject.yaml }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
     parameters:
       - in: path
@@ -113,6 +115,7 @@ bundle_objects_item:
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Detach bundle object
@@ -133,3 +136,4 @@ bundle_objects_item:
     responses:
       '204': { description: Detached }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }

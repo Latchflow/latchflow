@@ -43,6 +43,7 @@ plugins:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 plugins_install:
   post:
@@ -65,6 +66,7 @@ plugins_install:
       '202': { description: Installing }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 plugins_item:
   delete:
@@ -81,3 +83,4 @@ plugins_item:
     responses:
       '204': { description: Removed }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }

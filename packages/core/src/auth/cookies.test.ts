@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCookies, setCookie, clearCookie } from "../auth/cookies.js";
+import { parseCookies, setCookie, clearCookie } from "./cookies.js";
 
 describe("cookies helpers", () => {
   it("parses cookie header into map", () => {

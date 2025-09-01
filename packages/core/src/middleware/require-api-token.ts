@@ -3,7 +3,7 @@ import { getDb } from "../db/db.js";
 import { sha256Hex } from "../auth/tokens.js";
 
 type WithToken = RequestLike & {
-  user?: { id: string; email: string; roles: string[] };
+  user?: { id: string; email: string; role?: string };
   apiToken?: { id: string; scopes: string[] };
   hasScope?: (scope: string) => boolean;
 };
@@ -42,12 +42,11 @@ export function requireApiToken(
       }
       // Mark token as used after scope verification
       await db.apiToken.update({ where: { id: apiToken.id }, data: { lastUsedAt: new Date() } });
-      type RolesCarrier = { roles: string[] };
       const req2 = req as WithToken;
       req2.user = {
         id: apiToken.user.id,
         email: apiToken.user.email,
-        roles: (apiToken.user as unknown as RolesCarrier).roles,
+        role: (apiToken.user as unknown as { role?: string | null }).role ?? undefined,
       };
       req2.apiToken = { id: apiToken.id, scopes: apiToken.scopes };
       req2.hasScope = hasScope;

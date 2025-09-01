@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 import { canonicalStringify, serializeAggregate } from "./canonical.js";
 import { getDb } from "../db/db.js";
@@ -208,6 +208,57 @@ describe("history/canonical", () => {
       db.recipient.findUnique.mockResolvedValueOnce(null);
       const got = await serializeAggregate(db as any, "RECIPIENT", "missing");
       expect(got).toBeNull();
+    });
+
+    it("serializes USER without PII and with permissions hash", async () => {
+      (db as any).user = {
+        findUnique: vi.fn(async () => ({
+          id: "u1",
+          email: "hidden@example.com",
+          role: "EXECUTOR",
+          isActive: true,
+          displayName: "Exec One",
+          avatarUrl: null,
+          mfaEnabled: false,
+          mfaEnforced: false,
+          permissionPresetId: "pp1",
+          permissionsHash: "abc",
+        })),
+      };
+      const out = await serializeAggregate(db as any, "USER", "u1");
+      expect(out).toEqual({
+        id: "u1",
+        role: "EXECUTOR",
+        isActive: true,
+        displayName: "Exec One",
+        avatarUrl: null,
+        mfaEnabled: false,
+        mfaEnforced: false,
+        permissionPresetId: "pp1",
+        permissionsHash: "abc",
+      });
+    });
+
+    it("serializes PERMISSION_PRESET with rules hash only", async () => {
+      (db as any).permissionPreset = {
+        findUnique: vi.fn(async () => ({
+          id: "pp1",
+          name: "Ops",
+          version: 2,
+          rules: [{ resource: "pipeline", action: "execute" }],
+          createdBy: "admin",
+          updatedBy: null,
+        })),
+      };
+      const out = await serializeAggregate(db as any, "PERMISSION_PRESET", "pp1");
+      expect(out && typeof (out as any).rulesHash).toBe("string");
+      expect(out).toMatchObject({
+        id: "pp1",
+        name: "Ops",
+        version: 2,
+        createdBy: "admin",
+        updatedBy: null,
+      });
     });
   });
 });

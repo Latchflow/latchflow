@@ -81,7 +81,7 @@ const db = {
 vi.mock("../../db/db.js", () => ({ getDb: () => db }));
 vi.mock("../../middleware/require-admin.js", () => {
   return {
-    requireAdmin: vi.fn(async () => ({ user: { id: "u1", roles: ["ADMIN"] }, session: {} })),
+    requireAdmin: vi.fn(async () => ({ user: { id: "u1", role: "ADMIN" }, session: {} })),
   };
 });
 
@@ -327,7 +327,10 @@ describe("cli auth routes", () => {
     expect(r.status).toBe(401);
 
     // 403 insufficient role
-    (requireAdmin as any).mockResolvedValueOnce({ user: { id: "u1", roles: [] }, session: {} });
+    (requireAdmin as any).mockResolvedValueOnce({
+      user: { id: "u1", role: "EXECUTOR" },
+      session: {},
+    });
     r = await run({ user_code: "x" });
     expect(r.status).toBe(403);
 
@@ -347,7 +350,7 @@ describe("cli auth routes", () => {
       approvedAt: null,
     })) as any;
     (requireAdmin as any).mockResolvedValueOnce({
-      user: { id: "u1", roles: ["ADMIN"] },
+      user: { id: "u1", role: "ADMIN" },
       session: {},
     });
     r = await run({ user_code: "x" });

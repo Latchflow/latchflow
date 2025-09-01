@@ -9,7 +9,7 @@ function httpError(status: number, message: string) {
   return err;
 }
 
-export async function requireAdmin(req: RequestLike) {
+export async function requireSession(req: RequestLike) {
   const cookies = parseCookies(req);
   const token = cookies[ADMIN_SESSION_COOKIE];
   if (!token) throw httpError(401, "Missing admin session");
@@ -19,13 +19,9 @@ export async function requireAdmin(req: RequestLike) {
   if (!session || session.revokedAt || session.expiresAt <= now) {
     throw httpError(401, "Invalid or expired admin session");
   }
-
   const isActive = (session.user as unknown as { isActive?: boolean }).isActive;
   if (isActive === false) {
     throw httpError(403, "Inactive user");
-  }
-  if (session.user.role !== "ADMIN") {
-    throw httpError(403, "Insufficient role");
   }
   return { user: session.user, session };
 }

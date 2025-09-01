@@ -17,9 +17,9 @@ describe("bootstrapGrantAdminIfOnlyUser", () => {
     tx.user.update.mockReset();
   });
 
-  it("grants roles when only one user exists", async () => {
+  it("grants admin role when only one user exists", async () => {
     tx.user.count.mockResolvedValueOnce(1);
-    tx.user.findUnique.mockResolvedValueOnce({ id: "u1", email: "a@b.co", roles: [] });
+    tx.user.findUnique.mockResolvedValueOnce({ id: "u1", email: "a@b.co", role: "EXECUTOR" });
     tx.user.update.mockResolvedValueOnce({});
 
     const changed = await bootstrapGrantAdminIfOnlyUserTx(
@@ -40,12 +40,12 @@ describe("bootstrapGrantAdminIfOnlyUser", () => {
     expect(tx.user.update).not.toHaveBeenCalled();
   });
 
-  it("does nothing when roles already include ADMIN and EXECUTOR", async () => {
+  it("does nothing when user is already ADMIN", async () => {
     tx.user.count.mockResolvedValueOnce(1);
     tx.user.findUnique.mockResolvedValueOnce({
       id: "u1",
       email: "a@b.co",
-      roles: ["ADMIN", "EXECUTOR"],
+      role: "ADMIN",
     });
     const changed = await bootstrapGrantAdminIfOnlyUserTx(
       tx as unknown as Prisma.TransactionClient,

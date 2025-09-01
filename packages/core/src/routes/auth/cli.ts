@@ -50,7 +50,7 @@ export function registerCliAuthRoutes(server: HttpServer, config: AppConfig) {
     const user = await db.user.upsert({
       where: { email },
       update: {},
-      create: { email, roles: ["EXECUTOR"] },
+      create: { email, role: "EXECUTOR" },
     });
     const device_code = makeDeviceCode();
     const user_code = makeUserCode();
@@ -85,8 +85,8 @@ export function registerCliAuthRoutes(server: HttpServer, config: AppConfig) {
     // Gate via admin cookie session, so only admins/executors can approve
     try {
       const { user } = await requireAdmin(req);
-      const roles = (user as unknown as { roles: string[] }).roles;
-      if (!roles?.includes("ADMIN") && !roles?.includes("EXECUTOR")) {
+      const role = (user as unknown as { role: string }).role;
+      if (role !== "ADMIN") {
         res.status(403).json({ status: "error", code: "FORBIDDEN", message: "Insufficient role" });
         return;
       }

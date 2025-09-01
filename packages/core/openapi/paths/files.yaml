@@ -32,6 +32,7 @@ files_list:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 files_upload:
   post:
@@ -67,6 +68,7 @@ files_upload:
           application/json:
             schema: { $ref: ../components/schemas/File.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_upload_url:
@@ -104,6 +106,7 @@ files_upload_url:
                 expiresAt: { type: string, format: date-time }
               required: [url, expiresAt]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_item:
@@ -128,6 +131,7 @@ files_item:
       '404':
         $ref: ../components/responses/NotFound.yaml
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   delete:
     summary: Delete file
     operationId: deleteFile
@@ -143,6 +147,7 @@ files_item:
     responses:
       '204': { description: Deleted }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 files_metadata:
   patch:
@@ -171,6 +176,7 @@ files_metadata:
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_move:
@@ -198,6 +204,7 @@ files_move:
     responses:
       '204': { description: Moved }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_download:
@@ -246,6 +253,7 @@ files_batch_delete:
     responses:
       '204': { description: Deleted }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 files_batch_move:

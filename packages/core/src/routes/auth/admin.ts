@@ -21,7 +21,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     }
     const { email } = parsed.data;
 
-    // If no users exist yet, atomically create a new user with no roles
+    // If no users exist yet, atomically create a new user
     // (will be auto-upgraded to ADMIN on first login).
     // Use a SERIALIZABLE transaction so simultaneous calls don't create
     // more than one initial user across different emails.
@@ -37,11 +37,11 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
           const existingCount = await tx.user.count();
           if (existingCount > 0) return null;
 
-          // Create first user (no roles yet)
+          // Create first user
           return tx.user.upsert({
             where: { email },
             update: {},
-            create: { email, roles: [] },
+            create: { email },
           });
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -180,8 +180,8 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
   server.get("/auth/me", async (req, res) => {
     try {
       const { user, session } = await requireAdmin(req);
-      const roles = (user as unknown as { roles: string[] }).roles;
-      res.status(200).json({ user: { id: user.id, email: user.email, roles }, session });
+      const role = (user as unknown as { role: string }).role;
+      res.status(200).json({ user: { id: user.id, email: user.email, role }, session });
     } catch (e) {
       const err = e as Error & { status?: number };
       res
@@ -194,8 +194,8 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
   server.get("/whoami", async (req, res) => {
     try {
       const { user } = await requireAdmin(req);
-      const roles = (user as unknown as { roles: string[] }).roles;
-      res.status(200).json({ kind: "admin", user: { id: user.id, email: user.email, roles } });
+      const role = (user as unknown as { role: string }).role;
+      res.status(200).json({ kind: "admin", user: { id: user.id, email: user.email, role } });
     } catch (e) {
       const err = e as Error & { status?: number };
       res

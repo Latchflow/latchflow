@@ -132,6 +132,27 @@ packages/plugins/
   - The `src/test` directory is reserved for setup/bootstrap only; do not place tests there.
 - Run all tests with `pnpm -r test` or Core-only with `pnpm core:test`.
 
+## AuthN vs AuthZ (Current)
+- AuthN (authentication): lives under `packages/core/src/auth` and `packages/core/src/middleware/require-session.ts`.
+  - Establishes identity via admin session cookies or API tokens.
+  - Do not perform role/permission checks here.
+- AuthZ (authorization): lives under `packages/core/src/authz` and `packages/core/src/middleware/require-permission.ts`.
+  - Central policy map: `src/authz/policy.ts` maps route signatures (e.g., `"GET /plugins"`) to required actions/resources.
+  - Guard middleware: `requirePermission(policyEntryOrSignature)` wraps handlers to enforce the policy.
+  - Context builder: `src/authz/context.ts` extracts user role and common IDs from requests.
+  - Decision logging: `src/authz/decisionLog.ts` emits a structured JSON line for every ALLOW/DENY (stdout).
+
+### AuthZ v1 Behavior
+- Admins: always allowed on guarded routes.
+- Executors: allowed only when the policy entry sets `v1AllowExecutor: true` (typically read-only endpoints).
+- How to guard a route:
+  1) Add/update a `POLICY` entry in `src/authz/policy.ts` for the route signature.
+  2) Wrap the handler: `server.get(path, requirePermission("GET /path")(handler))`.
+
+### AuthZ v2 (Planned)
+- Rules-based permissions backed by `PermissionPreset` and user `directPermissions` with a compiled, cached policy per user.
+- Input guardrails for execute/create/update and 2FA enforcement for admin routes.
+
 ## Roadmap
 - CLI, Admin UI, Recipient Portal, CLI, and built-in plugins are planned additions.
 - See `docs/ROADMAP.md` for phased milestones.

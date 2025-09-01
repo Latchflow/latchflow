@@ -21,7 +21,6 @@ datasource db {
 enum UserRole {
   ADMIN
   EXECUTOR
-  RECIPIENT
 }
 
 enum CapabilityKind {
@@ -72,10 +71,11 @@ model User {
   id                  String               @id @default(uuid())
   email               String               @unique
   name                String?
+  displayName         String?
+  avatarUrl           String?
   isActive            Boolean              @default(true)
   deactivatedAt       DateTime?
-  roles               UserRole[]
-  executorAssignments ExecutorAssignment[]
+  role                UserRole             @default(EXECUTOR)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   actionInvocations   ActionInvocation[]
@@ -83,6 +83,13 @@ model User {
   magicLinks          MagicLink[]
   apiTokens           ApiToken[]
   deviceAuths         DeviceAuth[]
+  // Authorization v1 groundwork
+  permissionPresetId  String?
+  permissionPreset    PermissionPreset?    @relation(fields: [permissionPresetId], references: [id])
+  directPermissions   Json?
+  permissionsHash     String               @default("")
+  mfaEnabled          Boolean              @default(false)
+  mfaEnforced         Boolean              @default(false)
 
   // Back-relations for creator/updater across models
   createdRecipients        Recipient[]         @relation("createdRecipients")
@@ -105,12 +112,17 @@ model User {
   updatedPipelineSteps     PipelineStep[]      @relation("updatedPipelineSteps")
   createdPipelineTriggers  PipelineTrigger[]   @relation("createdPipelineTriggers")
   updatedPipelineTriggers  PipelineTrigger[]   @relation("updatedPipelineTriggers")
+  createdPermissionPresets PermissionPreset[]  @relation("createdPermissionPresets")
+  updatedPermissionPresets PermissionPreset[]  @relation("updatedPermissionPresets")
 
   // Back-relations for ChangeLog provenance
   changeLogsAsActorUser ChangeLog[] @relation("ChangeLogActorUser")
   changeLogsOnBehalfOf  ChangeLog[] @relation("ChangeLogOnBehalfUser")
 
   @@index([isActive])
+  @@index([isActive, role])
+  @@index([permissionsHash])
+  @@index([permissionPresetId])
 }
 
 model Recipient {
@@ -167,7 +179,6 @@ model Bundle {
 
   creator             User                 @relation("createdBundles", fields: [createdBy], references: [id])
   updater             User?                @relation("updatedBundles", fields: [updatedBy], references: [id])
-  executorAssignments ExecutorAssignment[]
 }
 
 model BundleObject {
@@ -267,11 +278,10 @@ model TriggerDefinition {
   name                String
   capabilityId        String
   config              Json
-  executorAssignments ExecutorAssignment[]
-  ExecutorPermission  ExecutorPermission[]
   pipelines           PipelineTrigger[]
   events              TriggerEvent[]
   isEnabled           Boolean              @default(true)
+  systemOwned         Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   createdBy           String
@@ -299,6 +309,7 @@ model ActionDefinition {
   capabilityId      String
   config            Json
   isEnabled         Boolean            @default(true)
+  systemOwned       Boolean            @default(false)
   pipelineSteps     PipelineStep[]
   actionInvocations ActionInvocation[]
   createdAt         DateTime           @default(now())
@@ -312,6 +323,25 @@ model ActionDefinition {
 
   // Back-relation for ChangeLog provenance
   changeLogs ChangeLog[]
+}
+
+///////////////////////////
+// AUTHZ PRESET MODEL
+///////////////////////////
+
+model PermissionPreset {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  version   Int      @default(1)
+  rules     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+  updatedBy String?
+
+  creator User  @relation("createdPermissionPresets", fields: [createdBy], references: [id])
+  updater User? @relation("updatedPermissionPresets", fields: [updatedBy], references: [id])
+  users   User[]
 }
 
 model ActionInvocation {
@@ -465,31 +495,6 @@ model PipelineRun {
   actionInvocations ActionInvocation[]
 
   @@index([triggerEventId, pipelineId, startedAt])
-}
-
-///////////////////////////
-// EXECUTOR PERMISSIONS
-///////////////////////////
-
-model ExecutorAssignment {
-  id                  String               @id @default(uuid())
-  executor            User                 @relation(fields: [executorId], references: [id])
-  executorId          String
-  bundle              Bundle?              @relation(fields: [bundleId], references: [id])
-  bundleId            String?
-  triggerDefinition   TriggerDefinition?   @relation(fields: [triggerDefinitionId], references: [id])
-  triggerDefinitionId String?
-  permissions         ExecutorPermission[]
-}
-
-model ExecutorPermission {
-  id                      String             @id @default(uuid())
-  assignment              ExecutorAssignment @relation(fields: [assignmentId], references: [id])
-  assignmentId            String
-  type                    PermissionType
-  isActive                Boolean            @default(true)
-  activatedAfterTrigger   TriggerDefinition? @relation(fields: [activatedAfterTriggerId], references: [id])
-  activatedAfterTriggerId String?
 }
 
 ///////////////////////////

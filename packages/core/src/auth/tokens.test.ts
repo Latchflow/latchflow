@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { sha256Hex, formatApiToken, makeUserCode, randomTokenBase64Url } from "../auth/tokens.js";
+import { sha256Hex, formatApiToken, makeUserCode, randomTokenBase64Url } from "./tokens.js";
 
 describe("tokens utils", () => {
   it("sha256Hex is deterministic", () => {
