@@ -142,6 +142,32 @@ packages/plugins/
   - Context builder: `src/authz/context.ts` extracts user role and common IDs from requests.
   - Decision logging: `src/authz/decisionLog.ts` emits a structured JSON line for every ALLOW/DENY (stdout).
 
+### API Tokens (Bearer)
+- Purpose: scoped bearer tokens for programmatic/CLI access; browser UI keeps using the admin cookie.
+- Scopes: start coarse with `core:read` (list/get) and `core:write` (create/update/delete). More granular `files:*`, `bundles:*`, etc. will follow.
+- Precedence: if an `Authorization` header is present, bearer is used and cookie is ignored; omit the header to use the admin cookie.
+
+Quick start (dev):
+- Ensure you have an admin cookie (see “Admin Login in Development”). Then create a token:
+  - `curl -sS -X POST http://localhost:3001/auth/cli/tokens \
+    -H 'Content-Type: application/json' \
+    -H 'Cookie: lf_admin_sess=YOUR_SESSION_JTI' \
+    -d '{"name":"CLI Token","scopes":["core:read","core:write"]}'`
+  - Response includes `token` (prefixed, e.g., `lfk_...`). Store it securely.
+- Use the token:
+  - `curl -sS http://localhost:3001/plugins -H 'Authorization: Bearer lfk_...'`
+
+Device flow (alternative):
+- Start device: `POST /auth/cli/device/start` with `email` and optional `deviceName` to receive `device_code` and `user_code`.
+- Approve: `POST /auth/cli/device/approve` with `user_code` using an admin cookie session.
+- Poll: `POST /auth/cli/device/poll` with `device_code` until it returns `{ access_token, token_type, scopes, expires_at }`.
+
+Notes:
+- Default scopes for new tokens are controlled by `API_TOKEN_SCOPES_DEFAULT` (JSON array). For stricter defaults, set to `["core:read"]`.
+- Current bearer-enabled endpoints include:
+  - `GET /plugins`, `GET /capabilities` → `core:read`
+  - `POST /plugins/install`, `DELETE /plugins/:pluginId` → `core:write`
+
 ### AuthZ v1 Behavior
 - Admins: always allowed on guarded routes.
 - Executors: allowed only when the policy entry sets `v1AllowExecutor: true` (typically read-only endpoints).
