@@ -12,6 +12,9 @@ export interface ResponseLike {
   json(payload: unknown): void;
   header(name: string, value: string | string[]): ResponseLike;
   redirect(url: string, status?: number): void;
+  // Stream or buffer sending helpers for binary responses
+  sendStream(body: NodeJS.ReadableStream, headers?: Record<string, string | string[]>): void;
+  sendBuffer(body: Buffer, headers?: Record<string, string | string[]>): void;
 }
 
 export type HttpHandler = (req: RequestLike, res: ResponseLike) => Promise<void> | void;

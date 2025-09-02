@@ -56,6 +56,59 @@ export function createExpressServer(): HttpServer {
         if (status) res.redirect(status, url);
         else res.redirect(url);
       },
+      sendStream(body, headers) {
+        if (headers) {
+          for (const [k, v] of Object.entries(headers)) {
+            (res as Response).setHeader(k, v as unknown as string | readonly string[]);
+          }
+        }
+        const onError = (err: unknown) => {
+          // If nothing was sent yet, respond with JSON error; otherwise just destroy
+          if (!(res as Response).headersSent) {
+            try {
+              (res as Response)
+                .status(500)
+                .json({
+                  status: "error",
+                  code: "STREAM_ERROR",
+                  message: (err as Error)?.message ?? "Stream error",
+                });
+            } catch {
+              try {
+                (res as Response).end();
+              } catch {
+                // Ignore
+              }
+            }
+          } else {
+            try {
+              (res as Response).end();
+            } catch {
+              // Ignore
+            }
+          }
+        };
+        const onClose = () => {
+          try {
+            const anyBody = body as unknown as { destroy?: () => void };
+            if (typeof anyBody.destroy === "function") anyBody.destroy();
+          } catch {
+            // Ignore
+          }
+        };
+        (res as Response).once("close", onClose);
+        body.once("error", onError);
+        // Pipe without manual event forwarding; Node handles backpressure
+        body.pipe(res);
+      },
+      sendBuffer(body, headers) {
+        if (headers) {
+          for (const [k, v] of Object.entries(headers)) {
+            (res as Response).setHeader(k, v as unknown as string | readonly string[]);
+          }
+        }
+        (res as Response).end(body);
+      },
     };
     Promise.resolve(h(reqAdapter, resAdapter)).catch(next);
   };

@@ -28,6 +28,8 @@ function makeResCapture() {
       return this;
     },
     redirect() {},
+    sendStream() {},
+    sendBuffer() {},
   };
   return {
     res,
