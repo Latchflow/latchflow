@@ -2,8 +2,9 @@ import { z } from "zod";
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import type { Prisma } from "@latchflow/db";
-import { requirePermission } from "../../middleware/require-permission.js";
 import { type RouteSignature } from "../../authz/policy.js";
+import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
+import { SCOPES } from "../../auth/scopes.js";
 
 export function registerPluginRoutes(server: HttpServer) {
   const db = getDb();
@@ -11,7 +12,10 @@ export function registerPluginRoutes(server: HttpServer) {
   // GET /plugins — list installed plugins with capabilities
   server.get(
     "/plugins",
-    requirePermission("GET /plugins" as RouteSignature)(async (req, res) => {
+    requireAdminOrApiToken({
+      policySignature: "GET /plugins" as RouteSignature,
+      scopes: [SCOPES.CORE_READ],
+    })(async (req, res) => {
       try {
         const Q = z.object({
           q: z.string().optional(),
@@ -75,7 +79,10 @@ export function registerPluginRoutes(server: HttpServer) {
   // POST /plugins/install — async install trigger
   server.post(
     "/plugins/install",
-    requirePermission("POST /plugins/install" as RouteSignature)(async (req, res) => {
+    requireAdminOrApiToken({
+      policySignature: "POST /plugins/install" as RouteSignature,
+      scopes: [SCOPES.CORE_WRITE],
+    })(async (req, res) => {
       try {
         const Body = z.object({
           source: z.string().min(1),
@@ -100,7 +107,10 @@ export function registerPluginRoutes(server: HttpServer) {
   // DELETE /plugins/{pluginId}
   server.delete(
     "/plugins/:pluginId",
-    requirePermission("DELETE /plugins/:pluginId" as RouteSignature)(async (req, res) => {
+    requireAdminOrApiToken({
+      policySignature: "DELETE /plugins/:pluginId" as RouteSignature,
+      scopes: [SCOPES.CORE_WRITE],
+    })(async (req, res) => {
       try {
         const Params = z.object({ pluginId: z.string().min(1) });
         const parsed = Params.safeParse(req.params);
@@ -126,7 +136,10 @@ export function registerPluginRoutes(server: HttpServer) {
   // GET /capabilities — consolidated list across plugins
   server.get(
     "/capabilities",
-    requirePermission("GET /capabilities" as RouteSignature)(async (req, res) => {
+    requireAdminOrApiToken({
+      policySignature: "GET /capabilities" as RouteSignature,
+      scopes: [SCOPES.CORE_READ],
+    })(async (req, res) => {
       try {
         const Q = z.object({
           kind: z.enum(["TRIGGER", "ACTION"]).optional(),
