@@ -10,6 +10,13 @@ const db = {
   pluginCapability: {
     findMany: vi.fn(async () => []),
   },
+  apiToken: {
+    findUnique: vi.fn(async () => null),
+    update: vi.fn(async () => ({})),
+  },
+  user: {
+    findUnique: vi.fn(async () => null),
+  },
 };
 
 vi.mock("../../db/db.js", () => ({ getDb: () => db }));
@@ -63,6 +70,43 @@ describe("plugin routes", () => {
     expect(status).toBe(200);
     expect(Array.isArray(body?.items)).toBe(true);
     expect(body.items[0].capabilities[0].key).toBe("cron");
+  });
+
+  it("GET /plugins accepts bearer token with core:read scope", async () => {
+    db.plugin.findMany.mockResolvedValueOnce([
+      {
+        id: "p1",
+        name: "core",
+        installedAt: new Date().toISOString(),
+        capabilities: [],
+      },
+    ] as any);
+    db.apiToken.findUnique.mockResolvedValueOnce({
+      id: "t1",
+      scopes: ["core:read"],
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 3600_000),
+      user: { id: "u1", email: "u1@example.com", isActive: true },
+    } as any);
+    const { handlers } = await makeServer();
+    const h = handlers.get("GET /plugins")!;
+    let status = 0;
+    let body: any = null;
+    await h({ headers: { authorization: "Bearer abc" } } as any, {
+      status(c: number) {
+        status = c;
+        return this as any;
+      },
+      json(p: any) {
+        body = p;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+    });
+    expect(status).toBe(200);
+    expect(Array.isArray(body?.items)).toBe(true);
   });
 
   it("GET /plugins applies filters, limit, cursor and returns nextCursor", async () => {
