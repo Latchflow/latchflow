@@ -28,3 +28,6 @@ Thumbs.db
 
 # Logs
 **/coverage
+
+# Scratchpad files
+STORY_PLAN.md
