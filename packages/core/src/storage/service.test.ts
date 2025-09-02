@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createStorageService } from "../storage/service.js";
+import { createMemoryStorage } from "../storage/memory.js";
+import { Readable } from "node:stream";
 
 describe("storage service", () => {
   it("wraps driver with bundle-aware helpers", async () => {
@@ -34,5 +36,39 @@ describe("storage service", () => {
     const link = await svc.createReleaseLink({ bundleId: "B1", recipientId: "R1", ttlSeconds: 60 });
     expect(link.url).toContain("/portal/bundles/B1");
     expect(link.expiresAt).toBeTruthy();
+  });
+
+  it("provides file-level helpers with content-addressed keys and etag", async () => {
+    const driver = await createMemoryStorage({ config: null });
+    const svc = createStorageService({ driver, bucket: "bkt", keyPrefix: "pref" });
+    const buf = Buffer.from("hello-world");
+
+    const put1 = await svc.putFile({ body: buf, contentType: "text/plain" });
+    expect(put1.storageKey.startsWith("pref/objects/sha256/")).toBe(true);
+    expect(put1.size).toBe(buf.length);
+    expect(put1.etag).toHaveLength(64);
+
+    const head1 = await svc.headFile(put1.storageKey);
+    expect(head1.size).toBe(buf.length);
+    expect(head1.contentType).toBe("text/plain");
+
+    // duplicate upload should yield same key
+    const put2 = await svc.putFile({ body: Readable.from(buf), contentType: "text/plain" });
+    expect(put2.storageKey).toBe(put1.storageKey);
+    expect(put2.etag).toBe(put1.etag);
+
+    // get stream and check bytes
+    const rs = await svc.getFileStream(put1.storageKey);
+    const bytes: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      rs.on("data", (c: Buffer) => bytes.push(c));
+      rs.on("end", resolve);
+      rs.on("error", reject);
+    });
+    expect(Buffer.concat(bytes).toString("utf8")).toBe("hello-world");
+
+    // delete is idempotent
+    await svc.deleteFile(put1.storageKey);
+    await svc.deleteFile(put1.storageKey);
   });
 });

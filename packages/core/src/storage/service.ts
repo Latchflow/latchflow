@@ -1,4 +1,6 @@
 import type { StorageDriver } from "./types.js";
+import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 
 export type StorageService = ReturnType<typeof createStorageService>;
 
@@ -11,6 +13,28 @@ type ServiceDeps = {
 export function createStorageService(deps: ServiceDeps) {
   const keyFor = (bundleId: string, objectKey: string) =>
     [deps.keyPrefix, "bundles", bundleId, objectKey].filter(Boolean).join("/");
+
+  const keyForHash = (sha256Hex: string) => {
+    const a = sha256Hex.slice(0, 2) || "00";
+    const b = sha256Hex.slice(2, 4) || "00";
+    return [deps.keyPrefix, "objects", "sha256", a, b, sha256Hex]
+      .filter((s) => s && s.length > 0)
+      .join("/");
+  };
+
+  async function bufferFromStream(rs: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      rs.on("data", (c: Buffer) => chunks.push(Buffer.from(c)));
+      rs.on("end", () => resolve());
+      rs.on("error", reject);
+    });
+    return Buffer.concat(chunks);
+  }
+
+  function sha256HexOf(buf: Buffer): string {
+    return createHash("sha256").update(buf).digest("hex");
+  }
 
   return {
     putBundleObject: async (
@@ -45,6 +69,34 @@ export function createStorageService(deps: ServiceDeps) {
         ? new Date(Date.now() + args.ttlSeconds * 1000).toISOString()
         : undefined;
       return { url, expiresAt };
+    },
+
+    // File-level helpers (content-addressed by sha256)
+    putFile: async (args: { body: Buffer | NodeJS.ReadableStream; contentType?: string }) => {
+      const bodyBuf = Buffer.isBuffer(args.body) ? args.body : await bufferFromStream(args.body);
+      const hash = sha256HexOf(bodyBuf);
+      const storageKey = keyForHash(hash);
+      const putRes = await deps.driver.put({
+        bucket: deps.bucket,
+        key: storageKey,
+        body: Readable.from(bodyBuf),
+        contentType: args.contentType,
+      });
+      const size = putRes.size ?? bodyBuf.length;
+      return { storageKey, size, etag: hash };
+    },
+    getFileStream: async (storageKey: string) => {
+      return deps.driver.getStream({ bucket: deps.bucket, key: storageKey });
+    },
+    headFile: async (storageKey: string) => {
+      return deps.driver.head({ bucket: deps.bucket, key: storageKey });
+    },
+    deleteFile: async (storageKey: string) => {
+      try {
+        await deps.driver.del({ bucket: deps.bucket, key: storageKey });
+      } catch {
+        // idempotent delete: ignore errors (e.g., not found)
+      }
     },
   };
 }
