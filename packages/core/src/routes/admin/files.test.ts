@@ -226,6 +226,30 @@ describe("files admin routes", () => {
     );
     expect(rc.status).toBe(201);
     expect(rc.headers["ETag"]).toBeDefined();
+    expect(rc.headers["Location"]).toBe("/files/f-new");
     expect(rc.body?.key).toBe("uploads/hello.txt");
+  });
+
+  it("POST /files/upload returns 409 when key already exists", async () => {
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/upload")!;
+    const rc = resCapture();
+    // Simulate unique constraint violation
+    (db.file.create as any).mockRejectedValueOnce({ code: "P2002" });
+    await h(
+      {
+        headers: { "content-type": "multipart/form-data" },
+        body: { key: "uploads/dupe.txt" },
+        file: {
+          buffer: Buffer.from("abc"),
+          originalname: "dupe.txt",
+          mimetype: "text/plain",
+          size: 3,
+        },
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(409);
+    expect(rc.body?.code).toBe("CONFLICT");
   });
 });

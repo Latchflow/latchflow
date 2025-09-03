@@ -64,9 +64,17 @@ files_upload:
         headers:
           ETag:
             schema: { type: string }
+          Location:
+            description: URL of the created resource
+            schema: { type: string }
         content:
           application/json:
             schema: { $ref: ../components/schemas/File.yaml }
+      '409':
+        description: Conflict — logical key already exists
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Error.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
@@ -105,6 +113,11 @@ files_upload_url:
                 headers: { type: object, additionalProperties: true }
                 expiresAt: { type: string, format: date-time }
               required: [url, expiresAt]
+      '501':
+        description: Not Implemented — presigned uploads not supported by this driver
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Error.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }

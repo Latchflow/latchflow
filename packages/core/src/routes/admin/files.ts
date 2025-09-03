@@ -140,31 +140,53 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           return;
         }
         const createdBy = req.user?.id ?? "system";
-        const file = await db.file.create({
-          data: {
-            key,
-            storageKey: result.storageKey,
-            contentHash: result.etag,
-            size: BigInt(result.size),
-            contentType,
-            metadata: metadata ?? undefined,
-            createdBy,
-            updatedBy: createdBy,
-            createdAt: now,
-            updatedAt: now,
-          },
-          select: {
-            id: true,
-            key: true,
-            size: true,
-            contentType: true,
-            metadata: true,
-            contentHash: true,
-            updatedAt: true,
-          },
-        });
+        type DbSelectedFile = {
+          id: string;
+          key: string;
+          size: bigint;
+          contentType: string;
+          metadata: unknown;
+          contentHash: string | null;
+          updatedAt: Date;
+        };
+        let file: DbSelectedFile;
+        try {
+          file = (await db.file.create({
+            data: {
+              key,
+              storageKey: result.storageKey,
+              contentHash: result.etag,
+              size: BigInt(result.size),
+              contentType,
+              metadata: metadata ?? undefined,
+              createdBy,
+              updatedBy: createdBy,
+              createdAt: now,
+              updatedAt: now,
+            },
+            select: {
+              id: true,
+              key: true,
+              size: true,
+              contentType: true,
+              metadata: true,
+              contentHash: true,
+              updatedAt: true,
+            },
+          })) as DbSelectedFile;
+        } catch (e) {
+          const pe = e as { code?: string; message?: string };
+          if (pe && pe.code === "P2002") {
+            res
+              .status(409)
+              .json({ status: "error", code: "CONFLICT", message: "Key already exists" });
+            return;
+          }
+          throw e;
+        }
         // ETag response header
         res.header("ETag", result.etag);
+        res.header("Location", `/files/${file.id}`);
         res.status(201).json(toFileDto(asFileRecord(file)));
       } catch (e) {
         const err = e as Error & { status?: number };
@@ -182,13 +204,11 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
       policySignature: "POST /files/upload-url" as RouteSignature,
       scopes: [SCOPES.FILES_WRITE],
     })(async (_req, res) => {
-      res
-        .status(501)
-        .json({
-          status: "error",
-          code: "NOT_IMPLEMENTED",
-          message: "Presigned uploads not supported by this driver",
-        });
+      res.status(501).json({
+        status: "error",
+        code: "NOT_IMPLEMENTED",
+        message: "Presigned uploads not supported by this driver",
+      });
     }),
   );
 
