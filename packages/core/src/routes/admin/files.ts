@@ -109,6 +109,12 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           }
           return undefined;
         })();
+        const overwrite = (() => {
+          const v = body["overwrite"] as unknown;
+          if (typeof v === "boolean") return v;
+          if (typeof v === "string") return v === "true" || v === "1";
+          return false;
+        })();
         const f = req.file;
         if (!f || (!f.path && !f.buffer)) {
           res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Missing file" });
@@ -151,29 +157,80 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
         };
         let file: DbSelectedFile;
         try {
-          file = (await db.file.create({
-            data: {
-              key,
-              storageKey: result.storageKey,
-              contentHash: result.etag,
-              size: BigInt(result.size),
-              contentType,
-              metadata: metadata ?? undefined,
-              createdBy,
-              updatedBy: createdBy,
-              createdAt: now,
-              updatedAt: now,
-            },
-            select: {
-              id: true,
-              key: true,
-              size: true,
-              contentType: true,
-              metadata: true,
-              contentHash: true,
-              updatedAt: true,
-            },
-          })) as DbSelectedFile;
+          if (overwrite) {
+            const existing = await db.file.findUnique({ where: { key } });
+            if (existing) {
+              file = (await db.file.update({
+                where: { key },
+                data: {
+                  storageKey: result.storageKey,
+                  contentHash: result.etag,
+                  size: BigInt(result.size),
+                  contentType,
+                  metadata: metadata ?? undefined,
+                  updatedBy: createdBy,
+                  updatedAt: now,
+                },
+                select: {
+                  id: true,
+                  key: true,
+                  size: true,
+                  contentType: true,
+                  metadata: true,
+                  contentHash: true,
+                  updatedAt: true,
+                },
+              })) as DbSelectedFile;
+            } else {
+              file = (await db.file.create({
+                data: {
+                  key,
+                  storageKey: result.storageKey,
+                  contentHash: result.etag,
+                  size: BigInt(result.size),
+                  contentType,
+                  metadata: metadata ?? undefined,
+                  createdBy,
+                  updatedBy: createdBy,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+                select: {
+                  id: true,
+                  key: true,
+                  size: true,
+                  contentType: true,
+                  metadata: true,
+                  contentHash: true,
+                  updatedAt: true,
+                },
+              })) as DbSelectedFile;
+            }
+          } else {
+            file = (await db.file.create({
+              data: {
+                key,
+                storageKey: result.storageKey,
+                contentHash: result.etag,
+                size: BigInt(result.size),
+                contentType,
+                metadata: metadata ?? undefined,
+                createdBy,
+                updatedBy: createdBy,
+                createdAt: now,
+                updatedAt: now,
+              },
+              select: {
+                id: true,
+                key: true,
+                size: true,
+                contentType: true,
+                metadata: true,
+                contentHash: true,
+                updatedAt: true,
+              },
+            })) as DbSelectedFile;
+          }
         } catch (e) {
           const pe = e as { code?: string; message?: string };
           if (pe && pe.code === "P2002") {
@@ -187,7 +244,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
         // ETag response header
         res.header("ETag", result.etag);
         res.header("Location", `/files/${file.id}`);
-        res.status(201).json(toFileDto(asFileRecord(file)));
+        res.status(overwrite ? 200 : 201).json(toFileDto(asFileRecord(file)));
       } catch (e) {
         const err = e as Error & { status?: number };
         res

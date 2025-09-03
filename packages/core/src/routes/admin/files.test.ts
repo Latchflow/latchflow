@@ -252,4 +252,39 @@ describe("files admin routes", () => {
     expect(rc.status).toBe(409);
     expect(rc.body?.code).toBe("CONFLICT");
   });
+
+  it("POST /files/upload with overwrite updates existing and returns 200", async () => {
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/upload")!;
+    const rc = resCapture();
+    // Simulate existing file
+    (db.file.findUnique as any).mockResolvedValueOnce({ id: "f1" });
+    // update returns the selected shape
+    (db.file.update as any).mockResolvedValueOnce({
+      id: "f1",
+      key: "uploads/hello.txt",
+      size: BigInt(11),
+      contentType: "text/plain",
+      metadata: { tag: "y" },
+      contentHash: "y".repeat(64),
+      updatedAt: new Date().toISOString(),
+    });
+    await h(
+      {
+        headers: { "content-type": "multipart/form-data" },
+        body: { key: "uploads/hello.txt", overwrite: true },
+        file: {
+          buffer: Buffer.from("hello world"),
+          originalname: "hello.txt",
+          mimetype: "text/plain",
+          size: 11,
+        },
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(200);
+    expect(db.file.update).toHaveBeenCalled();
+    expect(rc.headers["ETag"]).toBeDefined();
+    expect(rc.headers["Location"]).toBe("/files/f1");
+  });
 });
