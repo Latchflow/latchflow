@@ -126,11 +126,16 @@ packages/plugins/
 ## Security & Testing
 - Never embed secrets; always use environment variables.
 - Tests use Vitest; no external network calls.
-- Test colocation convention:
-  - Unit tests live next to the code they cover, in a single test file that shares the same basename. For `src/history/changelog.ts`, use `src/history/changelog.test.ts`. Do not split tests for a module across multiple files.
-  - A single global setup file lives at `packages/core/src/test/setup.ts`.
+- Testing conventions (repo‑wide):
+  - Unit tests live next to the code they cover (e.g., `src/foo/bar.test.ts`). One test file per module.
+  - Integration tests live under `tests/` at the package root (e.g., `packages/core/tests/...`). Use these for multi‑module flows.
   - The `src/test` directory is reserved for setup/bootstrap only; do not place tests there.
-- Run all tests with `pnpm -r test` or Core-only with `pnpm core:test`.
+  - Each package with integration tests should have a package‑level `vitest.config.ts` that includes both `src/**/*.test.ts` and `tests/**/*.test.ts` and defines any required aliases (Core maps `@latchflow/db` to its Prisma mock).
+  - Core package scripts:
+    - `pnpm core:test` — run all Core tests (unit + integration)
+    - `pnpm core:test:unit` — unit tests only (`src/**/*.test.ts`)
+    - `pnpm core:test:integration` — integration tests only (`tests/**/*.test.ts`)
+  - Repo‑wide runs: `pnpm -r test` (all packages).
 
 ## AuthN vs AuthZ (Current)
 - AuthN (authentication): lives under `packages/core/src/auth` and `packages/core/src/middleware/require-session.ts`.

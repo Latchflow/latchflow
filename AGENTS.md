@@ -80,6 +80,8 @@ pnpm -r test
 - Use a single test file per source file, with the same basename. Example: `src/foo/bar.ts` → `src/foo/bar.test.ts`. Do not split tests for a single module across multiple files.
 - A single global setup file for Core lives at `packages/core/src/test/setup.ts`.
 - Do not add tests under `src/test` beyond the setup file; colocate tests with their source instead.
+- Integration tests live under a top‑level `tests/` directory within each package (repo‑wide convention). Keep end‑to‑end or multi‑module flows here so unit tests stay tightly scoped.
+- Each package that has integration tests should add a package‑level `vitest.config.ts` to include both `src/**/*.test.ts` and `tests/**/*.test.ts`, and set up any aliases/mocks it needs (e.g., Core maps `@latchflow/db` to its Prisma mock).
 - E2E tests spin up local services (Postgres, MinIO, MailHog).
 - All tests must be runnable with pnpm -r test from repo root.
 - Mock S3/email in tests — no external dependencies.
@@ -92,6 +94,10 @@ pnpm -r test
 - Prisma migrations fail if DB container is not ready — check docker compose ps.
 - MailHog runs on port 8025 for local email viewing.
 - MinIO access keys must match .env for upload/download tests.
+- When adding integration tests to another package, mirror Core’s approach:
+  - Create `packages/<pkg>/tests/` for integration tests.
+  - Add `packages/<pkg>/vitest.config.ts` with include patterns for both unit and integration tests and any necessary module aliases.
+  - Optionally add package scripts: `test:unit` (runs `vitest run src`) and `test:integration` (runs `vitest run tests`).
 
 ---
 

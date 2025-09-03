@@ -3,7 +3,8 @@
 - Tools: Vitest for unit/integration tests; MSW-based shared testkit for HTTP-layer mocking; Docker services (Postgres, MinIO, MailHog) for E2E when needed.
 
 **Conventions**
-- Colocation: place unit tests next to the code they cover using `*.test.ts` only. Use a single test file per source file with the same basename. Example: `src/foo/util.ts` → `src/foo/util.test.ts`. Do not split tests for a single module across multiple files.
+- Unit tests: place next to the code they cover using `*.test.ts`. Use a single test file per source file with the same basename. Example: `src/foo/util.ts` → `src/foo/util.test.ts`. Do not split tests for a single module across multiple files.
+- Integration tests: place under a top‑level `tests/` directory inside each package (repo‑wide convention). Use this for multi‑module flows and route/adapter level tests.
 - Global setup (Core): `packages/core/src/test/setup.ts` is reserved for bootstrap only (e.g., virtual mocks). Do not add tests under `src/test`.
 - No external network calls: mock everything (use MSW/fixtures for HTTP and in-memory/test doubles for other IO).
 - Run everything from repo root: `pnpm -r test` (workspace-aware).
@@ -11,8 +12,10 @@
 **Running Tests**
 - All workspaces: `pnpm -r test`
 - Lint before commit: `pnpm -r lint`
-- Core only: `pnpm -F core test` (and `pnpm -F core test:coverage` if defined)
-- DB client: `pnpm -F db test` (if present)
+- Core:
+  - All: `pnpm core:test`
+  - Unit only: `pnpm core:test:unit`
+  - Integration only: `pnpm core:test:integration`
 
 **Local Services For E2E**
 - Start dev dependencies: `docker compose up -d` (Postgres, MinIO, MailHog)
