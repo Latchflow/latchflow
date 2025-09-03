@@ -1,4 +1,5 @@
 import { z } from "zod";
+import fs from "node:fs";
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import type { Prisma } from "@latchflow/db";
@@ -81,6 +82,113 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           .status(err.status ?? 401)
           .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
       }
+    }),
+  );
+
+  // POST /files/upload — multipart upload (single file)
+  server.post(
+    "/files/upload",
+    requireAdminOrApiToken({
+      policySignature: "POST /files/upload" as RouteSignature,
+      scopes: [SCOPES.FILES_WRITE],
+    })(async (req, res) => {
+      // We accept either disk-backed file (req.file.path) or memory buffer (req.file.buffer)
+      try {
+        const body = (req.body as Record<string, unknown>) || {};
+        const key = typeof body["key"] === "string" ? (body["key"] as string) : undefined;
+        const metadata = (() => {
+          const m = body["metadata"] as unknown;
+          if (m && typeof m === "object") return m as Record<string, string>;
+          if (typeof m === "string") {
+            try {
+              const parsed = JSON.parse(m);
+              if (parsed && typeof parsed === "object") return parsed as Record<string, string>;
+            } catch {
+              // ignore JSON parse errors
+            }
+          }
+          return undefined;
+        })();
+        const f = req.file;
+        if (!f || (!f.path && !f.buffer)) {
+          res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Missing file" });
+          return;
+        }
+        const contentType = f.mimetype || "application/octet-stream";
+        let result: { storageKey: string; size: number; etag: string };
+        const tmpPathToCleanup: string | null = f.path ?? null;
+        try {
+          if (f.path) {
+            result = await storage.putFileFromPath({ path: f.path, contentType });
+          } else if (f.buffer) {
+            result = await storage.putFile({ body: f.buffer, contentType });
+          } else {
+            res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Missing file" });
+            return;
+          }
+        } finally {
+          if (tmpPathToCleanup) {
+            fs.promises.unlink(tmpPathToCleanup).catch(() => void 0);
+          }
+        }
+        const now = new Date();
+        // Persist File record (requires unique logical key)
+        if (!key) {
+          res
+            .status(400)
+            .json({ status: "error", code: "BAD_REQUEST", message: "Missing key field" });
+          return;
+        }
+        const createdBy = req.user?.id ?? "system";
+        const file = await db.file.create({
+          data: {
+            key,
+            storageKey: result.storageKey,
+            contentHash: result.etag,
+            size: BigInt(result.size),
+            contentType,
+            metadata: metadata ?? undefined,
+            createdBy,
+            updatedBy: createdBy,
+            createdAt: now,
+            updatedAt: now,
+          },
+          select: {
+            id: true,
+            key: true,
+            size: true,
+            contentType: true,
+            metadata: true,
+            contentHash: true,
+            updatedAt: true,
+          },
+        });
+        // ETag response header
+        res.header("ETag", result.etag);
+        res.status(201).json(toFileDto(asFileRecord(file)));
+      } catch (e) {
+        const err = e as Error & { status?: number };
+        res
+          .status(err.status ?? 500)
+          .json({ status: "error", code: "UPLOAD_FAILED", message: err.message });
+      }
+    }),
+  );
+
+  // POST /files/upload-url — stub 501 unless driver advertises support (future)
+  server.post(
+    "/files/upload-url",
+    requireAdminOrApiToken({
+      policySignature: "POST /files/upload-url" as RouteSignature,
+      scopes: [SCOPES.FILES_WRITE],
+    })(async (_req, res) => {
+      res
+        .status(501)
+        .json({
+          status: "error",
+          code: "NOT_IMPLEMENTED",
+          message: "Presigned uploads not supported by this driver",
+        });
     }),
   );
 

@@ -1,6 +1,7 @@
 import type { StorageDriver } from "./types.js";
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
+import fs from "node:fs";
 
 export type StorageService = ReturnType<typeof createStorageService>;
 
@@ -34,6 +35,16 @@ export function createStorageService(deps: ServiceDeps) {
 
   function sha256HexOf(buf: Buffer): string {
     return createHash("sha256").update(buf).digest("hex");
+  }
+  async function sha256HexFromPath(path: string): Promise<string> {
+    const hash = createHash("sha256");
+    await new Promise<void>((resolve, reject) => {
+      const rs = fs.createReadStream(path);
+      rs.on("error", reject);
+      rs.on("end", () => resolve());
+      rs.on("data", (chunk) => hash.update(chunk as Buffer));
+    });
+    return hash.digest("hex");
   }
 
   return {
@@ -85,6 +96,21 @@ export function createStorageService(deps: ServiceDeps) {
       const size = putRes.size ?? bodyBuf.length;
       return { storageKey, size, etag: hash };
     },
+    // Stream-friendly path variant: compute hash from disk and stream to driver without buffering
+    putFileFromPath: async (args: { path: string; contentType?: string }) => {
+      const hash = await sha256HexFromPath(args.path);
+      const storageKey = keyForHash(hash);
+      const stat = await fs.promises.stat(args.path);
+      await deps.driver.put({
+        bucket: deps.bucket,
+        key: storageKey,
+        body: fs.createReadStream(args.path),
+        contentType: args.contentType,
+      });
+      return { storageKey, size: Number(stat.size), etag: hash };
+    },
+    // Expose key derivation for callers that precompute the hash
+    contentAddressedKey: (sha256Hex: string) => keyForHash(sha256Hex),
     getFileStream: async (storageKey: string) => {
       return deps.driver.getStream({ bucket: deps.bucket, key: storageKey });
     },

@@ -7,12 +7,24 @@ import express, {
 import helmet from "helmet";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import multer from "multer";
+import os from "node:os";
 import type { HttpServer, RequestLike, ResponseLike, HttpHandler } from "./http-server.js";
 
 export function createExpressServer(): HttpServer {
   const app = express();
   app.use(helmet());
   app.use(cors());
+  // Parse multipart using disk storage to avoid buffering large files in memory.
+  // Applied globally; it activates only for multipart/form-data requests.
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+      filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+    }),
+    // Do not enforce file size limit here; allow policy at route level if needed.
+  });
+  app.use(upload.single("file"));
   app.use(express.json());
   app.use(pinoHttp());
   // Basic JSON error handler
@@ -31,6 +43,16 @@ export function createExpressServer(): HttpServer {
   app.use(errorHandler);
 
   const wrap = (h: HttpHandler) => (req: Request, res: Response, next: NextFunction) => {
+    type MulterFileLike = {
+      buffer?: Buffer;
+      fieldname?: string;
+      originalname?: string;
+      mimetype?: string;
+      size?: number;
+      path?: string;
+    };
+    const requestWithFile = req as Request & { file?: MulterFileLike };
+    const mfile = requestWithFile.file;
     const reqAdapter: RequestLike = {
       params: req.params,
       query: req.query as unknown,
@@ -38,6 +60,16 @@ export function createExpressServer(): HttpServer {
       headers: req.headers,
       ip: req.ip,
       userAgent: req.headers["user-agent"] as string | undefined,
+      file: mfile
+        ? {
+            buffer: mfile.buffer,
+            fieldname: mfile.fieldname,
+            originalname: mfile.originalname,
+            mimetype: mfile.mimetype,
+            size: mfile.size,
+            path: mfile.path,
+          }
+        : undefined,
     };
     const resAdapter: ResponseLike = {
       status(code: number) {
@@ -66,13 +98,11 @@ export function createExpressServer(): HttpServer {
           // If nothing was sent yet, respond with JSON error; otherwise just destroy
           if (!(res as Response).headersSent) {
             try {
-              (res as Response)
-                .status(500)
-                .json({
-                  status: "error",
-                  code: "STREAM_ERROR",
-                  message: (err as Error)?.message ?? "Stream error",
-                });
+              (res as Response).status(500).json({
+                status: "error",
+                code: "STREAM_ERROR",
+                message: (err as Error)?.message ?? "Stream error",
+              });
             } catch {
               try {
                 (res as Response).end();

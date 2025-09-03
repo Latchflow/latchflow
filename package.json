@@ -9,7 +9,8 @@
   "scripts": {
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "test": "vitest",
-    "typecheck": "pnpm run db:generate && pnpm run db:build && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "typecheck:ci": "pnpm run db:generate && pnpm run db:build && tsc --noEmit",
     "dev": "echo 'dev server not yet implemented'",
     "prepare": "husky install",
     "env:load": "dotenvx run -f .env -f .env.defaults --ignore=MISSING_ENV_FILE --",

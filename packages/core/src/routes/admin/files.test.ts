@@ -8,6 +8,7 @@ const db = {
   file: {
     findMany: vi.fn(async (): Promise<any[]> => []),
     findUnique: vi.fn(async (): Promise<any> => null),
+    create: vi.fn(async (): Promise<any> => ({})),
     update: vi.fn(async (): Promise<any> => ({})),
     delete: vi.fn(async (): Promise<any> => ({})),
     deleteMany: vi.fn(async (): Promise<any> => ({})),
@@ -194,5 +195,37 @@ describe("files admin routes", () => {
       where: { id: "f1" },
       data: { metadata: { a: "1" } },
     });
+  });
+
+  it("POST /files/upload creates a File and returns 201 with ETag", async () => {
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/upload")!;
+    const rc = resCapture();
+    // Mock DB create to echo back fields
+    (db.file.create as any).mockResolvedValueOnce({
+      id: "f-new",
+      key: "uploads/hello.txt",
+      size: BigInt(11),
+      contentType: "text/plain",
+      metadata: { tag: "x" },
+      contentHash: "x".repeat(64),
+      updatedAt: new Date().toISOString(),
+    });
+    await h(
+      {
+        headers: { "content-type": "multipart/form-data" },
+        body: { key: "uploads/hello.txt", metadata: { tag: "x" } },
+        file: {
+          buffer: Buffer.from("hello world"),
+          originalname: "hello.txt",
+          mimetype: "text/plain",
+          size: 11,
+        },
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(201);
+    expect(rc.headers["ETag"]).toBeDefined();
+    expect(rc.body?.key).toBe("uploads/hello.txt");
   });
 });

@@ -88,6 +88,7 @@ pnpm -r test
 
 ## Pitfalls & Gotchas
 
+- We're using the ESLint recommended rules which includes `no-explicit-any`. Please exercise robust typing practices to avoid rework.
 - Prisma migrations fail if DB container is not ready — check docker compose ps.
 - MailHog runs on port 8025 for local email viewing.
 - MinIO access keys must match .env for upload/download tests.

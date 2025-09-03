@@ -18,6 +18,17 @@ export function requirePermission(
     return async (req, res) => {
       // First, validate session and get user (no role gating here)
       const { user } = await requireSession(req);
+      // Attach user to the request so downstream handlers can attribute writes
+      const reqWithUser = req as typeof req & {
+        user?: { id?: string; role?: string | null; isActive?: boolean };
+      };
+      type MinimalUser = { id: string; role?: string | null; isActive?: boolean | null };
+      const u = user as unknown as MinimalUser;
+      reqWithUser.user = {
+        id: u.id,
+        role: u.role ?? null,
+        isActive: u.isActive !== false,
+      };
       const ctx = buildContext(Object.assign({ user }, req));
       // v1 policy lookup
       const entry: PolicyEntry | undefined =
@@ -38,7 +49,7 @@ export function requirePermission(
           userId: ctx.userId,
           signature,
         });
-        return handler(req, res);
+        return handler(reqWithUser, res);
       }
       // Non-admin: allow only when explicitly marked for v1 (typically reads)
       if (entry.v1AllowExecutor) {
@@ -51,7 +62,7 @@ export function requirePermission(
           role: ctx.role,
           signature,
         });
-        return handler(req, res);
+        return handler(reqWithUser, res);
       }
       logDecision({
         decision: "DENY",

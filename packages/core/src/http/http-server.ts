@@ -9,11 +9,13 @@ export interface RequestLike {
   user?: { id: string };
   // Optional uploaded file context (when multipart is parsed upstream)
   file?: {
-    buffer: Buffer;
+    buffer?: Buffer;
     fieldname?: string;
     originalname?: string;
     mimetype?: string;
     size?: number;
+    // When disk storage is used by the multipart parser
+    path?: string;
   };
 }
 
