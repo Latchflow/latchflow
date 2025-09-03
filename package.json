@@ -19,6 +19,8 @@
     "db:generate": "pnpm run env:load pnpm -F @latchflow/db generate",
     "core:dev": "pnpm run env:load pnpm -F @latchflow/db build && pnpm run env:load pnpm -F @latchflow/core dev",
     "core:test": "pnpm -F @latchflow/core exec vitest",
+    "core:test:unit": "pnpm -F @latchflow/core exec vitest run src",
+    "core:test:integration": "pnpm -F @latchflow/core exec vitest run tests",
     "core:test:coverage": "pnpm -F @latchflow/core exec vitest --coverage",
     "oas:lint": "redocly lint packages/core/openapi/openapi.yaml",
     "oas:bundle": "redocly bundle packages/core/openapi/openapi.yaml -o packages/core/openapi/dist/openapi.json",

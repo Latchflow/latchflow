@@ -45,7 +45,7 @@ function resCapture() {
   let status = 0;
   let body: any = null;
   const headers: Record<string, string | string[]> = {};
-  let streamCalled: { headers: Record<string, string | string[]> } | null = null;
+  let streamCalled: { headers: Record<string, string | string[]>; stream?: any } | null = null;
   const res = {
     status(c: number) {
       status = c;
@@ -59,8 +59,8 @@ function resCapture() {
       return this as any;
     },
     redirect() {},
-    sendStream(_s: any, h?: any) {
-      streamCalled = { headers: h ?? {} };
+    sendStream(s: any, h?: any) {
+      streamCalled = { headers: h ?? {}, stream: s };
     },
     sendBuffer() {},
   } as any;

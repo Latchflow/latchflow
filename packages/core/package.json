@@ -11,6 +11,8 @@
     "build": "tsup src/index.ts --dts",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
+    "test:unit": "vitest run src",
+    "test:integration": "vitest run tests",
     "lint": "eslint '{src,tests}/**/*.ts'"
   },
   "dependencies": {
