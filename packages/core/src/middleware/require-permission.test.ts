@@ -20,6 +20,8 @@ function mkRes() {
       return this;
     },
     redirect() {},
+    sendStream() {},
+    sendBuffer() {},
   };
   return {
     res,

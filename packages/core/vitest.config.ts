@@ -5,12 +5,7 @@ import path from "node:path";
 export default defineConfig({
   resolve: {
     alias: [
-      // Allow legacy test imports like "../../src/..." to resolve to the workspace src folder
-      {
-        find: /^\.\.\/\.\.\/src\//,
-        replacement: path.join(fileURLToPath(new URL("./", import.meta.url)), "src/"),
-      },
-      // Redirect Prisma client to a local mock for tests to avoid resolving the real package
+      // Ensure @latchflow/db resolves to the Core test Prisma mock when running package tests
       {
         find: /^@latchflow\/db$/,
         replacement: path.join(
@@ -21,16 +16,7 @@ export default defineConfig({
     ],
   },
   test: {
-    include: [
-      // Colocated unit tests alongside source files
-      "src/**/*.test.ts",
-      "src/**/*.spec.ts",
-    ],
-    setupFiles: ["./src/test/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "html", "lcov"],
-      reportsDirectory: "./coverage",
-    },
+    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    setupFiles: [path.join(fileURLToPath(new URL("./", import.meta.url)), "src/test/setup.ts")],
   },
 });

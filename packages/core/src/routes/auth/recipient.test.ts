@@ -56,6 +56,8 @@ describe("recipient auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(404);
     expect((body as any)?.code).toBe("NOT_FOUND");
@@ -77,6 +79,8 @@ describe("recipient auth routes", () => {
             return this as any;
           },
           redirect() {},
+          sendStream() {},
+          sendBuffer() {},
         } as any,
       );
     }
@@ -119,6 +123,8 @@ describe("recipient auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(400);
     expect(body?.code).toBe("BAD_REQUEST");
@@ -139,6 +145,8 @@ describe("recipient auth routes", () => {
             return this as any;
           },
           redirect() {},
+          sendStream() {},
+          sendBuffer() {},
         } as any,
       );
     }
@@ -188,6 +196,8 @@ describe("recipient auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(204);
 
@@ -229,6 +239,8 @@ describe("recipient auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(204);
     expect(String(headers["Set-Cookie"]).includes("Max-Age=0")).toBe(true);
@@ -250,6 +262,8 @@ describe("recipient auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(204);
     expect(String(headers["Set-Cookie"]).includes("Max-Age=0")).toBe(true);

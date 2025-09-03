@@ -29,6 +29,8 @@ describe("validate helper", () => {
         return this;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     };
     await wrapped(req, res);
     expect(handler).toHaveBeenCalledOnce();

@@ -89,6 +89,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(400);
     expect(body?.code).toBe("BAD_REQUEST");
@@ -120,6 +122,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(204);
     expect(db.magicLink.create).toHaveBeenCalled();
@@ -155,6 +159,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(200);
     expect(typeof body?.login_url).toBe("string");
@@ -179,6 +185,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(204);
     expect(String(headers["Set-Cookie"]).includes("Max-Age=0")).toBe(true);
@@ -204,6 +212,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(400);
     expect(body?.code).toBe("BAD_REQUEST");
@@ -230,6 +240,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(401);
     expect(body?.code).toBe("INVALID_TOKEN");
@@ -276,6 +288,8 @@ describe("admin auth routes", () => {
       redirect(url: string, status?: number) {
         redirected = [url, status];
       },
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(0); // redirect path, no json
     expect(redirected[0]).toBe("https://admin");
@@ -309,6 +323,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(204);
   });
@@ -350,6 +366,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
 
     expect(code).toBe(204);
@@ -374,6 +392,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(401);
     expect(body?.code).toBe("UNAUTHORIZED");
@@ -405,6 +425,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(200);
     expect(body?.user?.email).toBe("a@b.co");
@@ -437,6 +459,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(200);
     expect(body?.kind).toBe("admin");
@@ -479,6 +503,8 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(code).toBe(200);
     expect(Array.isArray(body?.items)).toBe(true);
@@ -510,6 +536,8 @@ describe("admin auth routes", () => {
           return this as any;
         },
         redirect() {},
+        sendStream() {},
+        sendBuffer() {},
       },
     );
     expect(code).toBe(204);

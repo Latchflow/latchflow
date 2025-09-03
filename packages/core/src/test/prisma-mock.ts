@@ -33,4 +33,5 @@ export const prisma = {
   changeLog: mkModel(),
   plugin: mkModel(),
   pluginCapability: mkModel(),
+  file: mkModel(),
 };

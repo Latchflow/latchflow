@@ -31,3 +31,6 @@ Thumbs.db
 
 # Scratchpad files
 STORY_PLAN.md
+
+# Test fs storage directory
+packages/core/.data/

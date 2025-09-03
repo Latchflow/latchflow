@@ -1,6 +1,7 @@
 export type ExecAction = "read" | "create" | "update" | "delete" | "execute" | "manage";
 
 export type ExecResource =
+  | "file"
   | "bundle"
   | "recipient"
   | "pipeline"

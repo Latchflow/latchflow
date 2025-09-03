@@ -22,6 +22,8 @@ describe("admin bundles route", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(501);
     expect(body?.code).toBe("NOT_IMPLEMENTED");

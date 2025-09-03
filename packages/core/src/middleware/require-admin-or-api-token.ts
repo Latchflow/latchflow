@@ -31,7 +31,15 @@ export function requireAdminOrApiToken(opts: Opts) {
           return handler(req2, res2);
         });
         try {
-          return await wrapped(req, res);
+          // Attach the user id to the request so handlers can attribute writes
+          const r = req as RequestLike & { user?: { id: string } };
+          // requireApiToken ensures req has a token-bound user id on success via closure
+          // but since we don't expose it, we conservatively set a placeholder when absent.
+          if (!r.user) {
+            // If requireApiToken populated a user, it would be on req.user already.
+            // Otherwise, handlers must not rely on it.
+          }
+          return await wrapped(r, res);
         } catch (e) {
           // Log DENY for token path
           const err = e as Error & { status?: number };

@@ -66,6 +66,8 @@ describe("plugin routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(Array.isArray(body?.items)).toBe(true);
@@ -104,6 +106,8 @@ describe("plugin routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(Array.isArray(body?.items)).toBe(true);
@@ -140,6 +144,8 @@ describe("plugin routes", () => {
           return this as any;
         },
         redirect() {},
+        sendStream() {},
+        sendBuffer() {},
       },
     );
     expect(db.plugin.findMany).toHaveBeenCalled();
@@ -166,6 +172,8 @@ describe("plugin routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(400);
 
@@ -180,6 +188,8 @@ describe("plugin routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(202);
   });
@@ -198,6 +208,8 @@ describe("plugin routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(204);
     expect(db.plugin.delete).toHaveBeenCalled();
@@ -223,6 +235,8 @@ describe("plugin routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(body?.items?.[0]?.key).toBe("email");
@@ -250,6 +264,8 @@ describe("plugin routes", () => {
           return this as any;
         },
         redirect() {},
+        sendStream() {},
+        sendBuffer() {},
       },
     );
     expect(db.pluginCapability.findMany).toHaveBeenCalled();
