@@ -5,6 +5,16 @@ export interface RequestLike {
   headers?: Record<string, string | string[] | undefined>;
   ip?: string;
   userAgent?: string;
+  // Optional auth context provided by middleware (e.g., bearer token path)
+  user?: { id: string };
+  // Optional uploaded file context (when multipart is parsed upstream)
+  file?: {
+    buffer: Buffer;
+    fieldname?: string;
+    originalname?: string;
+    mimetype?: string;
+    size?: number;
+  };
 }
 
 export interface ResponseLike {

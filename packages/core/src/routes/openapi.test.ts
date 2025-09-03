@@ -45,6 +45,8 @@ describe("openapi route", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
 
     expect(status).toBe(200);
@@ -71,6 +73,8 @@ describe("openapi route", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
 
     expect(status).toBe(404);
@@ -104,6 +108,8 @@ describe("openapi route", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
 
     expect(status).toBe(500);

@@ -119,6 +119,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(body?.device_code).toBeTruthy();
@@ -142,6 +144,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(400);
     expect(body?.code).toBe("BAD_REQUEST");
@@ -176,6 +180,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(body?.verification_uri?.startsWith("https://admin.local/cli/device/approve")).toBe(true);
@@ -198,6 +204,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(400);
     expect(body?.code).toBe("BAD_REQUEST");
@@ -248,6 +256,8 @@ describe("cli auth routes", () => {
           return res;
         },
         redirect() {},
+        sendStream() {},
+        sendBuffer() {},
       };
       return {
         res,
@@ -317,6 +327,8 @@ describe("cli auth routes", () => {
           return this as any;
         },
         redirect() {},
+        sendStream() {},
+        sendBuffer() {},
       });
       return { status, payload };
     }
@@ -406,6 +418,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(Array.isArray(body?.tokens)).toBe(true);
@@ -428,6 +442,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(400);
     expect(body?.code).toBe("BAD_REQUEST");
@@ -446,6 +462,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(204);
   });
@@ -479,6 +497,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(201);
     expect(body?.token?.startsWith("lfk_")).toBe(true);
@@ -519,6 +539,8 @@ describe("cli auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(201);
     expect(body?.token?.startsWith("lfk_")).toBe(true);

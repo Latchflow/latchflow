@@ -24,6 +24,8 @@ describe("health routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(json).toEqual({ status: "ok", queue: "memory", storage: "fs" });
@@ -49,6 +51,8 @@ describe("health routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
   });
@@ -82,6 +86,8 @@ describe("health routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(200);
     expect(json?.status).toBe("ready");
@@ -117,6 +123,8 @@ describe("health routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStream() {},
+      sendBuffer() {},
     });
     expect(status).toBe(503);
     expect(body?.code).toBe("NOT_READY");

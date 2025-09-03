@@ -2,7 +2,7 @@ import type { PolicyEntry } from "./types.js";
 
 // Route signature helper: use the same signature literal when registering routes
 // e.g. server.get("/plugins", requirePermission("GET /plugins")(handler))
-export type RouteSignature = `${"GET" | "POST" | "PUT" | "DELETE"} ${string}`;
+export type RouteSignature = `${"GET" | "POST" | "PUT" | "PATCH" | "DELETE"} ${string}`;
 
 export const POLICY: Record<RouteSignature, PolicyEntry> = {
   // Admin plugin management
@@ -16,4 +16,16 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   "GET /admin/bundles": { action: "read", resource: "bundle", v1AllowExecutor: true },
   "GET /admin/recipients": { action: "read", resource: "recipient", v1AllowExecutor: true },
   "GET /admin/triggers": { action: "read", resource: "trigger_def", v1AllowExecutor: true },
+
+  // Files
+  "GET /files": { action: "read", resource: "file", v1AllowExecutor: true },
+  "GET /files/:id": { action: "read", resource: "file", v1AllowExecutor: true },
+  "GET /files/:id/download": { action: "read", resource: "file", v1AllowExecutor: true },
+  "POST /files/upload": { action: "create", resource: "file" },
+  "POST /files/upload-url": { action: "create", resource: "file" },
+  "PATCH /files/:id/metadata": { action: "update", resource: "file" },
+  "POST /files/:id/move": { action: "update", resource: "file" },
+  "DELETE /files/:id": { action: "delete", resource: "file" },
+  "POST /files/batch/delete": { action: "delete", resource: "file" },
+  "POST /files/batch/move": { action: "update", resource: "file" },
 } as const;
