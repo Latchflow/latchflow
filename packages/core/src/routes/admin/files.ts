@@ -443,4 +443,87 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
       }
     }),
   );
+
+  // POST /files/batch/delete
+  server.post(
+    "/files/batch/delete",
+    requireAdminOrApiToken({
+      policySignature: "POST /files/batch/delete" as RouteSignature,
+      scopes: [SCOPES.FILES_WRITE],
+    })(async (req, res) => {
+      const B = z.object({ ids: z.array(z.string().min(1)).min(1) });
+      const parsed = B.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid input" });
+        return;
+      }
+      const ids = parsed.data.ids;
+      try {
+        const rows: { id: string; storageKey: string | null }[] = await db.file.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, storageKey: true },
+        });
+        await Promise.all(
+          rows
+            .map((r) => r.storageKey)
+            .filter((k): k is string => typeof k === "string" && k.length > 0)
+            .map((k) => storage.deleteFile(k).catch(() => void 0)),
+        );
+      } catch {
+        // ignore storage errors
+      }
+      await db.file.deleteMany({ where: { id: { in: ids } } }).catch(() => void 0);
+      res.status(204).json({});
+    }),
+  );
+
+  // POST /files/batch/move
+  server.post(
+    "/files/batch/move",
+    requireAdminOrApiToken({
+      policySignature: "POST /files/batch/move" as RouteSignature,
+      scopes: [SCOPES.FILES_WRITE],
+    })(async (req, res) => {
+      const B = z.object({
+        items: z.array(z.object({ id: z.string().min(1), newKey: z.string().min(1) })).min(1),
+      });
+      const parsed = B.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid input" });
+        return;
+      }
+      const items = parsed.data.items;
+      try {
+        type MinimalFileModel = {
+          update: (args: { where: { id: string }; data: { key: string } }) => Promise<unknown>;
+        };
+        type MinimalDbClient = {
+          file: MinimalFileModel;
+          $transaction?: (cb: (p: MinimalDbClient) => Promise<void>) => Promise<void>;
+        };
+        const client = db as unknown as MinimalDbClient;
+        if (typeof client.$transaction === "function") {
+          await client.$transaction(async (tx) => {
+            for (const it of items) {
+              await tx.file.update({ where: { id: it.id }, data: { key: it.newKey } });
+            }
+          });
+        } else {
+          for (const it of items) {
+            await client.file.update({ where: { id: it.id }, data: { key: it.newKey } });
+          }
+        }
+      } catch (e) {
+        const pe = e as { code?: string };
+        if (pe && pe.code === "P2002") {
+          res
+            .status(409)
+            .json({ status: "error", code: "CONFLICT", message: "Key already exists" });
+          return;
+        }
+        throw e;
+      }
+      res.status(204).json({});
+    }),
+  );
 }

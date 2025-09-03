@@ -306,5 +306,10 @@ files_batch_move:
             required: [items]
     responses:
       '204': { description: Moved }
+      '409':
+        description: Conflict — one or more new keys already exist
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Error.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }

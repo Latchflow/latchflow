@@ -287,4 +287,63 @@ describe("files admin routes", () => {
     expect(rc.headers["ETag"]).toBeDefined();
     expect(rc.headers["Location"]).toBe("/files/f1");
   });
+
+  it("POST /files/batch/delete deletes storage and DB then returns 204", async () => {
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/batch/delete")!;
+    const rc = resCapture();
+    // Spy on storage deleteFile to verify calls
+    const spy = vi.spyOn(storageSvc, "deleteFile");
+    (db.file.findMany as any).mockResolvedValueOnce([
+      { id: "a", storageKey: "p/objects/sha256/aa/bb/x" },
+      { id: "b", storageKey: "p/objects/sha256/cc/dd/y" },
+    ]);
+    await h({ headers: {}, body: { ids: ["a", "b"] } } as any, rc.res);
+    expect(rc.status).toBe(204);
+    expect(db.file.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["a", "b"] } } });
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("POST /files/batch/move updates keys and returns 204", async () => {
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/batch/move")!;
+    const rc = resCapture();
+    await h(
+      {
+        headers: {},
+        body: {
+          items: [
+            { id: "a", newKey: "k1" },
+            { id: "b", newKey: "k2" },
+          ],
+        },
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(204);
+    expect(db.file.update).toHaveBeenCalledWith({ where: { id: "a" }, data: { key: "k1" } });
+    expect(db.file.update).toHaveBeenCalledWith({ where: { id: "b" }, data: { key: "k2" } });
+  });
+
+  it("POST /files/batch/move returns 409 on key conflict", async () => {
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/batch/move")!;
+    const rc = resCapture();
+    // First update succeeds, second fails with unique constraint
+    (db.file.update as any).mockResolvedValueOnce({}).mockRejectedValueOnce({ code: "P2002" });
+    await h(
+      {
+        headers: {},
+        body: {
+          items: [
+            { id: "a", newKey: "k1" },
+            { id: "b", newKey: "dupe" },
+          ],
+        },
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(409);
+    expect(rc.body?.code).toBe("CONFLICT");
+  });
 });
