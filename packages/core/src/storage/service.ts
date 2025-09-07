@@ -94,20 +94,22 @@ export function createStorageService(deps: ServiceDeps) {
         contentType: args.contentType,
       });
       const size = putRes.size ?? bodyBuf.length;
-      return { storageKey, size, etag: hash };
+      const storageEtag = putRes.etag ?? hash;
+      return { storageKey, size, sha256: hash, storageEtag };
     },
     // Stream-friendly path variant: compute hash from disk and stream to driver without buffering
     putFileFromPath: async (args: { path: string; contentType?: string }) => {
       const hash = await sha256HexFromPath(args.path);
       const storageKey = keyForHash(hash);
       const stat = await fs.promises.stat(args.path);
-      await deps.driver.put({
+      const putRes = await deps.driver.put({
         bucket: deps.bucket,
         key: storageKey,
         body: fs.createReadStream(args.path),
         contentType: args.contentType,
       });
-      return { storageKey, size: Number(stat.size), etag: hash };
+      const storageEtag = putRes.etag ?? hash;
+      return { storageKey, size: Number(stat.size), sha256: hash, storageEtag };
     },
     // Expose key derivation for callers that precompute the hash
     contentAddressedKey: (sha256Hex: string) => keyForHash(sha256Hex),

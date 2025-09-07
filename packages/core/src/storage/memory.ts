@@ -31,10 +31,26 @@ export const createMemoryStorage: StorageFactory = async () => {
     async head({ bucket, key }) {
       const entry = store.get(keyOf(bucket, key));
       if (!entry) throw Object.assign(new Error("NotFound"), { status: 404 });
-      return { size: entry.data.length, contentType: entry.contentType, metadata: entry.metadata };
+      return {
+        size: entry.data.length,
+        contentType: entry.contentType,
+        metadata: entry.metadata,
+        // In-memory driver does not track a native ETag; callers may use sha256
+      };
     },
     async del({ bucket, key }) {
       store.delete(keyOf(bucket, key));
+    },
+    async copyObject({ bucket, srcKey, destKey, metadata, contentType }) {
+      const src = store.get(keyOf(bucket, srcKey));
+      if (!src) throw Object.assign(new Error("NotFound"), { status: 404 });
+      const next: Entry = {
+        data: Buffer.from(src.data),
+        contentType: contentType ?? src.contentType,
+        metadata: metadata ?? src.metadata,
+      };
+      store.set(keyOf(bucket, destKey), next);
+      return {};
     },
   };
 
