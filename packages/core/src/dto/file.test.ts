@@ -19,7 +19,7 @@ describe("toFileDto", () => {
       size: 1234,
       contentType: "text/plain",
       metadata: { lang: "en" },
-      etag: "a".repeat(64),
+      contentHash: "a".repeat(64),
       updatedAt: "2024-01-02T03:04:05.000Z",
     });
   });

@@ -110,7 +110,7 @@ describe("files admin routes", () => {
     await h({ headers: {} } as any, rc.res);
     expect(rc.status).toBe(200);
     expect(rc.body?.items?.[0]?.key).toBe("docs/readme.txt");
-    expect(rc.body?.items?.[0]?.etag?.length).toBe(64);
+    expect(rc.body?.items?.[0]?.contentHash?.length).toBe(64);
   });
 
   it("GET /files/:id returns metadata", async () => {

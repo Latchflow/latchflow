@@ -5,6 +5,7 @@ export type FileRecordLike = {
   contentType: string;
   metadata?: Record<string, string> | null;
   contentHash?: string | null;
+  etag?: string | null;
   updatedAt: Date | string;
 };
 
@@ -15,6 +16,7 @@ export type FileDto = {
   contentType: string;
   metadata?: Record<string, string>;
   etag?: string;
+  contentHash?: string;
   updatedAt: string;
 };
 
@@ -37,8 +39,7 @@ export function toFileDto(rec: FileRecordLike): FileDto {
   if (rec.metadata && typeof rec.metadata === "object") {
     out.metadata = rec.metadata as Record<string, string>;
   }
-  if (rec.contentHash) {
-    out.etag = rec.contentHash;
-  }
+  if (rec.contentHash) out.contentHash = rec.contentHash;
+  if (rec.etag) out.etag = rec.etag;
   return out;
 }

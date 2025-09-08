@@ -146,6 +146,8 @@ model File {
   // Where the blob actually lives in storage (content-addressed path or provider key)
   storageKey  String   @unique
   contentHash String // e.g., sha256 hex (useful for ETag/dedup)
+  // Provider-native ETag (opaque; S3 may not be MD5 for multipart)
+  etag       String?
   size        BigInt
   contentType String
   metadata    Json?

@@ -23,6 +23,7 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   "GET /files/:id/download": { action: "read", resource: "file", v1AllowExecutor: true },
   "POST /files/upload": { action: "create", resource: "file" },
   "POST /files/upload-url": { action: "create", resource: "file" },
+  "POST /files/commit": { action: "create", resource: "file" },
   "PATCH /files/:id/metadata": { action: "update", resource: "file" },
   "POST /files/:id/move": { action: "update", resource: "file" },
   "DELETE /files/:id": { action: "delete", resource: "file" },

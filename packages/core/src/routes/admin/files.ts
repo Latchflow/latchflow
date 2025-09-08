@@ -20,6 +20,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
     contentType: string;
     metadata: unknown;
     contentHash: string | null;
+    etag: string | null;
     updatedAt: Date;
   }): FileRecordLike => {
     const meta =
@@ -33,6 +34,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
       contentType: f.contentType,
       metadata: meta,
       contentHash: f.contentHash ?? undefined,
+      etag: f.etag ?? undefined,
       updatedAt: f.updatedAt,
     };
   };
@@ -70,6 +72,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
             contentType: true,
             metadata: true,
             contentHash: true,
+            etag: true,
             updatedAt: true,
           },
         });
@@ -121,7 +124,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           return;
         }
         const contentType = f.mimetype || "application/octet-stream";
-        let result: { storageKey: string; size: number; etag: string };
+        let result: { storageKey: string; size: number; sha256: string; storageEtag?: string };
         const tmpPathToCleanup: string | null = f.path ?? null;
         try {
           if (f.path) {
@@ -153,6 +156,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           contentType: string;
           metadata: unknown;
           contentHash: string | null;
+          etag: string | null;
           updatedAt: Date;
         };
         let file: DbSelectedFile;
@@ -164,7 +168,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                 where: { key },
                 data: {
                   storageKey: result.storageKey,
-                  contentHash: result.etag,
+                  contentHash: result.sha256,
+                  etag: result.storageEtag ?? null,
                   size: BigInt(result.size),
                   contentType,
                   metadata: metadata ?? undefined,
@@ -178,6 +183,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                   contentType: true,
                   metadata: true,
                   contentHash: true,
+                  etag: true,
                   updatedAt: true,
                 },
               })) as DbSelectedFile;
@@ -186,7 +192,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                 data: {
                   key,
                   storageKey: result.storageKey,
-                  contentHash: result.etag,
+                  contentHash: result.sha256,
+                  etag: result.storageEtag ?? null,
                   size: BigInt(result.size),
                   contentType,
                   metadata: metadata ?? undefined,
@@ -202,6 +209,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                   contentType: true,
                   metadata: true,
                   contentHash: true,
+                  etag: true,
                   updatedAt: true,
                 },
               })) as DbSelectedFile;
@@ -211,7 +219,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
               data: {
                 key,
                 storageKey: result.storageKey,
-                contentHash: result.etag,
+                contentHash: result.sha256,
+                etag: result.storageEtag ?? null,
                 size: BigInt(result.size),
                 contentType,
                 metadata: metadata ?? undefined,
@@ -227,6 +236,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                 contentType: true,
                 metadata: true,
                 contentHash: true,
+                etag: true,
                 updatedAt: true,
               },
             })) as DbSelectedFile;
@@ -241,8 +251,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           }
           throw e;
         }
-        // ETag response header
-        res.header("ETag", result.etag);
+        // ETag response header (prefer storage-native, fallback to sha256)
+        res.header("ETag", result.storageEtag ?? result.sha256);
         res.header("Location", `/files/${file.id}`);
         res.status(overwrite ? 200 : 201).json(toFileDto(asFileRecord(file)));
       } catch (e) {
@@ -265,6 +275,21 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
         status: "error",
         code: "NOT_IMPLEMENTED",
         message: "Presigned uploads not supported by this driver",
+      });
+    }),
+  );
+
+  // POST /files/commit — stub 501 until presigned flow is implemented
+  server.post(
+    "/files/commit",
+    requireAdminOrApiToken({
+      policySignature: "POST /files/commit" as RouteSignature,
+      scopes: [SCOPES.FILES_WRITE],
+    })(async (_req, res) => {
+      res.status(501).json({
+        status: "error",
+        code: "NOT_IMPLEMENTED",
+        message: "Commit endpoint not implemented for this driver",
       });
     }),
   );
@@ -292,6 +317,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
             contentType: true,
             metadata: true,
             contentHash: true,
+            etag: true,
             updatedAt: true,
           },
         });
@@ -421,6 +447,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
             contentType: true,
             storageKey: true,
             contentHash: true,
+            etag: true,
           },
         });
         if (!file || !file.storageKey) {
@@ -432,7 +459,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
         const size = file.size as unknown as number | bigint | null | undefined;
         if (size != null)
           headers["Content-Length"] = String(typeof size === "bigint" ? Number(size) : size);
-        if (file.contentHash) headers["ETag"] = file.contentHash;
+        if (file.etag) headers["ETag"] = file.etag;
+        else if (file.contentHash) headers["ETag"] = file.contentHash;
         const stream = await storage.getFileStream(file.storageKey);
         res.sendStream(stream, headers);
       } catch (e) {
