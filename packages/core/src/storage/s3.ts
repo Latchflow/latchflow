@@ -113,7 +113,9 @@ async function ensureBucket(
 }
 
 export const createS3Storage: StorageFactory = async ({ config }) => {
-  const cfg = (config as S3Deps | null) ?? {};
+  const top = (config as Record<string, unknown> | null) ?? {};
+  const nested = (top["config"] as Record<string, unknown> | null) ?? null;
+  const cfg = { ...(nested ?? {}), ...(top ?? {}) } as unknown as S3Deps;
   const { client, mod } = await makeClient(cfg);
   const bucketEnsured = new Set<string>();
 

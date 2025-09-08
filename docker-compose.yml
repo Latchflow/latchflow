@@ -9,6 +9,38 @@ services:
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
-  # minio, mailhog, etc. (also publish ports)
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-http://localhost:3000,http://localhost:3001}
+      MINIO_API_CORS_ALLOW_METHODS: ${MINIO_API_CORS_ALLOW_METHODS:-GET,PUT,POST,DELETE}
+      MINIO_API_CORS_ALLOW_HEADERS: ${MINIO_API_CORS_ALLOW_HEADERS:-*}
+      MINIO_SERVER_URL: "http://localhost:9000"
+      MINIO_BROWSER_REDIRECT_URL: "http://localhost:9001"
+    command: server /data --console-address ":9001"
+    ports: ["9000:9000", "19001:9001"]
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      # Provide a preconfigured alias via env so we don't need shell
+      MC_HOST_myminio: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin}@minio:9000
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-latchflow-dev}
+    entrypoint: ["/usr/bin/mc"]
+    command: ["mb", "--ignore-existing", "myminio/${STORAGE_BUCKET}"]
+    restart: "no"
 volumes:
   pgdata:
+  miniodata:
