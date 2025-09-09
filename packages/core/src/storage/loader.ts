@@ -22,6 +22,10 @@ export async function loadStorage(
     const { createFsStorage } = await import("./fs.js");
     return { name: "fs", storage: await createFsStorage({ config }) };
   }
+  if (driver === "s3" && !pathOrNull) {
+    const { createS3Storage } = await import("./s3.js");
+    return { name: "s3", storage: await createS3Storage({ config }) };
+  }
   if (pathOrNull) {
     const mod = await import(pathOrNull);
     const factory = resolveStorageFactory(mod);

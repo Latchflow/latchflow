@@ -16,7 +16,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 ## Current State
 - Workspaces present: `packages/core` (service runtime, API), `packages/db` (Prisma client), `packages/testkit/*` (shared mocks/fixtures/scenarios).
 - Planned but not yet in repo: `apps/admin-ui`, `apps/portal`, `apps/cli`, `packages/plugins/*`.
-- Docker Compose includes Postgres only; MinIO/MailHog are planned.
+- Docker Compose includes Postgres and MinIO (S3‑compatible). MailHog is planned.
 - OpenAPI spec lives in `packages/core/openapi` with scripts to lint/bundle/preview.
 
 ## Quick Start
@@ -27,7 +27,7 @@ Prerequisites: Node 20+, pnpm 9/10, Docker. Dev container/Codespace config inclu
 pnpm install
 ```
 
-2) Start Postgres
+2) Start services (Postgres, MinIO)
 ```
 docker compose up -d
 ```
@@ -122,6 +122,45 @@ packages/plugins/
 - `.env.defaults`: Safe defaults for local dev; override with `.env`.
 - Core config includes queue/storage drivers (defaults to in-memory queue and local FS).
 - Key envs: `DATABASE_URL`, `PORT`, `PLUGINS_PATH`, `QUEUE_*`, `STORAGE_*`, `ENCRYPTION_*`.
+
+### MinIO + Signed Uploads (Dev Container friendly)
+
+When Core runs inside a dev container, it should reach MinIO via the Docker network, while browsers/Postman on the host use localhost. Configure separate endpoints in the S3 driver:
+
+- `endpoint`: used by the server for S3 operations (HEAD/PUT/COPY/GET/DELETE). Set to `http://minio:9000`.
+- `presignEndpoint`: used only for presigned URLs returned to clients. Set to `http://localhost:9000`.
+
+Ports and console
+- API: `http://localhost:9000`
+- Console: `http://localhost:19001` (mapped to container `:9001`)
+
+Example env for MinIO
+```
+STORAGE_DRIVER=s3
+STORAGE_BUCKET=latchflow-dev
+STORAGE_CONFIG_JSON={
+  "region":"us-east-1",
+  "endpoint":"http://minio:9000",
+  "presignEndpoint":"http://localhost:9000",
+  "forcePathStyle":true,
+  "accessKeyId":"minioadmin",
+  "secretAccessKey":"minioadmin",
+  "ensureBucket":true
+}
+```
+
+Checksum and metadata
+- The signed PUT response includes required headers. Send them exactly as returned:
+  - `x-amz-checksum-sha256` (base64; signature‑bound)
+  - `x-amz-meta-sha256` (hex; stored as object metadata)
+  - `content-type` (must match the presigned value)
+- Commit (`POST /files/commit`) verifies via `HEAD` only:
+  - Uses `ChecksumSHA256` when available (S3).
+  - Falls back to `metadata.sha256` on MinIO.
+
+Tips
+- Request a fresh `POST /files/upload-url` before each upload. Reusing old URLs may miss required headers.
+- If commit returns `CHECKSUM_MISMATCH`, ensure your upload included both headers and the exact content type.
 
 ## Security & Testing
 - Never embed secrets; always use environment variables.

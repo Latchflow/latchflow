@@ -107,6 +107,16 @@ pnpm -r test
 - Built-in plugins — packages/plugins/core
 - Plugin capability examples — packages/plugins/core/*
 
+## Storage Driver Notes
+
+- S3 driver supports presigned uploads and server-side copy. It feature-detects capabilities via optional methods on `StorageDriver`.
+- For MinIO/dev-container setups use separate endpoints:
+  - `endpoint` (server ops): `http://minio:9000`
+  - `presignEndpoint` (client URLs): `http://localhost:9000`
+- Commit flow verifies uploads via `HEAD` only:
+  - Prefer `ChecksumSHA256` (S3); fallback to `metadata.sha256` (MinIO). Presigned PUT includes `x-amz-meta-sha256` to support the fallback.
+- ETag policy: persist the storage-native ETag on `File.etag` and prefer it for HTTP response headers; also store `contentHash` (sha256).
+
 ---
 
 ## See Also

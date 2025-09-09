@@ -1,5 +1,6 @@
 import { z } from "zod";
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import type { Prisma } from "@latchflow/db";
@@ -20,6 +21,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
     contentType: string;
     metadata: unknown;
     contentHash: string | null;
+    etag: string | null;
     updatedAt: Date;
   }): FileRecordLike => {
     const meta =
@@ -33,6 +35,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
       contentType: f.contentType,
       metadata: meta,
       contentHash: f.contentHash ?? undefined,
+      etag: f.etag ?? undefined,
       updatedAt: f.updatedAt,
     };
   };
@@ -70,6 +73,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
             contentType: true,
             metadata: true,
             contentHash: true,
+            etag: true,
             updatedAt: true,
           },
         });
@@ -121,7 +125,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           return;
         }
         const contentType = f.mimetype || "application/octet-stream";
-        let result: { storageKey: string; size: number; etag: string };
+        let result: { storageKey: string; size: number; sha256: string; storageEtag?: string };
         const tmpPathToCleanup: string | null = f.path ?? null;
         try {
           if (f.path) {
@@ -153,6 +157,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           contentType: string;
           metadata: unknown;
           contentHash: string | null;
+          etag: string | null;
           updatedAt: Date;
         };
         let file: DbSelectedFile;
@@ -164,7 +169,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                 where: { key },
                 data: {
                   storageKey: result.storageKey,
-                  contentHash: result.etag,
+                  contentHash: result.sha256,
+                  etag: result.storageEtag ?? null,
                   size: BigInt(result.size),
                   contentType,
                   metadata: metadata ?? undefined,
@@ -178,6 +184,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                   contentType: true,
                   metadata: true,
                   contentHash: true,
+                  etag: true,
                   updatedAt: true,
                 },
               })) as DbSelectedFile;
@@ -186,7 +193,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                 data: {
                   key,
                   storageKey: result.storageKey,
-                  contentHash: result.etag,
+                  contentHash: result.sha256,
+                  etag: result.storageEtag ?? null,
                   size: BigInt(result.size),
                   contentType,
                   metadata: metadata ?? undefined,
@@ -202,6 +210,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                   contentType: true,
                   metadata: true,
                   contentHash: true,
+                  etag: true,
                   updatedAt: true,
                 },
               })) as DbSelectedFile;
@@ -211,7 +220,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
               data: {
                 key,
                 storageKey: result.storageKey,
-                contentHash: result.etag,
+                contentHash: result.sha256,
+                etag: result.storageEtag ?? null,
                 size: BigInt(result.size),
                 contentType,
                 metadata: metadata ?? undefined,
@@ -227,6 +237,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
                 contentType: true,
                 metadata: true,
                 contentHash: true,
+                etag: true,
                 updatedAt: true,
               },
             })) as DbSelectedFile;
@@ -241,8 +252,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           }
           throw e;
         }
-        // ETag response header
-        res.header("ETag", result.etag);
+        // ETag response header (prefer storage-native, fallback to sha256)
+        res.header("ETag", result.storageEtag ?? result.sha256);
         res.header("Location", `/files/${file.id}`);
         res.status(overwrite ? 200 : 201).json(toFileDto(asFileRecord(file)));
       } catch (e) {
@@ -254,18 +265,274 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
     }),
   );
 
-  // POST /files/upload-url — stub 501 unless driver advertises support (future)
+  // POST /files/upload-url — issue a presigned PUT URL for direct-to-storage uploads
   server.post(
     "/files/upload-url",
     requireAdminOrApiToken({
       policySignature: "POST /files/upload-url" as RouteSignature,
       scopes: [SCOPES.FILES_WRITE],
-    })(async (_req, res) => {
-      res.status(501).json({
-        status: "error",
-        code: "NOT_IMPLEMENTED",
-        message: "Presigned uploads not supported by this driver",
-      });
+    })(async (req, res) => {
+      try {
+        if (!storage.supportsSignedPut) {
+          res.status(501).json({
+            status: "error",
+            code: "NOT_IMPLEMENTED",
+            message: "Presigned uploads not supported by this driver",
+          });
+          return;
+        }
+        const B = z.object({
+          key: z.string().min(1),
+          sha256: z.string().regex(/^[0-9a-fA-F]{64}$/),
+          contentType: z.string().optional(),
+          size: z.coerce.number().int().positive().optional(),
+          metadata: z.record(z.string()).optional(),
+          expiresSec: z.coerce.number().int().min(60).max(3600).optional(),
+        });
+        const parsed = B.safeParse(req.body ?? {});
+        if (!parsed.success) {
+          res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid input" });
+          return;
+        }
+        const userId = (req as typeof req & { user?: { id?: string } }).user?.id;
+        if (!userId) {
+          res.status(401).json({ status: "error", code: "UNAUTHORIZED", message: "No user" });
+          return;
+        }
+        const { key, sha256, contentType, size, metadata, expiresSec } = parsed.data;
+        const reservationId = randomUUID();
+        const tempKey = storage.tempUploadKey(reservationId);
+        const ttlSec = expiresSec ?? 15 * 60;
+        const expiresAt = new Date(Date.now() + ttlSec * 1000);
+        await db.fileUploadReservation.create({
+          data: {
+            id: reservationId,
+            tempKey,
+            desiredKey: key,
+            sha256: sha256.toLowerCase(),
+            requestedContentType: contentType ?? null,
+            requestedSize: size != null ? BigInt(size) : null,
+            metadata: metadata ?? undefined,
+            createdBy: userId,
+            expiresAt,
+          },
+        });
+        const presign = await storage.createSignedPutUrl({
+          storageKey: tempKey,
+          contentType,
+          expiresSeconds: ttlSec,
+          // Include checksum binding and store sha256 as object metadata for HEAD fallback
+          headers: {
+            "x-amz-checksum-sha256": sha256.toLowerCase(),
+            "x-amz-meta-sha256": sha256.toLowerCase(),
+          },
+        });
+        res.status(201).json({
+          url: presign.url,
+          headers: presign.headers ?? {},
+          expiresAt: expiresAt.toISOString(),
+          tempKey,
+          reservationId,
+        });
+      } catch (e) {
+        const err = e as Error & { status?: number };
+        res
+          .status(err.status ?? 500)
+          .json({ status: "error", code: "UPLOAD_URL_FAILED", message: err.message });
+      }
+    }),
+  );
+
+  // POST /files/commit — finalize a presigned upload by copying to final key and creating File record
+  server.post(
+    "/files/commit",
+    requireAdminOrApiToken({
+      policySignature: "POST /files/commit" as RouteSignature,
+      scopes: [SCOPES.FILES_WRITE],
+    })(async (req, res) => {
+      try {
+        const B = z
+          .object({
+            key: z.string().min(1),
+            tempKey: z.string().optional(),
+            reservationId: z.string().uuid().optional(),
+            metadata: z.record(z.string()).optional(),
+            contentType: z.string().optional(),
+            originalName: z.string().optional(),
+            overwrite: z.coerce.boolean().optional(),
+          })
+          .refine((d) => d.tempKey || d.reservationId, {
+            message: "tempKey or reservationId is required",
+            path: ["tempKey"],
+          });
+        const parsed = B.safeParse(req.body ?? {});
+        if (!parsed.success) {
+          res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid input" });
+          return;
+        }
+        // Load reservation by id or tempKey
+        const rid = parsed.data.reservationId ?? undefined;
+        const reservation = rid
+          ? await db.fileUploadReservation.findUnique({ where: { id: rid } })
+          : await db.fileUploadReservation.findUnique({
+              where: { tempKey: parsed.data.tempKey! },
+            });
+        if (!reservation || reservation.consumedAt) {
+          res
+            .status(400)
+            .json({ status: "error", code: "INVALID_RESERVATION", message: "Missing or consumed" });
+          return;
+        }
+        if (reservation.expiresAt <= new Date()) {
+          res
+            .status(400)
+            .json({ status: "error", code: "EXPIRED", message: "Reservation expired" });
+          return;
+        }
+        if (reservation.desiredKey !== parsed.data.key) {
+          res.status(400).json({ status: "error", code: "KEY_MISMATCH", message: "Key mismatch" });
+          return;
+        }
+        const tempKey = reservation.tempKey;
+        // Verify checksum via HEAD
+        const head = await storage.headRaw(tempKey);
+        const checksum = head.checksumSha256Hex ?? head.metadata?.["sha256"];
+        if (!checksum || checksum.toLowerCase() !== reservation.sha256.toLowerCase()) {
+          res
+            .status(400)
+            .json({ status: "error", code: "CHECKSUM_MISMATCH", message: "Checksum mismatch" });
+          return;
+        }
+        // Determine final storage key (content addressed)
+        const finalStorageKey = storage.contentAddressedKey(reservation.sha256.toLowerCase());
+        const ct =
+          parsed.data.contentType ??
+          reservation.requestedContentType ??
+          head.contentType ??
+          "application/octet-stream";
+        const meta =
+          parsed.data.metadata ??
+          (reservation.metadata as Record<string, string> | undefined) ??
+          undefined;
+        const copyRes = await storage.copyObjectRaw({
+          srcKey: tempKey,
+          destKey: finalStorageKey,
+          metadata: meta,
+          contentType: ct,
+        });
+        await storage.deleteFile(tempKey).catch(() => void 0);
+
+        // Upsert File record respecting overwrite flag
+        const overwrite = parsed.data.overwrite === true;
+        type DbSelectedFile = {
+          id: string;
+          key: string;
+          size: bigint;
+          contentType: string;
+          metadata: unknown;
+          contentHash: string | null;
+          etag: string | null;
+          updatedAt: Date;
+        };
+        let file: DbSelectedFile;
+        if (overwrite) {
+          const existing = await db.file.findUnique({ where: { key: parsed.data.key } });
+          if (existing) {
+            file = (await db.file.update({
+              where: { id: existing.id },
+              data: {
+                size: BigInt(head.size),
+                contentType: ct,
+                metadata: meta ?? undefined,
+                contentHash: reservation.sha256.toLowerCase(),
+                storageKey: finalStorageKey,
+                etag: copyRes.etag ?? null,
+              },
+              select: {
+                id: true,
+                key: true,
+                size: true,
+                contentType: true,
+                metadata: true,
+                contentHash: true,
+                etag: true,
+                updatedAt: true,
+              },
+            })) as DbSelectedFile;
+          } else {
+            file = (await db.file.create({
+              data: {
+                key: parsed.data.key,
+                size: BigInt(head.size),
+                contentType: ct,
+                metadata: meta ?? undefined,
+                contentHash: reservation.sha256.toLowerCase(),
+                storageKey: finalStorageKey,
+                etag: copyRes.etag ?? null,
+                // Attribution best-effort
+                createdBy: req.user?.id ?? "system",
+              },
+              select: {
+                id: true,
+                key: true,
+                size: true,
+                contentType: true,
+                metadata: true,
+                contentHash: true,
+                etag: true,
+                updatedAt: true,
+              },
+            })) as DbSelectedFile;
+          }
+        } else {
+          try {
+            file = (await db.file.create({
+              data: {
+                key: parsed.data.key,
+                size: BigInt(head.size),
+                contentType: ct,
+                metadata: meta ?? undefined,
+                contentHash: reservation.sha256.toLowerCase(),
+                storageKey: finalStorageKey,
+                etag: copyRes.etag ?? null,
+                createdBy: req.user?.id ?? "system",
+              },
+              select: {
+                id: true,
+                key: true,
+                size: true,
+                contentType: true,
+                metadata: true,
+                contentHash: true,
+                etag: true,
+                updatedAt: true,
+              },
+            })) as DbSelectedFile;
+          } catch (e) {
+            const pe = e as { code?: string };
+            if (pe && pe.code === "P2002") {
+              res
+                .status(409)
+                .json({ status: "error", code: "CONFLICT", message: "Key already exists" });
+              return;
+            }
+            throw e;
+          }
+        }
+        // Mark reservation consumed
+        await db.fileUploadReservation.update({
+          where: { id: reservation.id },
+          data: { consumedAt: new Date() },
+        });
+        res.header("ETag", copyRes.etag ?? reservation.sha256.toLowerCase());
+        res.header("Location", `/files/${file.id}`);
+        res.status(overwrite ? 200 : 201).json(toFileDto(asFileRecord(file)));
+      } catch (e) {
+        const err = e as Error & { status?: number };
+        res
+          .status(err.status ?? 500)
+          .json({ status: "error", code: "COMMIT_FAILED", message: err.message });
+      }
     }),
   );
 
@@ -292,6 +559,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
             contentType: true,
             metadata: true,
             contentHash: true,
+            etag: true,
             updatedAt: true,
           },
         });
@@ -421,6 +689,7 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
             contentType: true,
             storageKey: true,
             contentHash: true,
+            etag: true,
           },
         });
         if (!file || !file.storageKey) {
@@ -432,7 +701,8 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
         const size = file.size as unknown as number | bigint | null | undefined;
         if (size != null)
           headers["Content-Length"] = String(typeof size === "bigint" ? Number(size) : size);
-        if (file.contentHash) headers["ETag"] = file.contentHash;
+        if (file.etag) headers["ETag"] = file.etag;
+        else if (file.contentHash) headers["ETag"] = file.contentHash;
         const stream = await storage.getFileStream(file.storageKey);
         res.sendStream(stream, headers);
       } catch (e) {

@@ -94,20 +94,22 @@ export function createStorageService(deps: ServiceDeps) {
         contentType: args.contentType,
       });
       const size = putRes.size ?? bodyBuf.length;
-      return { storageKey, size, etag: hash };
+      const storageEtag = putRes.etag ?? hash;
+      return { storageKey, size, sha256: hash, storageEtag };
     },
     // Stream-friendly path variant: compute hash from disk and stream to driver without buffering
     putFileFromPath: async (args: { path: string; contentType?: string }) => {
       const hash = await sha256HexFromPath(args.path);
       const storageKey = keyForHash(hash);
       const stat = await fs.promises.stat(args.path);
-      await deps.driver.put({
+      const putRes = await deps.driver.put({
         bucket: deps.bucket,
         key: storageKey,
         body: fs.createReadStream(args.path),
         contentType: args.contentType,
       });
-      return { storageKey, size: Number(stat.size), etag: hash };
+      const storageEtag = putRes.etag ?? hash;
+      return { storageKey, size: Number(stat.size), sha256: hash, storageEtag };
     },
     // Expose key derivation for callers that precompute the hash
     contentAddressedKey: (sha256Hex: string) => keyForHash(sha256Hex),
@@ -124,5 +126,54 @@ export function createStorageService(deps: ServiceDeps) {
         // idempotent delete: ignore errors (e.g., not found)
       }
     },
+    // Raw helpers and capability probes for advanced flows (e.g., presigned upload + commit)
+    supportsSignedPut: typeof deps.driver.createSignedPutUrl === "function",
+    tempUploadKey: (id: string) =>
+      [deps.keyPrefix, "tmp", "uploads", id].filter((s) => s && s.length > 0).join("/"),
+    createSignedPutUrl: async (args: {
+      storageKey: string;
+      contentType?: string;
+      expiresSeconds?: number;
+      headers?: Record<string, string>;
+    }): Promise<{ url: string; headers?: Record<string, string>; expiresAt?: string }> => {
+      if (typeof deps.driver.createSignedPutUrl !== "function") {
+        throw Object.assign(new Error("Presigned PUT not supported"), { status: 501 });
+      }
+      return deps.driver.createSignedPutUrl({
+        bucket: deps.bucket,
+        key: args.storageKey,
+        contentType: args.contentType,
+        expiresSeconds: args.expiresSeconds,
+        headers: args.headers,
+      });
+    },
+    copyObjectRaw: async (args: {
+      srcKey: string;
+      destKey: string;
+      metadata?: Record<string, string>;
+      contentType?: string;
+    }): Promise<{ etag?: string }> => {
+      if (typeof deps.driver.copyObject === "function") {
+        return deps.driver.copyObject({
+          bucket: deps.bucket,
+          srcKey: args.srcKey,
+          destKey: args.destKey,
+          metadata: args.metadata,
+          contentType: args.contentType,
+        });
+      }
+      // Fallback: stream copy (avoid buffering in memory)
+      const rs = await deps.driver.getStream({ bucket: deps.bucket, key: args.srcKey });
+      const putRes = await deps.driver.put({
+        bucket: deps.bucket,
+        key: args.destKey,
+        body: rs,
+        contentType: args.contentType,
+        metadata: args.metadata,
+      });
+      return { etag: putRes.etag };
+    },
+    headRaw: async (storageKey: string) =>
+      deps.driver.head({ bucket: deps.bucket, key: storageKey }),
   };
 }

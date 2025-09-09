@@ -52,6 +52,26 @@ export const createFsStorage: StorageFactory = async ({ config }) => {
       await fs.promises.unlink(full).catch(() => void 0);
       await fs.promises.unlink(full + ".ct").catch(() => void 0);
     },
+    async copyObject({ bucket, srcKey, destKey, metadata, contentType }) {
+      const _meta = metadata;
+      const src = filePath(bucket, srcKey).full;
+      const dstInfo = filePath(bucket, destKey);
+      await fs.promises.mkdir(dstInfo.dir, { recursive: true });
+      await fs.promises.copyFile(src, dstInfo.full);
+      // copy/override sidecar content-type and ignore metadata for fs driver
+      const ctPathSrc = src + ".ct";
+      const ctPathDst = dstInfo.full + ".ct";
+      try {
+        if (contentType) {
+          await fs.promises.writeFile(ctPathDst, contentType, "utf8");
+        } else {
+          await fs.promises.copyFile(ctPathSrc, ctPathDst);
+        }
+      } catch {
+        // ignore if source sidecar missing
+      }
+      return {};
+    },
   };
 
   return driver;

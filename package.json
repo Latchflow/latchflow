@@ -27,7 +27,9 @@
     "oas:bundle:yaml": "redocly bundle packages/core/openapi/openapi.yaml -o packages/core/openapi/dist/openapi.yaml",
     "oas:preview": "redocly preview-docs packages/core/openapi/openapi.yaml",
     "oas:validate": "swagger-cli validate packages/core/openapi/openapi.yaml",
-    "oas:types": "pnpm -F @latchflow/api-types run generate"
+    "oas:types": "pnpm -F @latchflow/api-types run generate",
+    "docker:start": "pnpm env:load docker compose up",
+    "docker:stop": "docker compose down"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",

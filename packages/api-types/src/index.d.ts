@@ -81,7 +81,17 @@ export type paths = {
     };
     get?: never;
     put?: never;
-    /** Start admin login via magic link */
+    /**
+     * Start admin login via magic link
+     * @description Initiates email-based admin authentication by issuing a one-time magic link token.
+     *
+     *     Behavior:
+     *     - Bootstrap (zero users exist): the server upserts a user record with the role of EXECUTOR and no permissions for the
+     *       provided email to allow issuing a magic link. The ADMIN role is granted during callback.
+     *     - Post-bootstrap (one or more users exist): the email MUST already belong to an existing user
+     *       (or be previously invited). Unknown emails result in a Not Found error.
+     *
+     */
     post: operations["startAdminLogin"];
     delete?: never;
     options?: never;
@@ -96,7 +106,13 @@ export type paths = {
       path?: never;
       cookie?: never;
     };
-    /** Finalize admin login using magic link token */
+    /**
+     * Finalize admin login using magic link token
+     * @description Consumes a magic link token and establishes an admin session via cookie.
+     *     Bootstrap: if there are currently no admins, the verified user is granted ADMIN (and EXECUTOR)
+     *     during the first successful callback.
+     *
+     */
     get: operations["finalizeAdminLogin"];
     put?: never;
     post?: never;
@@ -396,6 +412,23 @@ export type paths = {
     patch?: never;
     trace?: never;
   };
+  "/files/commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Finalize a presigned upload */
+    post: operations["commitUpload"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/files/{id}": {
     parameters: {
       query?: never;
@@ -572,6 +605,40 @@ export type paths = {
     patch: operations["updateBundleObject"];
     trace?: never;
   };
+  "/bundles/{bundleId}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List bundle versions */
+    get: operations["listBundleVersions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/bundles/{bundleId}/versions/{version}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get bundle version */
+    get: operations["getBundleVersion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/recipients": {
     parameters: {
       query?: never;
@@ -599,6 +666,40 @@ export type paths = {
     };
     /** Get recipient by id */
     get: operations["getRecipient"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/recipients/{recipientId}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List recipient versions */
+    get: operations["listRecipientVersions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/recipients/{recipientId}/versions/{version}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get recipient version */
+    get: operations["getRecipientVersion"];
     put?: never;
     post?: never;
     delete?: never;
@@ -824,12 +925,45 @@ export type paths = {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete trigger definition */
-    delete: operations["deleteTrigger"];
+    delete?: never;
     options?: never;
     head?: never;
     /** Update trigger definition */
     patch: operations["updateTrigger"];
+    trace?: never;
+  };
+  "/triggers/{id}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List trigger definition versions */
+    get: operations["listTriggerVersions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/triggers/{id}/versions/{version}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get trigger definition version */
+    get: operations["getTriggerVersion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/actions": {
@@ -860,12 +994,45 @@ export type paths = {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete action definition */
-    delete: operations["deleteAction"];
+    delete?: never;
     options?: never;
     head?: never;
     /** Update action definition */
     patch: operations["updateAction"];
+    trace?: never;
+  };
+  "/actions/{id}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List action definition versions */
+    get: operations["listActionVersions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/actions/{id}/versions/{version}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get action definition version */
+    get: operations["getActionVersion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/pipelines": {
@@ -875,7 +1042,7 @@ export type paths = {
       path?: never;
       cookie?: never;
     };
-    /** List trigger→action pipelines */
+    /** List pipelines */
     get: operations["listPipelines"];
     put?: never;
     /** Create pipeline */
@@ -904,6 +1071,112 @@ export type paths = {
     patch: operations["updatePipeline"];
     trace?: never;
   };
+  "/pipelines/{pipelineId}/steps": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pipeline steps */
+    get: operations["listPipelineSteps"];
+    put?: never;
+    /** Add pipeline step */
+    post: operations["addPipelineStep"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/pipelines/{pipelineId}/steps/{stepId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete pipeline step */
+    delete: operations["deletePipelineStep"];
+    options?: never;
+    head?: never;
+    /** Update pipeline step */
+    patch: operations["updatePipelineStep"];
+    trace?: never;
+  };
+  "/pipelines/{pipelineId}/triggers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pipeline triggers */
+    get: operations["listPipelineTriggers"];
+    put?: never;
+    /** Attach trigger to pipeline */
+    post: operations["addPipelineTrigger"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/pipelines/{pipelineId}/triggers/{triggerId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Detach trigger from pipeline */
+    delete: operations["deletePipelineTrigger"];
+    options?: never;
+    head?: never;
+    /** Update pipeline trigger */
+    patch: operations["updatePipelineTrigger"];
+    trace?: never;
+  };
+  "/pipelines/{id}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pipeline versions */
+    get: operations["listPipelineVersions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/pipelines/{id}/versions/{version}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get pipeline version */
+    get: operations["getPipelineVersion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/users": {
     parameters: {
       query?: never;
@@ -921,7 +1194,7 @@ export type paths = {
     patch?: never;
     trace?: never;
   };
-  "/users/{id}/roles": {
+  "/users/invite": {
     parameters: {
       query?: never;
       header?: never;
@@ -930,12 +1203,40 @@ export type paths = {
     };
     get?: never;
     put?: never;
-    post?: never;
+    /**
+     * Invite a user (issue magic link)
+     * @description Upserts a user by email.
+     *     Issues a one-time magic link for login. Implementations may return a `login_url`
+     *     for copy-paste delivery or send an email if SMTP is configured.
+     *
+     */
+    post: operations["inviteUser"];
     delete?: never;
     options?: never;
     head?: never;
-    /** Update user roles */
-    patch: operations["updateUserRoles"];
+    patch?: never;
+    trace?: never;
+  };
+  "/users/{id}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Revoke a user's access tokens and/or sessions
+     * @description Soft-revoke user access by invalidating active sessions and/or CLI API tokens.
+     *     Avoids hard deletion since users are referenced widely by audit trails.
+     *
+     */
+    post: operations["revokeUserAccess"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
 };
@@ -982,6 +1283,7 @@ export type components = {
         [key: string]: string;
       };
       etag?: string;
+      contentHash?: string;
       /** Format: date-time */
       updatedAt: string;
     };
@@ -989,11 +1291,13 @@ export type components = {
       /** Format: uuid */
       id: string;
       name: string;
-      description?: string;
-      /** Format: uuid */
-      ownerId: string;
+      storagePath: string;
+      checksum: string;
+      description?: string | null;
       /** Format: date-time */
       createdAt: string;
+      /** Format: date-time */
+      updatedAt?: string;
     };
     BundleObject: {
       /** Format: uuid */
@@ -1017,54 +1321,144 @@ export type components = {
       id: string;
       /** Format: email */
       email: string;
-      displayName?: string;
+      name?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      /** Format: date-time */
+      updatedAt?: string;
     };
     Plugin: {
       /** Format: uuid */
       id: string;
       name: string;
-      version: string;
+      version?: string;
+      description?: string;
+      author?: string;
+      homepageUrl?: string;
+      repositoryUrl?: string;
+      /** Format: date-time */
+      installedAt?: string;
       capabilities: components["schemas"]["Capability"][];
     };
     Capability: {
+      /** Format: uuid */
+      id?: string;
       /** @enum {string} */
       kind: "TRIGGER" | "ACTION";
       key: string;
       displayName: string;
-      jsonSchema: Record<string, never>;
+      jsonSchema?: Record<string, never>;
+      isEnabled?: boolean;
     };
     TriggerDefinition: {
       /** Format: uuid */
       id: string;
-      capabilityKey: string;
+      name: string;
+      /** Format: uuid */
+      capabilityId: string;
       config: Record<string, never>;
-      enabled: boolean;
+      isEnabled?: boolean;
       /** Format: date-time */
       createdAt?: string;
+      /** Format: date-time */
+      updatedAt?: string;
     };
     ActionDefinition: {
       /** Format: uuid */
       id: string;
-      capabilityKey: string;
+      name: string;
+      /** Format: uuid */
+      capabilityId: string;
       config: Record<string, never>;
-      enabled: boolean;
+      isEnabled?: boolean;
       /** Format: date-time */
       createdAt?: string;
+      /** Format: date-time */
+      updatedAt?: string;
     };
-    TriggerAction: {
+    ChangeLogVersion: {
+      version: number;
+      isSnapshot: boolean;
+      /** @description sha256 hex of materialized post-change state */
+      hash: string;
+      changeNote?: string | null;
+      /** @description JSON Pointer to primary changed path */
+      changedPath?: string | null;
+      changeKind?:
+        | ("ADD_CHILD" | "UPDATE_CHILD" | "REMOVE_CHILD" | "REORDER" | "UPDATE_PARENT")
+        | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** @enum {string} */
+      actorType: "USER" | "ACTION" | "SYSTEM";
+      actorUserId?: string | null;
+      actorInvocationId?: string | null;
+      actorActionDefinitionId?: string | null;
+      onBehalfOfUserId?: string | null;
+    };
+    ChangeLogMaterialized: {
+      version: number;
+      isSnapshot: boolean;
+      hash: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** @enum {string} */
+      actorType: "USER" | "ACTION" | "SYSTEM";
+      actorUserId?: string | null;
+      actorInvocationId?: string | null;
+      actorActionDefinitionId?: string | null;
+      onBehalfOfUserId?: string | null;
+      /** @description Canonical aggregate snapshot for the specific entity version */
+      state: {
+        [key: string]: unknown;
+      };
+    };
+    Pipeline: {
       /** Format: uuid */
       id: string;
-      trigger: components["schemas"]["TriggerDefinition"];
-      action: components["schemas"]["ActionDefinition"];
+      name: string;
+      description?: string | null;
+      isEnabled: boolean;
       /** Format: date-time */
       createdAt?: string;
+      /** Format: date-time */
+      updatedAt?: string;
+    };
+    PipelineStep: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      pipelineId: string;
+      action?: components["schemas"]["ActionDefinition"];
+      /** Format: uuid */
+      actionId: string;
+      sortOrder?: number;
+      isEnabled: boolean;
+      /** Format: date-time */
+      createdAt?: string;
+      /** Format: date-time */
+      updatedAt?: string;
+    };
+    PipelineTrigger: {
+      /** Format: uuid */
+      pipelineId: string;
+      trigger?: components["schemas"]["TriggerDefinition"];
+      /** Format: uuid */
+      triggerId: string;
+      sortOrder?: number;
+      isEnabled: boolean;
+      /** Format: date-time */
+      createdAt?: string;
+      /** Format: date-time */
+      updatedAt?: string;
     };
     User: {
       /** Format: uuid */
       id: string;
       /** Format: email */
       email: string;
-      roles: string[];
+      /** @enum {string} */
+      role: "ADMIN" | "EXECUTOR";
       /** Format: date-time */
       createdAt?: string;
     };
@@ -1130,6 +1524,15 @@ export type components = {
     };
     /** @description Validation error */
     ValidationError: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["Error"];
+      };
+    };
+    /** @description Conflict */
+    Conflict: {
       headers: {
         [name: string]: unknown;
       };
@@ -1215,6 +1618,15 @@ export interface operations {
         content?: never;
       };
       400: components["responses"]["ValidationError"];
+      /** @description One or more dependencies are not ready */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
     };
   };
   getHealth: {
@@ -1258,6 +1670,18 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Dev mode only — returns a direct login URL instead of sending email */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @description Magic-link callback URL usable to complete login */
+            login_url: string;
+          };
+        };
+      };
       /** @description Magic link issued (no content) */
       204: {
         headers: {
@@ -1266,6 +1690,7 @@ export interface operations {
         content?: never;
       };
       400: components["responses"]["ValidationError"];
+      403: components["responses"]["Forbidden"];
     };
   };
   finalizeAdminLogin: {
@@ -1286,7 +1711,9 @@ export interface operations {
         };
         content?: never;
       };
+      400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   logoutAdmin: {
@@ -1305,7 +1732,7 @@ export interface operations {
         };
         content?: never;
       };
-      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   getCurrentAdmin: {
@@ -1330,6 +1757,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   whoAmI: {
@@ -1356,6 +1784,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   listAdminSessions: {
@@ -1390,6 +1819,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   revokeAdminSession: {
@@ -1415,7 +1845,9 @@ export interface operations {
         };
         content?: never;
       };
+      400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   startRecipientOtp: {
@@ -1441,6 +1873,7 @@ export interface operations {
         };
         content?: never;
       };
+      400: components["responses"]["ValidationError"];
       404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
     };
@@ -1469,6 +1902,7 @@ export interface operations {
         };
         content?: never;
       };
+      400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
       429: components["responses"]["RateLimited"];
     };
@@ -1489,7 +1923,6 @@ export interface operations {
         };
         content?: never;
       };
-      401: components["responses"]["Unauthorized"];
     };
   };
   startCliDeviceAuth: {
@@ -1544,6 +1977,7 @@ export interface operations {
         };
         content?: never;
       };
+      400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
     };
@@ -1581,6 +2015,7 @@ export interface operations {
           "application/json": components["schemas"]["DevicePollPending"];
         };
       };
+      400: components["responses"]["ValidationError"];
       429: components["responses"]["RateLimited"];
     };
   };
@@ -1667,6 +2102,7 @@ export interface operations {
         };
         content?: never;
       };
+      400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
     };
   };
@@ -1735,6 +2171,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   uploadFile: {
@@ -1754,14 +2191,28 @@ export interface operations {
           metadata?: {
             [key: string]: string;
           };
+          overwrite?: boolean;
         };
       };
     };
     responses: {
+      /** @description Updated (overwrite) */
+      200: {
+        headers: {
+          ETag?: string;
+          Location?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["File"];
+        };
+      };
       /** @description Created */
       201: {
         headers: {
           ETag?: string;
+          /** @description URL of the created resource */
+          Location?: string;
           [name: string]: unknown;
         };
         content: {
@@ -1770,6 +2221,8 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
     };
   };
   createUploadUrl: {
@@ -1783,7 +2236,10 @@ export interface operations {
       content: {
         "application/json": {
           key: string;
+          /** @description sha256 hash of the content (hex) */
+          sha256: string;
           contentType?: string;
+          size?: number;
           metadata?: {
             [key: string]: string;
           };
@@ -1807,11 +2263,79 @@ export interface operations {
             };
             /** Format: date-time */
             expiresAt: string;
+            tempKey: string;
+            /** Format: uuid */
+            reservationId: string;
           };
         };
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      /** @description Not Implemented — presigned uploads not supported by this driver */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
+  commitUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json":
+          | {
+              key?: string;
+              tempKey?: string;
+              /** Format: uuid */
+              reservationId?: string;
+              metadata?: {
+                [key: string]: string;
+              };
+              contentType?: string;
+              originalName?: string;
+              overwrite?: boolean;
+            }
+          | unknown
+          | unknown;
+      };
+    };
+    responses: {
+      /** @description Updated (overwrite) */
+      200: {
+        headers: {
+          ETag?: string;
+          Location?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["File"];
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          ETag?: string;
+          Location?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["File"];
+        };
+      };
+      400: components["responses"]["ValidationError"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
     };
   };
   getFile: {
@@ -1835,6 +2359,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
     };
   };
@@ -1857,6 +2382,7 @@ export interface operations {
         content?: never;
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   moveFile: {
@@ -1885,6 +2411,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   updateFileMetadata: {
@@ -1915,6 +2442,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   deleteFilesBatch: {
@@ -1941,6 +2469,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   moveFilesBatch: {
@@ -1971,6 +2500,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      409: components["responses"]["Conflict"];
     };
   };
   downloadFile: {
@@ -2024,6 +2554,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   createBundle: {
@@ -2053,6 +2584,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   getBundle: {
@@ -2076,6 +2608,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
     };
   };
@@ -2098,6 +2631,7 @@ export interface operations {
         content?: never;
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   updateBundle: {
@@ -2127,6 +2661,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   listBundleObjects: {
@@ -2158,6 +2693,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   attachBundleObjects: {
@@ -2204,6 +2740,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   deleteBundleObject: {
@@ -2226,6 +2763,7 @@ export interface operations {
         content?: never;
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   updateBundleObject: {
@@ -2257,6 +2795,64 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  listBundleVersions: {
+    parameters: {
+      query?: {
+        /** @description Page size */
+        limit?: components["parameters"]["Limit"];
+        /** @description Continuation cursor for pagination */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        bundleId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Versions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["ChangeLogVersion"][];
+            nextCursor?: string;
+          };
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  getBundleVersion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        bundleId: string;
+        version: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Materialized bundle at version */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangeLogMaterialized"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      404: components["responses"]["NotFound"];
     };
   };
   listRecipients: {
@@ -2287,6 +2883,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   createRecipient: {
@@ -2301,7 +2898,7 @@ export interface operations {
         "application/json": {
           /** Format: email */
           email: string;
-          displayName?: string;
+          name?: string;
         };
       };
     };
@@ -2317,6 +2914,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   getRecipient: {
@@ -2340,6 +2938,65 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+    };
+  };
+  listRecipientVersions: {
+    parameters: {
+      query?: {
+        /** @description Page size */
+        limit?: components["parameters"]["Limit"];
+        /** @description Continuation cursor for pagination */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        recipientId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Versions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["ChangeLogVersion"][];
+            nextCursor?: string;
+          };
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  getRecipientVersion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        recipientId: string;
+        version: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Materialized recipient at version */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangeLogMaterialized"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
     };
   };
@@ -2401,6 +3058,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   detachRecipientFromBundle: {
@@ -2603,7 +3261,19 @@ export interface operations {
   };
   listPlugins: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Free-text match against name, description, author */
+        q?: string;
+        /** @description Only plugins that have at least one capability of this kind */
+        kind?: "TRIGGER" | "ACTION";
+        /** @description Substring match against capability key */
+        capabilityKey?: string;
+        /** @description Only plugins with at least one enabled capability */
+        enabled?: boolean;
+        limit?: number;
+        /** @description Opaque pagination cursor */
+        cursor?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -2623,6 +3293,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   uninstallPlugin: {
@@ -2644,6 +3315,7 @@ export interface operations {
         content?: never;
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   installPlugin: {
@@ -2671,11 +3343,21 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   listCapabilities: {
     parameters: {
-      query?: never;
+      query?: {
+        kind?: "TRIGGER" | "ACTION";
+        /** @description Substring match against capability key */
+        key?: string;
+        pluginId?: string;
+        enabled?: boolean;
+        limit?: number;
+        /** @description Opaque pagination cursor */
+        cursor?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -2695,6 +3377,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   listTriggers: {
@@ -2724,6 +3407,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   createTrigger: {
@@ -2736,9 +3420,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          capabilityKey: string;
+          name: string;
+          /** Format: uuid */
+          capabilityId: string;
           config: Record<string, never>;
-          enabled?: boolean;
         };
       };
     };
@@ -2754,27 +3439,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
-    };
-  };
-  deleteTrigger: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Deleted */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   updateTrigger: {
@@ -2789,8 +3454,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          name?: string;
           config?: Record<string, never>;
-          enabled?: boolean;
         };
       };
     };
@@ -2804,6 +3469,64 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  listTriggerVersions: {
+    parameters: {
+      query?: {
+        /** @description Page size */
+        limit?: components["parameters"]["Limit"];
+        /** @description Continuation cursor for pagination */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Versions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["ChangeLogVersion"][];
+            nextCursor?: string;
+          };
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  getTriggerVersion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        version: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Materialized trigger definition at version */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangeLogMaterialized"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      404: components["responses"]["NotFound"];
     };
   };
   listActions: {
@@ -2833,6 +3556,7 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   createAction: {
@@ -2845,9 +3569,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          capabilityKey: string;
+          name: string;
+          /** Format: uuid */
+          capabilityId: string;
           config: Record<string, never>;
-          enabled?: boolean;
         };
       };
     };
@@ -2863,27 +3588,7 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
-    };
-  };
-  deleteAction: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Deleted */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   updateAction: {
@@ -2898,8 +3603,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          name?: string;
           config?: Record<string, never>;
-          enabled?: boolean;
         };
       };
     };
@@ -2913,6 +3618,65 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  listActionVersions: {
+    parameters: {
+      query?: {
+        /** @description Page size */
+        limit?: components["parameters"]["Limit"];
+        /** @description Continuation cursor for pagination */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Versions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["ChangeLogVersion"][];
+            nextCursor?: string;
+          };
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  getActionVersion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        version: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Materialized action definition at version */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangeLogMaterialized"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
     };
   };
   listPipelines: {
@@ -2936,12 +3700,13 @@ export interface operations {
         };
         content: {
           "application/json": {
-            items: components["schemas"]["TriggerAction"][];
+            items: components["schemas"]["Pipeline"][];
             nextCursor?: string;
           };
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   createPipeline: {
@@ -2954,12 +3719,9 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          /** Format: uuid */
-          triggerId: string;
-          /** Format: uuid */
-          actionId: string;
-          sortOrder?: number;
-          enabled?: boolean;
+          name: string;
+          description?: string;
+          isEnabled?: boolean;
         };
       };
     };
@@ -2970,11 +3732,12 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TriggerAction"];
+          "application/json": components["schemas"]["Pipeline"];
         };
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   deletePipeline: {
@@ -2996,6 +3759,7 @@ export interface operations {
         content?: never;
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
   updatePipeline: {
@@ -3010,8 +3774,9 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          sortOrder?: number;
-          enabled?: boolean;
+          name?: string;
+          description?: string;
+          isEnabled?: boolean;
         };
       };
     };
@@ -3025,6 +3790,297 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  listPipelineSteps: {
+    parameters: {
+      query?: {
+        /** @description Page size */
+        limit?: components["parameters"]["Limit"];
+        /** @description Continuation cursor for pagination */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        pipelineId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Pipeline steps */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["PipelineStep"][];
+            nextCursor?: string;
+          };
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  addPipelineStep: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pipelineId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          actionId: string;
+          sortOrder?: number;
+          isEnabled?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PipelineStep"];
+        };
+      };
+      400: components["responses"]["ValidationError"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  deletePipelineStep: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pipelineId: string;
+        stepId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  updatePipelineStep: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pipelineId: string;
+        stepId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          sortOrder?: number;
+          isEnabled?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components["responses"]["ValidationError"];
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  listPipelineTriggers: {
+    parameters: {
+      query?: {
+        /** @description Page size */
+        limit?: components["parameters"]["Limit"];
+        /** @description Continuation cursor for pagination */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        pipelineId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Pipeline triggers */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["PipelineTrigger"][];
+            nextCursor?: string;
+          };
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  addPipelineTrigger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pipelineId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          triggerId: string;
+          sortOrder?: number;
+          isEnabled?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PipelineTrigger"];
+        };
+      };
+      400: components["responses"]["ValidationError"];
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  deletePipelineTrigger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pipelineId: string;
+        triggerId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  updatePipelineTrigger: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        pipelineId: string;
+        triggerId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          sortOrder?: number;
+          isEnabled?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components["responses"]["ValidationError"];
+      401: components["responses"]["Unauthorized"];
+    };
+  };
+  listPipelineVersions: {
+    parameters: {
+      query?: {
+        /** @description Page size */
+        limit?: components["parameters"]["Limit"];
+        /** @description Continuation cursor for pagination */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Versions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["ChangeLogVersion"][];
+            nextCursor?: string;
+          };
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+    };
+  };
+  getPipelineVersion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        version: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Materialized pipeline at version */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangeLogMaterialized"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      404: components["responses"]["NotFound"];
     };
   };
   listUsers: {
@@ -3055,9 +4111,52 @@ export interface operations {
         };
       };
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
     };
   };
-  updateUserRoles: {
+  inviteUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /**
+           * Format: email
+           * @description Email address of the invitee
+           */
+          email: string;
+          /**
+           * @description Role to assign to the user. Defaults to EXECUTOR.
+           * @enum {string}
+           */
+          role?: "ADMIN" | "EXECUTOR";
+        };
+      };
+    };
+    responses: {
+      /** @description Invitation created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @description Magic-link callback URL usable by the invitee */
+            login_url?: string;
+          };
+        };
+      };
+      400: components["responses"]["ValidationError"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  revokeUserAccess: {
     parameters: {
       query?: never;
       header?: never;
@@ -3066,15 +4165,18 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody: {
+    requestBody?: {
       content: {
         "application/json": {
-          roles: string[];
+          /** @default true */
+          sessions?: boolean;
+          /** @default true */
+          tokens?: boolean;
         };
       };
     };
     responses: {
-      /** @description Updated */
+      /** @description Revoked */
       204: {
         headers: {
           [name: string]: unknown;
@@ -3083,6 +4185,8 @@ export interface operations {
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
     };
   };
 }

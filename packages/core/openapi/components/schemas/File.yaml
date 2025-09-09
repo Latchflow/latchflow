@@ -8,7 +8,9 @@ properties:
     type: object
     additionalProperties:
       type: string
-  # etag derived from contentHash field in the database
+  # storage-native ETag (opaque; e.g., S3 ETag)
   etag: { type: string }
+  # content hash (sha256 hex)
+  contentHash: { type: string }
   updatedAt: { type: string, format: date-time }
 required: [id, key, size, contentType, updatedAt]

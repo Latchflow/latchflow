@@ -34,4 +34,5 @@ export const prisma = {
   plugin: mkModel(),
   pluginCapability: mkModel(),
   file: mkModel(),
+  fileUploadReservation: mkModel(),
 };

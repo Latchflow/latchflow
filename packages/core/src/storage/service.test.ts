@@ -38,7 +38,7 @@ describe("storage service", () => {
     expect(link.expiresAt).toBeTruthy();
   });
 
-  it("provides file-level helpers with content-addressed keys and etag", async () => {
+  it("provides file-level helpers with content-addressed keys and etags", async () => {
     const driver = await createMemoryStorage({ config: null });
     const svc = createStorageService({ driver, bucket: "bkt", keyPrefix: "pref" });
     const buf = Buffer.from("hello-world");
@@ -46,7 +46,8 @@ describe("storage service", () => {
     const put1 = await svc.putFile({ body: buf, contentType: "text/plain" });
     expect(put1.storageKey.startsWith("pref/objects/sha256/")).toBe(true);
     expect(put1.size).toBe(buf.length);
-    expect(put1.etag).toHaveLength(64);
+    expect(put1.sha256).toHaveLength(64);
+    expect(put1.storageEtag).toBeTruthy();
 
     const head1 = await svc.headFile(put1.storageKey);
     expect(head1.size).toBe(buf.length);
@@ -55,7 +56,7 @@ describe("storage service", () => {
     // duplicate upload should yield same key
     const put2 = await svc.putFile({ body: Readable.from(buf), contentType: "text/plain" });
     expect(put2.storageKey).toBe(put1.storageKey);
-    expect(put2.etag).toBe(put1.etag);
+    expect(put2.sha256).toBe(put1.sha256);
 
     // get stream and check bytes
     const rs = await svc.getFileStream(put1.storageKey);
