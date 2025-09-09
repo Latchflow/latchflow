@@ -1,26 +1,30 @@
 **Testing Overview**
-- Goal: fast, reliable tests with no external dependencies and clear conventions across all workspaces.
-- Tools: Vitest for unit/integration tests; MSW-based shared testkit for HTTP-layer mocking; Docker services (Postgres, MinIO, MailHog) for E2E when needed.
+- Goal: fast, reliable tests with no external dependencies beyond local containers and clear conventions across all workspaces.
+- Tools: Vitest for unit/integration/e2e tests; MSW-based shared testkit for HTTP-layer mocking; Testcontainers (Postgres, MinIO, MailHog) for E2E when needed.
 
 **Conventions**
-- Unit tests: place next to the code they cover using `*.test.ts`. Use a single test file per source file with the same basename. Example: `src/foo/util.ts` → `src/foo/util.test.ts`. Do not split tests for a single module across multiple files.
-- Integration tests: place under a top‑level `tests/` directory inside each package (repo‑wide convention). Use this for multi‑module flows and route/adapter level tests.
-- Global setup (Core): `packages/core/src/test/setup.ts` is reserved for bootstrap only (e.g., virtual mocks). Do not add tests under `src/test`.
-- No external network calls: mock everything (use MSW/fixtures for HTTP and in-memory/test doubles for other IO).
+- Unit tests (colocated): `src/**/<module>.test.ts` — one test file per module.
+- All shared setup/helpers/fixtures: `packages|apps/*/tests/` (keep `src` for production code only).
+- Global setup per workspace: `tests/setup/global.ts` (registered in Vitest config).
+- Integration tests: `tests/integration/**/*.test.ts`.
+- E2E tests: `tests/e2e/**/*.e2e.test.ts` (use Testcontainers; no external network).
+- Import helpers from `tests` via the `@tests` alias (provided by Vitest alias; optional per‑package `tsconfig.test.json` can add editor path mapping).
 - Run everything from repo root: `pnpm -r test` (workspace-aware).
 
 **Running Tests**
 - All workspaces: `pnpm -r test`
 - Lint before commit: `pnpm -r lint`
-- Core:
-  - All: `pnpm core:test`
-  - Unit only: `pnpm core:test:unit`
-  - Integration only: `pnpm core:test:integration`
+- Per package (example):
+  - All: `pnpm -F core test`
+  - Unit only: `pnpm -F core test:unit`
+  - Integration only: `pnpm -F core test:integration`
+  - E2E only: `pnpm -F core test:e2e`
 
 **Local Services For E2E**
-- Start dev dependencies: `docker compose up -d` (Postgres, MinIO, MailHog)
-- Environment: copy `.env.defaults` to `.env` where needed; tests may read from `.env.defaults` via project scripts.
-- Rule of thumb: prefer unit/integration tests without containers; reach for E2E only when exercising real persistence/storage flows is essential.
+- Preferred: let tests start containers on demand using Testcontainers.
+- Alternative (manual): `docker compose up -d` (Postgres, MinIO, MailHog) for local debugging.
+- Environment: copy `.env.defaults` to `.env` where needed; E2E tests should configure services programmatically.
+- Rule of thumb: prefer unit/integration tests without containers; use E2E when exercising real persistence/storage flows is essential.
 
 **Shared Testkit**
 - Location: `packages/testkit/*` (e.g., `@latchflow/testkit-msw-handlers`).
@@ -38,7 +42,7 @@
 
 **Core Service Tests**
 - Unit tests live in `packages/core/src/**/*.test.ts`.
-- A minimal virtual mock for `@latchflow/db` is provided in `packages/core/src/test/setup.ts` to prevent accidental DB resolution in unit tests; integration/E2E can replace it with a real client as needed.
+- Global setup moves to `packages/core/tests/setup/global.ts` and can provide virtual mocks for unit tests (e.g., `@latchflow/db`) while E2E swaps to real clients via Testcontainers.
 - History/Audit helpers (examples): `src/history/*.test.ts` exercise canonical serialization, ChangeLog materialization, and snapshot cadence. Keep IO mocked unless explicitly testing DB migrations or storage.
 
 **CLI Tests (apps/cli)**
@@ -78,10 +82,11 @@
 
 **CI Considerations**
 - Run `pnpm -r lint` and `pnpm -r test`.
-- For E2E that require containers, start Docker services before the test step.
-- Keep test output deterministic; default to MSW for network to avoid flakiness.
+- Ensure CI runners have Docker available for Testcontainers.
+- Type-checking: root TypeScript config excludes tests; rely on Vitest for test-time type checking or add optional per‑package `tsconfig.test.json`.
+- Keep test output deterministic; default to MSW for network in unit/integration; E2E uses local containers only.
 
 **FAQ**
-- Where do I put a test-wide mock or polyfill? Use the workspace’s setup file (e.g., Core’s `src/test/setup.ts`).
+- Where do I put a test-wide mock or polyfill? Use the workspace’s `tests/setup/global.ts`.
 - How do I add a new scenario to the testkit? Add it under `packages/testkit` and publish it for all apps; avoid duplicating scenarios across apps.
 - Can I add snapshot tests? Yes, but prefer specific assertions for logic-heavy code; snapshot rendering for UI is OK if stable.

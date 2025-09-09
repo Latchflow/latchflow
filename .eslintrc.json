@@ -25,6 +25,23 @@
       "rules": {
         "@typescript-eslint/no-explicit-any": "off"
       }
+    },
+    {
+      "files": ["packages/**/src/**/*.ts", "apps/**/src/**/*.ts"],
+      "excludedFiles": ["**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@tests",
+                "message": "Do not import tests-only helpers from production code."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
