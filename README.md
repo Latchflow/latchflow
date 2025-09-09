@@ -164,16 +164,19 @@ Tips
 
 ## Security & Testing
 - Never embed secrets; always use environment variables.
-- Tests use Vitest; no external network calls.
+- Tests use Vitest; no external network calls. E2E tests may use local containers via Testcontainers.
 - Testing conventions (repo‑wide):
   - Unit tests live next to the code they cover (e.g., `src/foo/bar.test.ts`). One test file per module.
-  - Integration tests live under `tests/` at the package root (e.g., `packages/core/tests/...`). Use these for multi‑module flows.
-  - The `src/test` directory is reserved for setup/bootstrap only; do not place tests there.
-  - Each package with integration tests should have a package‑level `vitest.config.ts` that includes both `src/**/*.test.ts` and `tests/**/*.test.ts` and defines any required aliases (Core maps `@latchflow/db` to its Prisma mock).
-  - Core package scripts:
-    - `pnpm core:test` — run all Core tests (unit + integration)
-    - `pnpm core:test:unit` — unit tests only (`src/**/*.test.ts`)
-    - `pnpm core:test:integration` — integration tests only (`tests/**/*.test.ts`)
+  - All shared test setup/helpers/fixtures live under `packages|apps/*/tests/`.
+  - Global setup per workspace: `tests/setup/global.ts` (registered via Vitest config).
+  - Integration tests: `tests/integration/**/*.test.ts` at the package root.
+  - E2E tests: `tests/e2e/**/*.e2e.test.ts` (use Testcontainers for Postgres, MinIO, MailHog).
+  - Each package should have a `vitest.config.ts` that includes both `src/**/*.test.ts` and `tests/**/*.test.ts`, registers setup, and defines aliases, including `@tests` → `./tests`.
+  - Example Core scripts:
+    - `pnpm -F core test` — run all Core tests
+    - `pnpm -F core test:unit` — unit tests only (`src/**/*.test.ts`)
+    - `pnpm -F core test:integration` — integration tests only (`tests/integration/**/*.test.ts`)
+    - `pnpm -F core test:e2e` — E2E tests only (`tests/e2e/**/*.e2e.test.ts`)
   - Repo‑wide runs: `pnpm -r test` (all packages).
 
 ## AuthN vs AuthZ (Current)
