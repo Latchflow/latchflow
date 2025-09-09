@@ -163,12 +163,13 @@ describe("storage/s3", () => {
     });
     expect(res?.headers?.["x-amz-checksum-sha256"]).toBe(expectedB64);
     // Inspect the command passed to presigner to ensure ChecksumSHA256 set
-    const call = getSignedUrl.mock.calls.find((c) => c?.[1]?.input) as unknown as [
+    const firstCall = getSignedUrl.mock.calls[0] as unknown as [
       unknown,
-      { input: Record<string, unknown> },
+      { input?: Record<string, unknown> },
       unknown,
     ];
-    expect(call?.[1]?.input?.ChecksumSHA256).toBe(expectedB64);
-    expect(call?.[1]?.input?.ContentType).toBe("text/plain");
+    const input = firstCall?.[1]?.input ?? {};
+    expect((input as any).ChecksumSHA256).toBe(expectedB64);
+    expect((input as any).ContentType).toBe("text/plain");
   });
 });

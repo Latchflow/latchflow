@@ -77,8 +77,7 @@ users_invite:
       '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
-      '409':
-        description: Invite not allowed (e.g., last-admin constraints)
+      '409': { $ref: ../components/responses/Conflict.yaml }
 
 users_revoke:
   post:
@@ -113,5 +112,4 @@ users_revoke:
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
-      '409':
-        description: Cannot revoke access in a way that leaves zero admins in the system
+      '409': { $ref: ../components/responses/Conflict.yaml }

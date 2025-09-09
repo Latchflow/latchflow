@@ -82,11 +82,7 @@ files_upload:
         content:
           application/json:
             schema: { $ref: ../components/schemas/File.yaml }
-      '409':
-        description: Conflict — logical key already exists
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/Error.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
@@ -210,11 +206,7 @@ files_commit:
         content:
           application/json:
             schema: { $ref: ../components/schemas/File.yaml }
-      '409':
-        description: Conflict — logical key already exists
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/Error.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
@@ -391,10 +383,6 @@ files_batch_move:
             required: [items]
     responses:
       '204': { description: Moved }
-      '409':
-        description: Conflict — one or more new keys already exist
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/Error.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
