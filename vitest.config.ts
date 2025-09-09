@@ -10,7 +10,7 @@ export default defineConfig({
         find: /^@latchflow\/db$/,
         replacement: path.join(
           fileURLToPath(new URL("./", import.meta.url)),
-          "packages/core/src/test/prisma-mock.ts",
+          "packages/core/tests/helpers/prisma-mock.ts",
         ),
       },
     ],

@@ -86,6 +86,7 @@ pnpm -r test
   - Register `tests/setup/global.ts` as `setupFiles` (if present).
   - Add `@tests` alias pointing to `./tests` for clean imports from unit tests.
   - Map additional aliases/mocks as needed (e.g., Core may map `@latchflow/db` to a Prisma mock for unit tests).
+- TypeScript: repo‑level typecheck excludes tests; if you want IDE path resolution for `@tests`, add a per‑package `tsconfig.test.json` with `paths: { '@tests/*': ['./tests/*'] }` and configure your editor to use it for tests.
 - All tests must be runnable with `pnpm -r test` from the repo root.
 - Mock S3/email in unit/integration tests; E2E uses local containers only.
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { HttpHandler, RequestLike, ResponseLike } from "../http/http-server.js";
 
-// Use the prisma mock via direct import (same instance as alias target)
-import { prisma } from "../test/prisma-mock.js";
+// Use the prisma mock via the @latchflow/db alias (mapped to tests/helpers/prisma-mock.ts in Vitest)
+import { prisma } from "@latchflow/db";
 
 // Mock require-session used by requirePermission so cookie path works in tests
 vi.mock("./require-session.js", () => ({

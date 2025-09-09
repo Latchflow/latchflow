@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:unit": "vitest run src",
     "test:integration": "vitest run tests",
+    "test:e2e": "vitest run tests/e2e",
     "lint": "eslint '{src,tests}/**/*.ts'"
   },
   "dependencies": {

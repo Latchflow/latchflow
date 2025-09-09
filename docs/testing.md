@@ -8,7 +8,7 @@
 - Global setup per workspace: `tests/setup/global.ts` (registered in Vitest config).
 - Integration tests: `tests/integration/**/*.test.ts`.
 - E2E tests: `tests/e2e/**/*.e2e.test.ts` (use Testcontainers; no external network).
-- Import helpers from `tests` via the `@tests` alias.
+- Import helpers from `tests` via the `@tests` alias (provided by Vitest alias; optional per‑package `tsconfig.test.json` can add editor path mapping).
 - Run everything from repo root: `pnpm -r test` (workspace-aware).
 
 **Running Tests**
@@ -83,6 +83,7 @@
 **CI Considerations**
 - Run `pnpm -r lint` and `pnpm -r test`.
 - Ensure CI runners have Docker available for Testcontainers.
+- Type-checking: root TypeScript config excludes tests; rely on Vitest for test-time type checking or add optional per‑package `tsconfig.test.json`.
 - Keep test output deterministic; default to MSW for network in unit/integration; E2E uses local containers only.
 
 **FAQ**
