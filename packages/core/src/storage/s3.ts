@@ -5,6 +5,11 @@ import type { StorageDriver, StorageFactory } from "./types.js";
 type S3Deps = {
   region?: string;
   endpoint?: string;
+  // Optional alternate endpoint used only for presigned URLs returned to clients.
+  // Useful when the server runs inside Docker and needs an internal hostname
+  // (e.g., http://minio:9000) while browsers/Postman on the host must use
+  // localhost:9000. If not provided, falls back to `endpoint`.
+  presignEndpoint?: string;
   forcePathStyle?: boolean;
   accessKeyId?: string;
   secretAccessKey?: string;
@@ -54,9 +59,24 @@ async function importPresignModule(): Promise<{
   }
 }
 
-async function makeClient(cfg: S3Deps): Promise<{ client: S3ClientLike; mod: S3ModuleLike }> {
-  const mod = await importClientModule();
-  if (!mod || typeof mod.S3Client !== "function") throw new Error("AWS SDK for S3 not installed");
+// async function makeClient(cfg: S3Deps): Promise<{ client: S3ClientLike; mod: S3ModuleLike }> {
+//   const mod = await importClientModule();
+//   if (!mod || typeof mod.S3Client !== "function") throw new Error("AWS SDK for S3 not installed");
+//   const creds: Record<string, unknown> =
+//     cfg.accessKeyId && cfg.secretAccessKey
+//       ? { credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey } }
+//       : {};
+//   const endpoint: Record<string, unknown> = cfg.endpoint ? { endpoint: cfg.endpoint } : {};
+//   const forcePathStyle: Record<string, unknown> = cfg.forcePathStyle
+//     ? { forcePathStyle: true }
+//     : {};
+//   const region: Record<string, unknown> = { region: cfg.region ?? "us-east-1" };
+//   const Ctor = mod.S3Client as Ctor<S3ClientLike>;
+//   const client = new Ctor({ ...region, ...endpoint, ...forcePathStyle, ...creds });
+//   return { client, mod };
+// }
+
+function makeClientWithModule(mod: S3ModuleLike, cfg: S3Deps & { endpoint?: string }) {
   const creds: Record<string, unknown> =
     cfg.accessKeyId && cfg.secretAccessKey
       ? { credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey } }
@@ -68,7 +88,7 @@ async function makeClient(cfg: S3Deps): Promise<{ client: S3ClientLike; mod: S3M
   const region: Record<string, unknown> = { region: cfg.region ?? "us-east-1" };
   const Ctor = mod.S3Client as Ctor<S3ClientLike>;
   const client = new Ctor({ ...region, ...endpoint, ...forcePathStyle, ...creds });
-  return { client, mod };
+  return client;
 }
 
 function b64ToHex(b64: string | undefined): string | undefined {
@@ -79,6 +99,16 @@ function b64ToHex(b64: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+function hexToB64(hex: string | undefined): string | undefined {
+  if (!hex) return undefined;
+  const clean = hex.trim().toLowerCase();
+  if (/^[0-9a-f]{64}$/.test(clean)) {
+    const buf = Buffer.from(clean, "hex");
+    return buf.toString("base64");
+  }
+  // If already base64-ish, return as-is
+  return hex;
 }
 
 async function ensureBucket(
@@ -116,18 +146,25 @@ export const createS3Storage: StorageFactory = async ({ config }) => {
   const top = (config as Record<string, unknown> | null) ?? {};
   const nested = (top["config"] as Record<string, unknown> | null) ?? null;
   const cfg = { ...(nested ?? {}), ...(top ?? {}) } as unknown as S3Deps;
-  const { client, mod } = await makeClient(cfg);
+  const mod = await importClientModule();
+  if (!mod || typeof mod.S3Client !== "function") throw new Error("AWS SDK for S3 not installed");
+  // Two clients: one for internal server ops, one for presigning (public endpoint)
+  const internalClient = makeClientWithModule(mod, { ...cfg, endpoint: cfg.endpoint });
+  const presignClient = makeClientWithModule(mod, {
+    ...cfg,
+    endpoint: cfg.presignEndpoint ?? cfg.endpoint,
+  });
   const bucketEnsured = new Set<string>();
 
   const driver: StorageDriver = {
     async put({ bucket, key, body, contentType, metadata }) {
       if (cfg.ensureBucket && !bucketEnsured.has(bucket)) {
-        await ensureBucket(client, mod, bucket).catch(() => void 0);
+        await ensureBucket(internalClient, mod, bucket).catch(() => void 0);
         bucketEnsured.add(bucket);
       }
       const PutObjectCommand = mod.PutObjectCommand as Ctor<unknown> | undefined;
       if (!PutObjectCommand) throw new Error("S3 PutObjectCommand not available");
-      const res = (await client.send(
+      const res = (await internalClient.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: key,
@@ -142,7 +179,7 @@ export const createS3Storage: StorageFactory = async ({ config }) => {
     async getStream({ bucket, key, range }) {
       const GetObjectCommand = mod.GetObjectCommand as Ctor<unknown> | undefined;
       if (!GetObjectCommand) throw new Error("S3 GetObjectCommand not available");
-      const res = (await client.send(
+      const res = (await internalClient.send(
         new GetObjectCommand({
           Bucket: bucket,
           Key: key,
@@ -156,7 +193,7 @@ export const createS3Storage: StorageFactory = async ({ config }) => {
     async head({ bucket, key }) {
       const HeadObjectCommand = mod.HeadObjectCommand as Ctor<unknown> | undefined;
       if (!HeadObjectCommand) throw new Error("S3 HeadObjectCommand not available");
-      const res = (await client.send(
+      const res = (await internalClient.send(
         new HeadObjectCommand({ Bucket: bucket, Key: key }),
       )) as Record<string, unknown>;
       const size = Number(res.ContentLength ?? 0);
@@ -169,27 +206,51 @@ export const createS3Storage: StorageFactory = async ({ config }) => {
     async del({ bucket, key }) {
       const DeleteObjectCommand = mod.DeleteObjectCommand as Ctor<unknown> | undefined;
       if (!DeleteObjectCommand) throw new Error("S3 DeleteObjectCommand not available");
-      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      await internalClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
     async createSignedGetUrl({ bucket, key, expiresSeconds }) {
       const GetObjectCommand = mod.GetObjectCommand as Ctor<unknown> | undefined;
       const presigner = await importPresignModule();
       if (!GetObjectCommand || !presigner?.getSignedUrl)
         throw new Error("S3 presign get not available");
-      return presigner.getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
-        expiresIn: expiresSeconds,
-      });
+      return presigner.getSignedUrl(
+        presignClient,
+        new GetObjectCommand({ Bucket: bucket, Key: key }),
+        {
+          expiresIn: expiresSeconds,
+        },
+      );
     },
     async createSignedPutUrl({ bucket, key, contentType, expiresSeconds, headers }) {
       const PutObjectCommand = mod.PutObjectCommand as Ctor<unknown> | undefined;
       const presigner = await importPresignModule();
       if (!PutObjectCommand || !presigner?.getSignedUrl)
         throw new Error("S3 presign put not available");
-      const command = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
-      const url = await presigner.getSignedUrl(client, command, {
+      const checksumB64 = hexToB64(headers?.["x-amz-checksum-sha256"]);
+      // Extract metadata headers (x-amz-meta-*) into S3 Metadata map so the
+      // resulting presigned URL binds them and the object stores them.
+      const meta: Record<string, string> = {};
+      for (const [k, v] of Object.entries(headers ?? {})) {
+        if (k.toLowerCase().startsWith("x-amz-meta-")) {
+          const name = k.slice("x-amz-meta-".length);
+          if (name) meta[name] = String(v);
+        }
+      }
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: contentType,
+        ...(checksumB64 ? { ChecksumSHA256: checksumB64 } : {}),
+        ...(Object.keys(meta).length > 0 ? { Metadata: meta } : {}),
+      });
+      const url = await presigner.getSignedUrl(presignClient, command, {
         expiresIn: expiresSeconds ?? 900,
       });
-      return { url, headers };
+      const outHeaders: Record<string, string> = {};
+      if (contentType) outHeaders["content-type"] = contentType;
+      if (checksumB64) outHeaders["x-amz-checksum-sha256"] = checksumB64;
+      // Normalize by letting normalized headers override caller-provided ones
+      return { url, headers: { ...(headers ?? {}), ...outHeaders } };
     },
     async copyObject({ bucket, srcKey, destKey, metadata, contentType }) {
       const CopyObjectCommand = mod.CopyObjectCommand as Ctor<unknown> | undefined;
@@ -204,7 +265,10 @@ export const createS3Storage: StorageFactory = async ({ config }) => {
         if (metadata) params.Metadata = metadata as Record<string, string>;
         if (contentType) params.ContentType = contentType;
       }
-      const res = (await client.send(new CopyObjectCommand(params))) as Record<string, unknown>;
+      const res = (await internalClient.send(new CopyObjectCommand(params))) as Record<
+        string,
+        unknown
+      >;
       const copyRes = (res.CopyObjectResult ?? {}) as Record<string, unknown>;
       const etag = (copyRes.ETag as string | undefined)?.replace(/^"|"$/g, "");
       return { etag };

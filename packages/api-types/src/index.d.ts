@@ -396,6 +396,23 @@ export type paths = {
     patch?: never;
     trace?: never;
   };
+  "/files/commit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Finalize a presigned upload */
+    post: operations["commitUpload"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/files/{id}": {
     parameters: {
       query?: never;
@@ -1783,7 +1800,9 @@ export interface operations {
       content: {
         "application/json": {
           key: string;
+          sha256: string;
           contentType?: string;
+          size?: number;
           metadata?: {
             [key: string]: string;
           };
@@ -1807,11 +1826,61 @@ export interface operations {
             };
             /** Format: date-time */
             expiresAt: string;
+            tempKey: string;
+            reservationId: string;
           };
         };
       };
       400: components["responses"]["ValidationError"];
       401: components["responses"]["Unauthorized"];
+    };
+  };
+  commitUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          key: string;
+          tempKey?: string;
+          reservationId?: string;
+          metadata?: {
+            [key: string]: string;
+          };
+          contentType?: string;
+          originalName?: string;
+          overwrite?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          ETag?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["File"];
+        };
+      };
+      /** @description Updated (overwrite) */
+      200: {
+        headers: {
+          ETag?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["File"];
+        };
+      };
+      400: components["responses"]["ValidationError"];
+      401: components["responses"]["Unauthorized"];
+      409: components["responses"]["Conflict"];
     };
   };
   getFile: {

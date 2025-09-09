@@ -149,4 +149,26 @@ describe("storage/s3", () => {
     expect(put?.headers?.a).toBe("1");
     expect(getSignedUrl).toHaveBeenCalled();
   });
+
+  it("binds checksum header by converting hex to base64 for presigned PUT", async () => {
+    const { createS3Storage } = await import("./s3.js");
+    const driver = await createS3Storage({ config: {} });
+    const hex = "b".repeat(64);
+    const expectedB64 = Buffer.from(hex, "hex").toString("base64");
+    const res = await driver.createSignedPutUrl?.({
+      bucket: "b",
+      key: "k",
+      contentType: "text/plain",
+      headers: { "x-amz-checksum-sha256": hex },
+    });
+    expect(res?.headers?.["x-amz-checksum-sha256"]).toBe(expectedB64);
+    // Inspect the command passed to presigner to ensure ChecksumSHA256 set
+    const call = getSignedUrl.mock.calls.find((c) => c?.[1]?.input) as unknown as [
+      unknown,
+      { input: Record<string, unknown> },
+      unknown,
+    ];
+    expect(call?.[1]?.input?.ChecksumSHA256).toBe(expectedB64);
+    expect(call?.[1]?.input?.ContentType).toBe("text/plain");
+  });
 });

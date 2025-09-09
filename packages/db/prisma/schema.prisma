@@ -68,52 +68,53 @@ enum ChangeKind {
 ///////////////////////////
 
 model User {
-  id                  String               @id @default(uuid())
-  email               String               @unique
-  name                String?
-  displayName         String?
-  avatarUrl           String?
-  isActive            Boolean              @default(true)
-  deactivatedAt       DateTime?
-  role                UserRole             @default(EXECUTOR)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  actionInvocations   ActionInvocation[]
-  sessions            Session[]
-  magicLinks          MagicLink[]
-  apiTokens           ApiToken[]
-  deviceAuths         DeviceAuth[]
+  id                 String             @id @default(uuid())
+  email              String             @unique
+  name               String?
+  displayName        String?
+  avatarUrl          String?
+  isActive           Boolean            @default(true)
+  deactivatedAt      DateTime?
+  role               UserRole           @default(EXECUTOR)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  actionInvocations  ActionInvocation[]
+  sessions           Session[]
+  magicLinks         MagicLink[]
+  apiTokens          ApiToken[]
+  deviceAuths        DeviceAuth[]
   // Authorization v1 groundwork
-  permissionPresetId  String?
-  permissionPreset    PermissionPreset?    @relation(fields: [permissionPresetId], references: [id])
-  directPermissions   Json?
-  permissionsHash     String               @default("")
-  mfaEnabled          Boolean              @default(false)
-  mfaEnforced         Boolean              @default(false)
+  permissionPresetId String?
+  permissionPreset   PermissionPreset?  @relation(fields: [permissionPresetId], references: [id])
+  directPermissions  Json?
+  permissionsHash    String             @default("")
+  mfaEnabled         Boolean            @default(false)
+  mfaEnforced        Boolean            @default(false)
 
   // Back-relations for creator/updater across models
-  createdRecipients        Recipient[]         @relation("createdRecipients")
-  updatedRecipients        Recipient[]         @relation("updatedRecipients")
-  createdFiles             File[]              @relation("createdFiles")
-  updatedFiles             File[]              @relation("updatedFiles")
-  createdBundles           Bundle[]            @relation("createdBundles")
-  updatedBundles           Bundle[]            @relation("updatedBundles")
-  createdBundleObjects     BundleObject[]      @relation("createdBundleObjects")
-  updatedBundleObjects     BundleObject[]      @relation("updatedBundleObjects")
-  createdBundleAssignments BundleAssignment[]  @relation("createdBundleAssignments")
-  updatedBundleAssignments BundleAssignment[]  @relation("updatedBundleAssignments")
-  createdTriggers          TriggerDefinition[] @relation("createdTriggers")
-  updatedTriggers          TriggerDefinition[] @relation("updatedTriggers")
-  createdActions           ActionDefinition[]  @relation("createdActions")
-  updatedActions           ActionDefinition[]  @relation("updatedActions")
-  createdPipelines         Pipeline[]          @relation("createdPipelines")
-  updatedPipelines         Pipeline[]          @relation("updatedPipelines")
-  createdPipelineSteps     PipelineStep[]      @relation("createdPipelineSteps")
-  updatedPipelineSteps     PipelineStep[]      @relation("updatedPipelineSteps")
-  createdPipelineTriggers  PipelineTrigger[]   @relation("createdPipelineTriggers")
-  updatedPipelineTriggers  PipelineTrigger[]   @relation("updatedPipelineTriggers")
-  createdPermissionPresets PermissionPreset[]  @relation("createdPermissionPresets")
-  updatedPermissionPresets PermissionPreset[]  @relation("updatedPermissionPresets")
+  createdRecipients         Recipient[]             @relation("createdRecipients")
+  updatedRecipients         Recipient[]             @relation("updatedRecipients")
+  createdFiles              File[]                  @relation("createdFiles")
+  updatedFiles              File[]                  @relation("updatedFiles")
+  createdBundles            Bundle[]                @relation("createdBundles")
+  updatedBundles            Bundle[]                @relation("updatedBundles")
+  createdBundleObjects      BundleObject[]          @relation("createdBundleObjects")
+  updatedBundleObjects      BundleObject[]          @relation("updatedBundleObjects")
+  createdBundleAssignments  BundleAssignment[]      @relation("createdBundleAssignments")
+  updatedBundleAssignments  BundleAssignment[]      @relation("updatedBundleAssignments")
+  createdTriggers           TriggerDefinition[]     @relation("createdTriggers")
+  updatedTriggers           TriggerDefinition[]     @relation("updatedTriggers")
+  createdActions            ActionDefinition[]      @relation("createdActions")
+  updatedActions            ActionDefinition[]      @relation("updatedActions")
+  createdPipelines          Pipeline[]              @relation("createdPipelines")
+  updatedPipelines          Pipeline[]              @relation("updatedPipelines")
+  createdPipelineSteps      PipelineStep[]          @relation("createdPipelineSteps")
+  updatedPipelineSteps      PipelineStep[]          @relation("updatedPipelineSteps")
+  createdPipelineTriggers   PipelineTrigger[]       @relation("createdPipelineTriggers")
+  updatedPipelineTriggers   PipelineTrigger[]       @relation("updatedPipelineTriggers")
+  createdPermissionPresets  PermissionPreset[]      @relation("createdPermissionPresets")
+  updatedPermissionPresets  PermissionPreset[]      @relation("updatedPermissionPresets")
+  createdUploadReservations FileUploadReservation[] @relation("createdUploadReservations")
 
   // Back-relations for ChangeLog provenance
   changeLogsAsActorUser ChangeLog[] @relation("ChangeLogActorUser")
@@ -147,7 +148,7 @@ model File {
   storageKey  String   @unique
   contentHash String // e.g., sha256 hex (useful for ETag/dedup)
   // Provider-native ETag (opaque; S3 may not be MD5 for multipart)
-  etag       String?
+  etag        String?
   size        BigInt
   contentType String
   metadata    Json?
@@ -166,6 +167,24 @@ model File {
   @@index([updatedAt])
 }
 
+model FileUploadReservation {
+  id                   String    @id @default(uuid())
+  tempKey              String    @unique
+  desiredKey           String
+  sha256               String
+  requestedContentType String?
+  requestedSize        BigInt?
+  metadata             Json?
+  createdAt            DateTime  @default(now())
+  expiresAt            DateTime
+  consumedAt           DateTime?
+  createdBy            String
+
+  creator User @relation("createdUploadReservations", fields: [createdBy], references: [id])
+
+  @@index([expiresAt])
+}
+
 model Bundle {
   id            String             @id @default(uuid())
   name          String
@@ -179,8 +198,8 @@ model Bundle {
   createdBy     String
   updatedBy     String?
 
-  creator             User                 @relation("createdBundles", fields: [createdBy], references: [id])
-  updater             User?                @relation("updatedBundles", fields: [updatedBy], references: [id])
+  creator User  @relation("createdBundles", fields: [createdBy], references: [id])
+  updater User? @relation("updatedBundles", fields: [updatedBy], references: [id])
 }
 
 model BundleObject {
@@ -276,18 +295,18 @@ model PluginCapability {
 ///////////////////////////
 
 model TriggerDefinition {
-  id                  String               @id @default(uuid())
-  name                String
-  capabilityId        String
-  config              Json
-  pipelines           PipelineTrigger[]
-  events              TriggerEvent[]
-  isEnabled           Boolean              @default(true)
-  systemOwned         Boolean              @default(false)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  createdBy           String
-  updatedBy           String?
+  id           String            @id @default(uuid())
+  name         String
+  capabilityId String
+  config       Json
+  pipelines    PipelineTrigger[]
+  events       TriggerEvent[]
+  isEnabled    Boolean           @default(true)
+  systemOwned  Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  createdBy    String
+  updatedBy    String?
 
   creator    User             @relation("createdTriggers", fields: [createdBy], references: [id])
   updater    User?            @relation("updatedTriggers", fields: [updatedBy], references: [id])
@@ -341,8 +360,8 @@ model PermissionPreset {
   createdBy String
   updatedBy String?
 
-  creator User  @relation("createdPermissionPresets", fields: [createdBy], references: [id])
-  updater User? @relation("updatedPermissionPresets", fields: [updatedBy], references: [id])
+  creator User   @relation("createdPermissionPresets", fields: [createdBy], references: [id])
+  updater User?  @relation("updatedPermissionPresets", fields: [updatedBy], references: [id])
   users   User[]
 }
 
@@ -450,11 +469,11 @@ model PipelineStep {
   createdBy  String
   updatedBy  String?
 
-  creator                User               @relation("createdPipelineSteps", fields: [createdBy], references: [id])
-  updater                User?              @relation("updatedPipelineSteps", fields: [updatedBy], references: [id])
-  pipeline               Pipeline           @relation(fields: [pipelineId], references: [id])
-  action                 ActionDefinition   @relation(fields: [actionId], references: [id])
-  actionInvocations      ActionInvocation[]
+  creator           User               @relation("createdPipelineSteps", fields: [createdBy], references: [id])
+  updater           User?              @relation("updatedPipelineSteps", fields: [updatedBy], references: [id])
+  pipeline          Pipeline           @relation(fields: [pipelineId], references: [id])
+  action            ActionDefinition   @relation(fields: [actionId], references: [id])
+  actionInvocations ActionInvocation[]
 
   @@unique([pipelineId, sortOrder], map: "pipelinestep_sort_unique")
 }

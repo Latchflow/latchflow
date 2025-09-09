@@ -13,6 +13,11 @@ const db = {
     delete: vi.fn(async (): Promise<any> => ({})),
     deleteMany: vi.fn(async (): Promise<any> => ({})),
   },
+  fileUploadReservation: {
+    create: vi.fn(async (..._args: any[]) => ({})),
+    findUnique: vi.fn(async (..._args: any[]) => null),
+    update: vi.fn(async (..._args: any[]) => ({})),
+  },
   apiToken: {
     findUnique: vi.fn(async (): Promise<any> => null),
     update: vi.fn(async (): Promise<any> => ({})),
@@ -89,6 +94,7 @@ describe("files admin routes", () => {
   beforeEach(() => {
     // Clear call history but keep default async implementations
     Object.values(db.file).forEach((fn: any) => fn?.mockClear?.());
+    Object.values(db.fileUploadReservation).forEach((fn: any) => fn?.mockClear?.());
   });
 
   it("GET /files lists files", async () => {
@@ -345,5 +351,302 @@ describe("files admin routes", () => {
     );
     expect(rc.status).toBe(409);
     expect(rc.body?.code).toBe("CONFLICT");
+  });
+
+  it("POST /files/upload-url returns 501 when driver lacks presign support", async () => {
+    // Use memory storage (no presign)
+    const driver = await createMemoryStorage({ config: null } as any);
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/upload-url")!;
+    const rc = resCapture();
+    await h(
+      {
+        headers: {},
+        body: { key: "k1", sha256: "a".repeat(64), contentType: "text/plain" },
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(501);
+    expect(rc.body?.code).toBe("NOT_IMPLEMENTED");
+  });
+
+  it("POST /files/upload-url creates reservation and returns presigned URL when supported", async () => {
+    // Fake driver with presign support
+    const driver = {
+      put: vi.fn(),
+      getStream: vi.fn(),
+      head: vi.fn(),
+      del: vi.fn(),
+      createSignedPutUrl: vi.fn(async ({ key, contentType }) => ({
+        url: `https://signed/${key}`,
+        headers: { "content-type": contentType!, "x-amz-checksum-sha256": "abc" },
+      })),
+    } as any;
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/upload-url")!;
+    const rc = resCapture();
+    await h(
+      {
+        headers: {},
+        body: { key: "k1", sha256: "b".repeat(64), contentType: "text/plain" },
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(201);
+    expect(db.fileUploadReservation.create).toHaveBeenCalled();
+    expect(rc.body?.url).toContain("https://signed/");
+    expect(rc.body?.tempKey).toMatch(/^p\/tmp\/uploads\//);
+    expect(rc.body?.reservationId).toBeTruthy();
+  });
+
+  it("POST /files/commit finalizes upload, verifies checksum, and creates File", async () => {
+    const sha = "c".repeat(64);
+    const tempKey = "p/tmp/uploads/uuid-1";
+    const reservationId = "11111111-1111-1111-1111-111111111111";
+    // Fake driver that supports head/copy/del
+    const driver = {
+      put: vi.fn(),
+      getStream: vi.fn(),
+      head: vi.fn(async () => ({
+        size: 10,
+        contentType: "text/plain",
+        checksumSha256Hex: sha,
+        metadata: {},
+      })),
+      del: vi.fn(async () => {}),
+      copyObject: vi.fn(async () => ({ etag: "etag-123" })),
+    } as any;
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    // Mock reservation lookup
+    (db.fileUploadReservation.findUnique as any).mockResolvedValueOnce({
+      id: reservationId,
+      tempKey,
+      desiredKey: "k-final",
+      sha256: sha,
+      requestedContentType: "text/plain",
+      requestedSize: BigInt(10),
+      metadata: { tag: "x" },
+      createdBy: "u1",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: null,
+    });
+    // Mock file create select shape
+    (db.file.create as any).mockResolvedValueOnce({
+      id: "f-new",
+      key: "k-final",
+      size: BigInt(10),
+      contentType: "text/plain",
+      metadata: { tag: "x" },
+      contentHash: sha,
+      etag: "etag-123",
+      updatedAt: new Date().toISOString(),
+    });
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/commit")!;
+    const rc = resCapture();
+    await h({ headers: {}, body: { key: "k-final", reservationId } } as any, rc.res);
+    expect(rc.status).toBe(201);
+    expect(db.file.create).toHaveBeenCalled();
+    expect(db.fileUploadReservation.update).toHaveBeenCalledWith({
+      where: { id: reservationId },
+      data: { consumedAt: expect.any(Date) },
+    });
+    expect(rc.headers["ETag"]).toBe("etag-123");
+    expect(rc.body?.key).toBe("k-final");
+  });
+
+  it("POST /files/commit returns 409 when key exists and overwrite is false", async () => {
+    const sha = "d".repeat(64);
+    const tempKey = "p/tmp/uploads/uuid-2";
+    const reservationId = "22222222-2222-2222-2222-222222222222";
+    const driver = {
+      put: vi.fn(),
+      getStream: vi.fn(),
+      head: vi.fn(async () => ({ size: 5, checksumSha256Hex: sha })),
+      del: vi.fn(async () => {}),
+      copyObject: vi.fn(async () => ({ etag: "etag-999" })),
+    } as any;
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    (db.fileUploadReservation.findUnique as any).mockResolvedValueOnce({
+      id: reservationId,
+      tempKey,
+      desiredKey: "k-exists",
+      sha256: sha,
+      requestedContentType: "application/octet-stream",
+      createdBy: "u1",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: null,
+    });
+    // Simulate unique constraint violation on create
+    (db.file.create as any).mockRejectedValueOnce({ code: "P2002" });
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/commit")!;
+    const rc = resCapture();
+    await h({ headers: {}, body: { key: "k-exists", reservationId } } as any, rc.res);
+    expect(rc.status).toBe(409);
+    expect(rc.body?.code).toBe("CONFLICT");
+  });
+
+  it("POST /files/commit rejects on checksum mismatch", async () => {
+    const tempKey = "p/tmp/uploads/uuid-3";
+    const reservationId = "33333333-3333-3333-3333-333333333333";
+    const driver = {
+      put: vi.fn(),
+      getStream: vi.fn(),
+      head: vi.fn(async () => ({ size: 5, checksumSha256Hex: "e".repeat(64) })),
+      del: vi.fn(async () => {}),
+      copyObject: vi.fn(async () => ({ etag: "etag-1" })),
+    } as any;
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    (db.fileUploadReservation.findUnique as any).mockResolvedValueOnce({
+      id: reservationId,
+      tempKey,
+      desiredKey: "k-final",
+      sha256: "f".repeat(64),
+      requestedContentType: "text/plain",
+      createdBy: "u1",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: null,
+    });
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/commit")!;
+    const rc = resCapture();
+    await h({ headers: {}, body: { key: "k-final", reservationId } } as any, rc.res);
+    expect(rc.status).toBe(400);
+    expect(rc.body?.code).toBe("CHECKSUM_MISMATCH");
+  });
+
+  it("POST /files/commit rejects expired or consumed reservations", async () => {
+    const tempKey = "p/tmp/uploads/uuid-4";
+    const expiredId = "44444444-4444-4444-4444-444444444444";
+    const usedId = "55555555-5555-5555-5555-555555555555";
+    const driver = {
+      put: vi.fn(),
+      getStream: vi.fn(),
+      head: vi.fn(async () => ({ size: 5, checksumSha256Hex: "a".repeat(64) })),
+      del: vi.fn(async () => {}),
+      copyObject: vi.fn(async () => ({ etag: "etag-1" })),
+    } as any;
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    // Expired
+    (db.fileUploadReservation.findUnique as any).mockResolvedValueOnce({
+      id: expiredId,
+      tempKey,
+      desiredKey: "k1",
+      sha256: "a".repeat(64),
+      createdBy: "u1",
+      expiresAt: new Date(Date.now() - 1000),
+      consumedAt: null,
+    });
+    let { handlers } = await makeServer();
+    let h = handlers.get("POST /files/commit")!;
+    let rc = resCapture();
+    await h({ headers: {}, body: { key: "k1", reservationId: expiredId } } as any, rc.res);
+    expect(rc.status).toBe(400);
+    expect(rc.body?.code).toBe("EXPIRED");
+
+    // Consumed
+    (db.fileUploadReservation.findUnique as any).mockResolvedValueOnce({
+      id: usedId,
+      tempKey,
+      desiredKey: "k1",
+      sha256: "a".repeat(64),
+      createdBy: "u1",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: new Date(),
+    });
+    ({ handlers } = await makeServer());
+    h = handlers.get("POST /files/commit")!;
+    rc = resCapture();
+    await h({ headers: {}, body: { key: "k1", reservationId: usedId } } as any, rc.res);
+    expect(rc.status).toBe(400);
+    expect(rc.body?.code).toBe("INVALID_RESERVATION");
+  });
+
+  it("POST /files/commit rejects when key mismatches reservation", async () => {
+    const tempKey = "p/tmp/uploads/uuid-5";
+    const sha = "a".repeat(64);
+    const reservationId = "66666666-6666-6666-6666-666666666666";
+    const driver = {
+      put: vi.fn(),
+      getStream: vi.fn(),
+      head: vi.fn(async () => ({ size: 5, checksumSha256Hex: sha })),
+      del: vi.fn(async () => {}),
+      copyObject: vi.fn(async () => ({ etag: "etag-1" })),
+    } as any;
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    (db.fileUploadReservation.findUnique as any).mockResolvedValueOnce({
+      id: reservationId,
+      tempKey,
+      desiredKey: "k-correct",
+      sha256: sha,
+      createdBy: "u1",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: null,
+    });
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/commit")!;
+    const rc = resCapture();
+    await h({ headers: {}, body: { key: "k-wrong", reservationId } } as any, rc.res);
+    expect(rc.status).toBe(400);
+    expect(rc.body?.code).toBe("KEY_MISMATCH");
+  });
+
+  it("POST /files/commit with overwrite updates existing record and returns 200", async () => {
+    const sha = "a".repeat(64);
+    const tempKey = "p/tmp/uploads/uuid-6";
+    const reservationId = "77777777-7777-7777-7777-777777777777";
+    const driver = {
+      put: vi.fn(),
+      getStream: vi.fn(),
+      head: vi.fn(async () => ({ size: 42, checksumSha256Hex: sha, contentType: "text/plain" })),
+      del: vi.fn(async () => {}),
+      copyObject: vi.fn(async () => ({ etag: "etag-overwrite" })),
+    } as any;
+    storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
+    (db.fileUploadReservation.findUnique as any).mockResolvedValueOnce({
+      id: reservationId,
+      tempKey,
+      desiredKey: "k-overwrite",
+      sha256: sha,
+      requestedContentType: "text/plain",
+      createdBy: "u1",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: null,
+    });
+    (db.file.findUnique as any).mockResolvedValueOnce({ id: "f-existing" });
+    (db.file.update as any).mockResolvedValueOnce({
+      id: "f-existing",
+      key: "k-overwrite",
+      size: BigInt(42),
+      contentType: "text/plain",
+      metadata: null,
+      contentHash: sha,
+      etag: "etag-overwrite",
+      updatedAt: new Date().toISOString(),
+    });
+    const { handlers } = await makeServer();
+    const h = handlers.get("POST /files/commit")!;
+    const rc = resCapture();
+    await h(
+      { headers: {}, body: { key: "k-overwrite", reservationId, overwrite: true } } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(200);
+    expect(db.file.update).toHaveBeenCalledWith({
+      where: { id: "f-existing" },
+      data: expect.objectContaining({
+        size: BigInt(42),
+        contentType: "text/plain",
+        contentHash: sha,
+        storageKey: expect.stringMatching(/^p\/objects\/sha256\//),
+        etag: "etag-overwrite",
+      }),
+      select: expect.any(Object),
+    });
+    expect(rc.headers["ETag"]).toBe("etag-overwrite");
+    expect(rc.headers["Location"]).toBe("/files/f-existing");
   });
 });

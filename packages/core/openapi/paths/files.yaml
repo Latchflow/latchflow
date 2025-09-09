@@ -107,11 +107,16 @@ files_upload_url:
             type: object
             properties:
               key: { type: string }
+              sha256:
+                type: string
+                description: sha256 hash of the content (hex)
+                pattern: "^[0-9a-fA-F]{64}$"
               contentType: { type: string }
+              size: { type: integer }
               metadata:
                 type: object
                 additionalProperties: { type: string }
-            required: [key]
+            required: [key, sha256]
     responses:
       '201':
         description: Created
@@ -124,7 +129,9 @@ files_upload_url:
                 fields: { type: object, additionalProperties: true }
                 headers: { type: object, additionalProperties: true }
                 expiresAt: { type: string, format: date-time }
-              required: [url, expiresAt]
+                tempKey: { type: string }
+                reservationId: { type: string, format: uuid }
+              required: [url, expiresAt, tempKey, reservationId]
       '501':
         description: Not Implemented — presigned uploads not supported by this driver
         content:
@@ -133,6 +140,84 @@ files_upload_url:
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
+
+files_commit:
+  post:
+    summary: Finalize a presigned upload
+    operationId: commitUpload
+    tags: [Files]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              key: { type: string }
+              tempKey: { type: string }
+              reservationId: { type: string, format: uuid }
+              metadata:
+                type: object
+                additionalProperties: { type: string }
+              contentType: { type: string }
+              originalName: { type: string }
+              overwrite: { type: boolean }
+            anyOf:
+              - required: [key, tempKey]
+              - required: [key, reservationId]
+          examples:
+            viaTempKey:
+              summary: Commit using tempKey (from presigned upload)
+              value:
+                key: "invoices/2024/04/report.pdf"
+                tempKey: "uploads/tmp/5f1a8e9b-2c3d-4e5f-8a7b-112233445566"
+                contentType: "application/pdf"
+                originalName: "report.pdf"
+                metadata:
+                  project: "acme-q2"
+                  visibility: "internal"
+                overwrite: false
+            viaReservationId:
+              summary: Commit using reservationId
+              value:
+                key: "backups/db/2024-04-12.dump"
+                reservationId: "6b8a1b0e-3a4f-4c5d-9e6f-77889900aabb"
+                contentType: "application/octet-stream"
+                metadata:
+                  source: "nightly-backup"
+                  region: "us-east-1"
+    responses:
+      '201':
+        description: Created
+        headers:
+          ETag:
+            schema: { type: string }
+          Location:
+            schema: { type: string }
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/File.yaml }
+      '200':
+        description: Updated (overwrite)
+        headers:
+          ETag:
+            schema: { type: string }
+          Location:
+            schema: { type: string }
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/File.yaml }
+      '409':
+        description: Conflict — logical key already exists
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/Error.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 files_item:
   get:

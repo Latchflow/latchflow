@@ -109,6 +109,8 @@ paths:
     $ref: ./paths/files.yaml#/files_upload
   /files/upload-url:
     $ref: ./paths/files.yaml#/files_upload_url
+  /files/commit:
+    $ref: ./paths/files.yaml#/files_commit
   /files/{id}:
     $ref: ./paths/files.yaml#/files_item
   /files/{id}/move:
