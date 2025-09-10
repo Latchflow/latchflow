@@ -52,7 +52,11 @@
     "overrides": {
       "vitest": "^2.1.9",
       "@vitest/coverage-v8": "^2.1.9"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "cpu-features",
+      "ssh2"
+    ]
   },
   "lint-staged": {
     "*.{ts,js,tsx,jsx}": [
