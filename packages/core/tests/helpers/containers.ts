@@ -53,9 +53,11 @@ export async function startAll(): Promise<E2EEnv> {
   const pgPass = "latchflow";
   const pgDb = "latchflow";
   const pgContainer = await new GenericContainer("postgres:16-alpine")
-    .withEnv("POSTGRES_USER", pgUser)
-    .withEnv("POSTGRES_PASSWORD", pgPass)
-    .withEnv("POSTGRES_DB", pgDb)
+    .withEnvironment({
+      POSTGRES_USER: pgUser,
+      POSTGRES_PASSWORD: pgPass,
+      POSTGRES_DB: pgDb,
+    })
     .withExposedPorts(5432)
     .withWaitStrategy(Wait.forLogMessage("database system is ready to accept connections"))
     .start();
@@ -67,8 +69,10 @@ export async function startAll(): Promise<E2EEnv> {
   const minioPass = "minioadmin";
   const minioBucket = "latchflow-e2e";
   const minioContainer = await new GenericContainer("minio/minio:latest")
-    .withEnv("MINIO_ROOT_USER", minioUser)
-    .withEnv("MINIO_ROOT_PASSWORD", minioPass)
+    .withEnvironment({
+      MINIO_ROOT_USER: minioUser,
+      MINIO_ROOT_PASSWORD: minioPass,
+    })
     .withExposedPorts(9000, 9001)
     .withWaitStrategy(Wait.forLogMessage("API: http"))
     .withCommand(["server", "/data", "--console-address", ":9001"])
@@ -100,11 +104,29 @@ export async function startAll(): Promise<E2EEnv> {
   // MailHog
   const mailhogContainer = await new GenericContainer("mailhog/mailhog:latest")
     .withExposedPorts(1025, 8025)
-    .withWaitStrategy(Wait.forHttp("/api/v2/messages").forStatusCode(200).withPort(8025))
+    .withWaitStrategy(Wait.forListeningPorts())
     .start();
   const mhHost = mailhogContainer.getHost();
   const mhHttpPort = mailhogContainer.getMappedPort(8025);
   const mhSmtpPort = mailhogContainer.getMappedPort(1025);
+  const mhHttpUrl = `http://${mhHost}:${mhHttpPort}`;
+
+  // Probe MailHog HTTP API until it's ready
+  {
+    const start = Date.now();
+    const timeoutMs = 30_000;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        const res = await fetch(`${mhHttpUrl}/api/v2/messages`);
+        if (res.ok) break;
+      } catch {
+        // ignore
+      }
+      if (Date.now() - start > timeoutMs) throw new Error("MailHog HTTP not ready");
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
 
   const env: E2EEnv = {
     postgres: {
@@ -126,7 +148,7 @@ export async function startAll(): Promise<E2EEnv> {
     },
     mailhog: {
       smtpUrl: `smtp://${mhHost}:${mhSmtpPort}`,
-      httpUrl: `http://${mhHost}:${mhHttpPort}`,
+      httpUrl: mhHttpUrl,
     },
   };
 

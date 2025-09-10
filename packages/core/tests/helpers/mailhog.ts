@@ -37,3 +37,12 @@ export function extractFirstLinkFromHtml(html: string): string | null {
   const match = html.match(/href="([^"]+)"/i);
   return match?.[1] ?? null;
 }
+
+export function extractMagicLinkPath(body: string): string | null {
+  // Try HTML href first
+  const href = body.match(/href="(\/auth\/admin\/callback\?token=[^"]+)"/i)?.[1];
+  if (href) return href;
+  // Fallback: plain text path
+  const plain = body.match(/(\/auth\/admin\/callback\?token=[A-Za-z0-9\-_]+)/i)?.[1] ?? null;
+  return plain;
+}

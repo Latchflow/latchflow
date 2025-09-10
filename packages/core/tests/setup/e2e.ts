@@ -13,6 +13,9 @@ beforeAll(async () => {
   globalThis.__E2E_ENV__ = env;
   // Point process envs as needed for code under test
   process.env.DATABASE_URL = env.postgres.url;
+  // Hint nodemailer to skip STARTTLS in test env
+  process.env.SMTP_URL = `${env.mailhog.smtpUrl}?ignoreTLS=true`;
+  process.env.SMTP_FROM = "no-reply@e2e.local";
 });
 
 afterAll(async () => {

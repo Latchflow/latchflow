@@ -13,7 +13,7 @@ export async function prismaMigrateDeploy(databaseUrl: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(
       process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-      ["-s", "-F", "@latchflow/db", "migrate"],
+      ["-s", "-F", "@latchflow/db", "exec", "prisma", "migrate", "deploy"],
       {
         cwd,
         env: { ...process.env, DATABASE_URL: databaseUrl },

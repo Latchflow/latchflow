@@ -5,6 +5,8 @@ import { Prisma } from "@latchflow/db";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
 import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/config.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
+import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { requireAdmin } from "../../middleware/require-admin.js";
 import { bootstrapGrantAdminIfOnlyUserTx } from "../../auth/bootstrap.js";
 
@@ -68,11 +70,46 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       res.status(200).json({ login_url: `/auth/admin/callback?token=${token}` });
       return;
     }
-    // Dev-only: log the callback URL (partial token)
-    // eslint-disable-next-line no-console
-    console.log(
-      `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
-    );
+    // Attempt email delivery via SMTP when configured
+    if (config.SMTP_URL) {
+      try {
+        const u = new URL(config.SMTP_URL);
+        const transporter = nodemailer.createTransport({
+          host: u.hostname,
+          port: Number(u.port || 25),
+          secure: false,
+          ignoreTLS: true,
+          auth:
+            u.username || u.password
+              ? { user: decodeURIComponent(u.username), pass: decodeURIComponent(u.password) }
+              : undefined,
+          tls: { rejectUnauthorized: false },
+        } satisfies SMTPTransport.Options);
+        const from = config.SMTP_FROM ?? "no-reply@latchflow.local";
+        const loginPath = `/auth/admin/callback?token=${token}`;
+        const html = `<p>Click to sign in:</p><p><a href="${loginPath}">${loginPath}</a></p>`;
+        // eslint-disable-next-line no-console
+        console.log(`[auth] Sending magic link to ${email} via SMTP ${u.hostname}:${u.port || 25}`);
+        await transporter.sendMail({
+          from,
+          to: email,
+          subject: "Latchflow admin login",
+          html,
+          text: loginPath,
+        });
+        // eslint-disable-next-line no-console
+        console.log(`[auth] SMTP send completed for ${email}`);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[auth] SMTP delivery failed:", (e as Error).message);
+      }
+    } else {
+      // Dev-only: log the callback URL (partial token)
+      // eslint-disable-next-line no-console
+      console.log(
+        `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
+      );
+    }
     res.status(204);
   });
 

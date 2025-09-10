@@ -81,6 +81,10 @@ const EnvSchema = z.object({
     .optional()
     .transform((v) => (v == null ? false : v === "true")),
 
+  // Email (optional; used for magic-link delivery in non-dev flows)
+  SMTP_URL: z.string().optional(),
+  SMTP_FROM: z.string().email().optional(),
+
   // CLI auth
   DEVICE_CODE_TTL_MIN: z
     .string()
