@@ -6,11 +6,18 @@ import { startAll, stopAll, getEnv } from "@tests/helpers/containers";
 declare global {
   // eslint-disable-next-line no-var
   var __E2E_ENV__: ReturnType<typeof getEnv> | undefined;
+  // eslint-disable-next-line no-var
+  var __E2E_SETUP_COUNT__: number | undefined;
 }
 
 beforeAll(async () => {
-  const env = await startAll();
-  globalThis.__E2E_ENV__ = env;
+  // Increment global setup counter and start containers only on first entry
+  globalThis.__E2E_SETUP_COUNT__ = (globalThis.__E2E_SETUP_COUNT__ ?? 0) + 1;
+  if (!globalThis.__E2E_ENV__) {
+    const env = await startAll();
+    globalThis.__E2E_ENV__ = env;
+  }
+  const env = globalThis.__E2E_ENV__!;
   // Point process envs as needed for code under test
   process.env.DATABASE_URL = env.postgres.url;
   // Hint nodemailer to skip STARTTLS in test env
@@ -19,8 +26,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await stopAll();
-  globalThis.__E2E_ENV__ = undefined;
+  // Decrement counter and stop containers only when last suite finishes
+  if (globalThis.__E2E_SETUP_COUNT__ != null) {
+    globalThis.__E2E_SETUP_COUNT__ -= 1;
+  }
+  if ((globalThis.__E2E_SETUP_COUNT__ ?? 0) <= 0) {
+    await stopAll();
+    globalThis.__E2E_ENV__ = undefined;
+    globalThis.__E2E_SETUP_COUNT__ = undefined;
+  }
 });
 
 export {};
