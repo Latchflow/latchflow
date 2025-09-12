@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "test": "vitest",
+    "test": "pnpm -r test",
     "typecheck": "tsc --noEmit",
     "typecheck:ci": "pnpm run db:generate && pnpm run db:build && tsc --noEmit",
     "dev": "echo 'dev server not yet implemented'",
@@ -52,7 +52,11 @@
     "overrides": {
       "vitest": "^2.1.9",
       "@vitest/coverage-v8": "^2.1.9"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "cpu-features",
+      "ssh2"
+    ]
   },
   "lint-staged": {
     "*.{ts,js,tsx,jsx}": [
