@@ -7,6 +7,9 @@ export default defineConfig({
     alias: [
       { find: /^@tests$/, replacement: path.join(__dirname, "tests") },
       { find: /^@tests\//, replacement: path.join(__dirname, "tests") + "/" },
+      // In E2E we want to use the real DB package without requiring a build step.
+      // Alias @latchflow/db to its source entry; globalSetup ensures `prisma generate` runs.
+      { find: /^@latchflow\/db$/, replacement: path.join(__dirname, "../db/src/index.ts") },
     ],
   },
   test: {

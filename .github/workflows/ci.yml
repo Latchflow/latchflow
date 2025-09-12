@@ -19,7 +19,7 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install
       - run: pnpm lint
-      - run: pnpm test
+      - run: pnpm -r test
       - run: pnpm run typecheck:ci
       - name: Upload coverage to Codecov
         run: bash <(curl -s https://codecov.io/bash)

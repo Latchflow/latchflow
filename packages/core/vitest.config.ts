@@ -16,6 +16,8 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    // Exclude E2E tests here; they run with vitest.e2e.config.ts
+    exclude: ["tests/e2e/**/*.e2e.test.ts"],
     setupFiles: [path.join(__dirname, "tests/setup/global.ts")],
   },
 });

@@ -5,6 +5,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
+    "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
       "@latchflow/testkit-api-types": [
@@ -27,6 +28,7 @@
   "include": ["packages/**/*.ts", "apps/**/*.ts"],
   "exclude": [
     "**/vitest.config.ts",
+    "**/vitest.e2e.config.ts",
     "**/vitest.config.mts",
     "**/tests/**",
     "**/*.test.ts"

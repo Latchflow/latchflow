@@ -6,6 +6,9 @@ export default async function () {
   const { startAll, stopAll } = await import(path.join(__dirname, "../helpers/containers.ts"));
 
   const env = await startAll();
+  // Ensure Prisma client is generated for @latchflow/db source alias
+  const { prismaGenerate } = await import(path.join(__dirname, "../helpers/db.ts"));
+  await prismaGenerate(env.postgres.url);
   (globalThis as any).__E2E_ENV__ = env;
   process.env.DATABASE_URL = env.postgres.url;
   process.env.SMTP_URL = `${env.mailhog.smtpUrl}?ignoreTLS=true`;
