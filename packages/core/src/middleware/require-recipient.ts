@@ -23,12 +23,31 @@ export async function requireRecipient(
   if (!session || session.revokedAt || session.expiresAt <= now) {
     throw httpError(401, "Invalid or expired recipient session");
   }
+  // Ensure recipient is enabled
+  const recipient = await db.recipient.findUnique({ where: { id: session.recipientId } });
+  if (!recipient || (recipient as { isEnabled?: boolean }).isEnabled === false) {
+    throw httpError(403, "Recipient disabled or not found");
+  }
+
   if (bundleScoped) {
     const expected =
       routeBundleId ?? (req.params as Record<string, string> | undefined)?.bundleId ?? undefined;
-    if (expected && expected !== session.bundleId) {
-      throw httpError(403, "Recipient session not valid for this bundle");
+    if (!expected) {
+      throw httpError(400, "Missing bundleId in route");
     }
+    const assignment = await db.bundleAssignment.findFirst({
+      where: {
+        recipientId: session.recipientId,
+        bundleId: expected,
+        isEnabled: true,
+        recipient: { isEnabled: true },
+        bundle: { isEnabled: true },
+      },
+    });
+    if (!assignment) {
+      throw httpError(403, "Recipient not authorized for this bundle");
+    }
+    return { session, recipient, assignment } as const;
   }
-  return { session };
+  return { session, recipient } as const;
 }

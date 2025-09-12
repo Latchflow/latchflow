@@ -110,11 +110,15 @@ portal_otp_resend:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              recipientId: { type: string, format: uuid }
-              bundleId: { type: string, format: uuid }
-            required: [recipientId, bundleId]
+            oneOf:
+              - type: object
+                properties:
+                  recipientId: { type: string, format: uuid }
+                required: [recipientId]
+              - type: object
+                properties:
+                  email: { type: string, format: email }
+                required: [email]
     responses:
       '204': { description: Sent }
       '429': { $ref: ../components/responses/RateLimited.yaml }

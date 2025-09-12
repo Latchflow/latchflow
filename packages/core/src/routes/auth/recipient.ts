@@ -26,61 +26,85 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
 
   // POST /auth/recipient/start
   server.post("/auth/recipient/start", async (req, res) => {
-    const rlKey = `start:${req.ip ?? ""}`;
-    if (!checkRateLimit(rlKey)) {
-      res.status(429).json({ status: "error", code: "RATE_LIMITED", message: "Too many requests" });
-      return;
-    }
-    const Body = z.object({ recipientId: z.string().min(1), bundleId: z.string().min(1) });
+    const Body = z.union([
+      z.object({ recipientId: z.string().min(1) }),
+      z.object({ email: z.string().email() }),
+    ]);
+    type StartBody = z.infer<typeof Body>;
     const parsed = Body.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
       return;
     }
-    const { recipientId, bundleId } = parsed.data;
-    const assignment = await db.bundleAssignment.findFirst({ where: { recipientId, bundleId } });
-    if (!assignment) {
-      res.status(404).json({
-        status: "error",
-        code: "NOT_FOUND",
-        message: "Recipient is not assigned to bundle",
-      });
+    const body: StartBody = parsed.data;
+    const subject = "recipientId" in body ? body.recipientId : body.email;
+    const rlKey = `start:${req.ip ?? ""}:${subject}`;
+    if (!checkRateLimit(rlKey)) {
+      res.status(429).json({ status: "error", code: "RATE_LIMITED", message: "Too many requests" });
       return;
     }
+    const recipient = await (async () => {
+      if ("recipientId" in body) {
+        return db.recipient.findUnique({ where: { id: body.recipientId } });
+      }
+      return db.recipient.findUnique({ where: { email: body.email } });
+    })();
+    if (!recipient || (recipient as { isEnabled?: boolean }).isEnabled === false) {
+      res.status(404).json({ status: "error", code: "NOT_FOUND", message: "Recipient not found" });
+      return;
+    }
+    const recipientId: string = (recipient as { id: string }).id;
     const otp = genOtp(config.RECIPIENT_OTP_LENGTH);
     const codeHash = sha256Hex(otp);
     const expiresAt = new Date(Date.now() + config.RECIPIENT_OTP_TTL_MIN * 60_000);
-    // Reset existing OTPs for this pair
-    await db.recipientOtp.deleteMany({ where: { recipientId, bundleId } });
-    await db.recipientOtp.create({ data: { recipientId, bundleId, codeHash, expiresAt } });
+    // Reset existing OTPs for this recipient
+    await db.recipientOtp.deleteMany({ where: { recipientId } });
+    await db.recipientOtp.create({ data: { recipientId, codeHash, expiresAt } });
 
     // Dev-only: log the OTP
     // eslint-disable-next-line no-console
-    console.log(`[auth] OTP for recipient ${recipientId}/${bundleId}: ${otp}`);
+    console.log(`[auth] OTP for recipient ${recipientId}: ${otp}`);
     res.status(204).json({});
   });
 
   // POST /auth/recipient/verify
   server.post("/auth/recipient/verify", async (req, res) => {
-    const rlKey = `verify:${req.ip ?? ""}`;
-    if (!checkRateLimit(rlKey)) {
-      res.status(429).json({ status: "error", code: "RATE_LIMITED", message: "Too many requests" });
-      return;
-    }
-    const Body = z.object({
-      recipientId: z.string().min(1),
-      bundleId: z.string().min(1),
-      otp: z.string().min(1),
-    });
+    const Left = z.union([
+      z.object({ recipientId: z.string().min(1) }),
+      z.object({ email: z.string().email() }),
+    ]);
+    const Right = z.object({ otp: z.string().min(1) });
+    const Body = z.intersection(Left, Right);
+    type VerifyBody = z.infer<typeof Body>;
     const parsed = Body.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
       return;
     }
-    const { recipientId, bundleId, otp } = parsed.data;
+    const body: VerifyBody = parsed.data;
+    const subject = "recipientId" in body ? body.recipientId : body.email;
+    const rlKey = `verify:${req.ip ?? ""}:${subject}`;
+    if (!checkRateLimit(rlKey)) {
+      res.status(429).json({ status: "error", code: "RATE_LIMITED", message: "Too many requests" });
+      return;
+    }
+    const recipient = await (async () => {
+      if ("recipientId" in body) {
+        return db.recipient.findUnique({ where: { id: body.recipientId } });
+      }
+      return db.recipient.findUnique({ where: { email: body.email } });
+    })();
+    if (!recipient || (recipient as { isEnabled?: boolean }).isEnabled === false) {
+      res
+        .status(401)
+        .json({ status: "error", code: "INVALID_OTP", message: "Invalid or expired OTP" });
+      return;
+    }
+    const recipientId: string = (recipient as { id: string }).id;
+    const { otp } = body;
     const now = new Date();
     const record = await db.recipientOtp.findFirst({
-      where: { recipientId, bundleId },
+      where: { recipientId },
       orderBy: { createdAt: "desc" },
     });
     if (!record || record.expiresAt <= now) {
@@ -111,7 +135,6 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
     const session = await db.recipientSession.create({
       data: {
         recipientId,
-        bundleId,
         jti,
         expiresAt: new Date(Date.now() + ttlSec * 1000),
         ip: req.ip,
@@ -143,6 +166,46 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
       domain: config.AUTH_COOKIE_DOMAIN,
       path: "/",
     });
+    res.status(204).json({});
+  });
+
+  // POST /portal/auth/otp/resend (optional convenience)
+  server.post("/portal/auth/otp/resend", async (req, res) => {
+    const Body = z.union([
+      z.object({ recipientId: z.string().min(1) }),
+      z.object({ email: z.string().email() }),
+    ]);
+    type ResendBody = z.infer<typeof Body>;
+    const parsed = Body.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ status: "error", code: "BAD_REQUEST", message: "Invalid body" });
+      return;
+    }
+    const body: ResendBody = parsed.data;
+    const subject = "recipientId" in body ? body.recipientId : body.email;
+    const rlKey = `resend:${req.ip ?? ""}:${subject}`;
+    if (!checkRateLimit(rlKey)) {
+      res.status(429).json({ status: "error", code: "RATE_LIMITED", message: "Too many requests" });
+      return;
+    }
+    const recipient = await (async () => {
+      if ("recipientId" in body) {
+        return db.recipient.findUnique({ where: { id: body.recipientId } });
+      }
+      return db.recipient.findUnique({ where: { email: body.email } });
+    })();
+    if (!recipient || (recipient as { isEnabled?: boolean }).isEnabled === false) {
+      res.status(404).json({ status: "error", code: "NOT_FOUND", message: "Recipient not found" });
+      return;
+    }
+    const recipientId: string = (recipient as { id: string }).id;
+    const otp = genOtp(config.RECIPIENT_OTP_LENGTH);
+    const codeHash = sha256Hex(otp);
+    const expiresAt = new Date(Date.now() + config.RECIPIENT_OTP_TTL_MIN * 60_000);
+    await db.recipientOtp.deleteMany({ where: { recipientId } });
+    await db.recipientOtp.create({ data: { recipientId, codeHash, expiresAt } });
+    // eslint-disable-next-line no-console
+    console.log(`[auth] OTP (resend) for recipient ${recipientId}: ${otp}`);
     res.status(204).json({});
   });
 }
