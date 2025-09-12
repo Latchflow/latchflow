@@ -1,0 +1,233 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { HttpHandler } from "../http/http-server.js";
+import { Readable } from "node:stream";
+
+// Mock DB client used by requireRecipient and routes
+const db = {
+  recipientSession: { findUnique: vi.fn(async () => null) },
+  recipient: { findUnique: vi.fn(async () => null) },
+  bundleAssignment: {
+    findMany: vi.fn(async () => [] as any[]),
+    findFirst: vi.fn(async () => null as any),
+    update: vi.fn(async () => ({}) as any),
+  },
+  bundleObject: { findMany: vi.fn(async () => [] as any[]) },
+  bundle: { findUnique: vi.fn(async () => null as any) },
+  downloadEvent: { create: vi.fn(async () => ({}) as any), count: vi.fn(async () => 0) },
+};
+vi.mock("../db/db.js", () => ({ getDb: () => db }));
+
+function makeServer() {
+  const handlers = new Map<string, HttpHandler>();
+  const server = {
+    get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
+  } as any;
+  const storage = {
+    getFileStream: vi.fn(async () => Readable.from(Buffer.from("ok"))),
+  } as any;
+  return { handlers, storage };
+}
+
+function resCapture() {
+  let status = 0;
+  let body: any = null;
+  const headers: Record<string, string | string[]> = {};
+  let streamed = false;
+  const res = {
+    status(c: number) {
+      status = c;
+      return this as any;
+    },
+    json(p: any) {
+      body = p;
+    },
+    header(name: string, value: any) {
+      headers[name] = value;
+      return this as any;
+    },
+    redirect() {},
+    sendStream() {
+      streamed = true;
+    },
+    sendBuffer() {},
+  } as any;
+  return {
+    res,
+    get status() {
+      return status;
+    },
+    get body() {
+      return body;
+    },
+    get headers() {
+      return headers;
+    },
+    get streamed() {
+      return streamed;
+    },
+  };
+}
+
+function futureDate(ms = 60_000) {
+  return new Date(Date.now() + ms);
+}
+
+describe("portal routes (unit)", () => {
+  beforeEach(() => {
+    for (const model of Object.values(db) as any[]) {
+      for (const fn of Object.values(model) as any[]) {
+        if (typeof fn?.mockReset === "function") fn.mockReset();
+      }
+    }
+  });
+
+  it("rejects without cookie on /portal/me", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      {
+        storage,
+      } as any,
+    );
+    const h = handlers.get("GET /portal/me")!;
+    const rc = resCapture();
+    await h({ headers: {} } as any, rc.res);
+    expect(rc.status).toBe(401);
+    expect(rc.body?.code).toBe("UNAUTHORIZED");
+  });
+
+  it("/portal/me returns recipient and bundles when authenticated", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      {
+        storage,
+      } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findMany.mockResolvedValueOnce([
+      { bundle: { id: "B1", name: "Bundle 1" } },
+      { bundle: { id: "B2", name: "Bundle 2" } },
+    ] as any);
+    const h = handlers.get("GET /portal/me")!;
+    const rc = resCapture();
+    await h({ headers: { cookie: "lf_recipient_sess=tok" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(rc.body?.recipient?.id).toBe("R1");
+    expect(rc.body?.bundles?.length).toBe(2);
+  });
+
+  it("/portal/bundles/:bundleId/objects lists files when authorized", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      {
+        storage,
+      } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({
+      id: "A1",
+      bundleId: "B1",
+      recipientId: "R1",
+      isEnabled: true,
+    } as any);
+    db.bundleObject.findMany.mockResolvedValueOnce([
+      { file: { id: "F1" } },
+      { file: { id: "F2" } },
+    ] as any);
+    const h = handlers.get("GET /portal/bundles/:bundleId/objects")!;
+    const rc = resCapture();
+    await h(
+      { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(200);
+    expect(rc.body?.items?.length).toBe(2);
+  });
+
+  it("/portal/bundles/:bundleId returns 403 when verification required", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      {
+        storage,
+      } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({
+      id: "A1",
+      bundleId: "B1",
+      recipientId: "R1",
+      isEnabled: true,
+      verificationType: "OTP",
+      verificationMet: false,
+    } as any);
+    const h = handlers.get("GET /portal/bundles/:bundleId")!;
+    const rc = resCapture();
+    await h(
+      { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(403);
+    expect(rc.body?.code).toBe("VERIFICATION_REQUIRED");
+  });
+
+  it("/portal/bundles/:bundleId streams when allowed", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      {
+        storage,
+      } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({
+      id: "A1",
+      bundleId: "B1",
+      recipientId: "R1",
+      isEnabled: true,
+      verificationType: null,
+      verificationMet: true,
+    } as any);
+    db.downloadEvent.count.mockResolvedValueOnce(0);
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      storagePath: "objects/sha256/aa/bb/cccc",
+      checksum: "etag",
+    } as any);
+    const h = handlers.get("GET /portal/bundles/:bundleId")!;
+    const rc = resCapture();
+    await h(
+      { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
+      rc.res,
+    );
+    // sendStream implies a 200 default in the real server adapter; here we just assert streaming occurred
+    expect(rc.streamed).toBe(true);
+  });
+});
