@@ -130,6 +130,7 @@ model Recipient {
   id                String             @id @default(uuid())
   email             String             @unique
   name              String?
+  isEnabled         Boolean            @default(true)
   bundleAssignments BundleAssignment[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -138,6 +139,8 @@ model Recipient {
 
   creator User  @relation("createdRecipients", fields: [createdBy], references: [id])
   updater User? @relation("updatedRecipients", fields: [updatedBy], references: [id])
+
+  @@index([isEnabled])
 }
 
 model File {
@@ -191,6 +194,7 @@ model Bundle {
   storagePath   String
   checksum      String
   description   String?
+  isEnabled     Boolean            @default(true)
   bundleObjects BundleObject[]
   assignments   BundleAssignment[]
   createdAt     DateTime           @default(now())
@@ -210,6 +214,7 @@ model BundleObject {
   sortOrder Int     @default(0)
   required  Boolean @default(false)
   notes     String?
+  isEnabled Boolean @default(true)
 
   addedAt   DateTime @default(now())
   createdBy String
@@ -221,13 +226,14 @@ model BundleObject {
   bundle  Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
 
   @@unique([bundleId, fileId]) // a file appears at most once per bundle (adjust if you want duplicates)
-  @@index([bundleId, sortOrder])
+  @@index([bundleId, isEnabled, sortOrder])
 }
 
 model BundleAssignment {
   id               String            @id @default(uuid())
   bundleId         String
   recipientId      String
+  isEnabled        Boolean           @default(true)
   maxDownloads     Int?
   cooldownSeconds  Int?
   verificationType VerificationType?
@@ -243,6 +249,9 @@ model BundleAssignment {
   updater   User?     @relation("updatedBundleAssignments", fields: [updatedBy], references: [id])
   recipient Recipient @relation(fields: [recipientId], references: [id])
   bundle    Bundle    @relation(fields: [bundleId], references: [id])
+
+  @@unique([bundleId, recipientId])
+  @@index([bundleId, recipientId, isEnabled])
 }
 
 model DownloadEvent {
@@ -549,7 +558,6 @@ model MagicLink {
 model RecipientSession {
   id          String    @id @default(uuid())
   recipientId String
-  bundleId    String
   jti         String    @unique
   createdAt   DateTime  @default(now())
   expiresAt   DateTime
@@ -557,19 +565,18 @@ model RecipientSession {
   ip          String?
   userAgent   String?
 
-  @@index([recipientId, bundleId])
+  @@index([recipientId, expiresAt])
 }
 
 model RecipientOtp {
   id          String   @id @default(uuid())
   recipientId String
-  bundleId    String
   codeHash    String
   createdAt   DateTime @default(now())
   expiresAt   DateTime
   attempts    Int      @default(0)
 
-  @@index([recipientId, bundleId])
+  @@index([recipientId])
 }
 
 ///////////////////////////
