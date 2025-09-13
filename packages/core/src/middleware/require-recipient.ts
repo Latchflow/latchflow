@@ -9,6 +9,41 @@ function httpError(status: number, message: string) {
   return err;
 }
 
+// Minimal row shapes to avoid importing Prisma types
+type RecipientSessionRow = {
+  jti: string;
+  recipientId: string;
+  revokedAt: Date | null;
+  expiresAt: Date;
+};
+type RecipientRow = { id: string; isEnabled?: boolean };
+type BundleAssignmentRow = {
+  id: string;
+  bundleId: string;
+  recipientId: string;
+  isEnabled?: boolean;
+  verificationType?: string | null;
+  verificationMet?: boolean;
+  lastDownloadAt?: Date | null;
+  cooldownSeconds?: number | null;
+  maxDownloads?: number | null;
+};
+
+// Overloads encode return shape based on bundleScoped flag
+export async function requireRecipient(
+  req: RequestLike,
+  bundleScoped: true,
+  routeBundleId?: string,
+): Promise<{
+  session: RecipientSessionRow;
+  recipient: RecipientRow;
+  assignment: BundleAssignmentRow;
+}>;
+export async function requireRecipient(
+  req: RequestLike,
+  bundleScoped?: false,
+  routeBundleId?: string,
+): Promise<{ session: RecipientSessionRow; recipient: RecipientRow }>;
 export async function requireRecipient(
   req: RequestLike,
   bundleScoped = false,
@@ -19,16 +54,39 @@ export async function requireRecipient(
   if (!token) throw httpError(401, "Missing recipient session");
   const db = getDb();
   const now = new Date();
-  const session = await db.recipientSession.findUnique({ where: { jti: token } });
+  const session = (await db.recipientSession.findUnique({ where: { jti: token } })) as
+    | (RecipientSessionRow & Record<string, unknown>)
+    | null;
   if (!session || session.revokedAt || session.expiresAt <= now) {
     throw httpError(401, "Invalid or expired recipient session");
   }
+  // Ensure recipient is enabled
+  const recipient = (await db.recipient.findUnique({ where: { id: session.recipientId } })) as
+    | (RecipientRow & Record<string, unknown>)
+    | null;
+  if (!recipient || (recipient as { isEnabled?: boolean }).isEnabled === false) {
+    throw httpError(403, "Recipient disabled or not found");
+  }
+
   if (bundleScoped) {
     const expected =
       routeBundleId ?? (req.params as Record<string, string> | undefined)?.bundleId ?? undefined;
-    if (expected && expected !== session.bundleId) {
-      throw httpError(403, "Recipient session not valid for this bundle");
+    if (!expected) {
+      throw httpError(400, "Missing bundleId in route");
     }
+    const assignment = (await db.bundleAssignment.findFirst({
+      where: {
+        recipientId: session.recipientId,
+        bundleId: expected,
+        isEnabled: true,
+        recipient: { isEnabled: true },
+        bundle: { isEnabled: true },
+      },
+    })) as (BundleAssignmentRow & Record<string, unknown>) | null;
+    if (!assignment) {
+      throw httpError(403, "Recipient not authorized for this bundle");
+    }
+    return { session, recipient, assignment } as const;
   }
-  return { session };
+  return { session, recipient } as const;
 }

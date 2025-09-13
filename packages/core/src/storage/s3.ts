@@ -164,15 +164,21 @@ export const createS3Storage: StorageFactory = async ({ config }) => {
       }
       const PutObjectCommand = mod.PutObjectCommand as Ctor<unknown> | undefined;
       if (!PutObjectCommand) throw new Error("S3 PutObjectCommand not available");
-      const res = (await internalClient.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: body,
-          ContentType: contentType,
-          Metadata: metadata,
-        }),
-      )) as Record<string, unknown>;
+      const params: Record<string, unknown> = {
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        Metadata: metadata,
+      };
+      // Provide ContentLength when possible to avoid aws-chunked header issues
+      if (Buffer.isBuffer(body)) {
+        params.ContentLength = body.length;
+      }
+      const res = (await internalClient.send(new PutObjectCommand(params))) as Record<
+        string,
+        unknown
+      >;
       const etag = (res.ETag as string | undefined)?.replace(/^"|"$/g, "");
       return { etag };
     },

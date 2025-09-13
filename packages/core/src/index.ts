@@ -16,6 +16,7 @@ import {
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
+import { registerPortalRoutes } from "./routes/portal.js";
 import { registerPluginRoutes } from "./routes/admin/plugins.js";
 import { registerFileAdminRoutes } from "./routes/admin/files.js";
 
@@ -102,6 +103,7 @@ export async function main() {
   registerHealthRoutes(server, { queueName, storageName, checkDb, checkQueue, checkStorage });
   registerAdminAuthRoutes(server, config);
   registerRecipientAuthRoutes(server, config);
+  registerPortalRoutes(server, { storage: _storageService });
   registerCliAuthRoutes(server, config);
   registerPluginRoutes(server);
   registerFileAdminRoutes(server, { storage: _storageService });

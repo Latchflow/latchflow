@@ -8,18 +8,22 @@ recipient_start:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              recipientId:
-                type: string
-              bundleId:
-                type: string
-            required: [recipientId, bundleId]
+            oneOf:
+              - type: object
+                properties:
+                  recipientId: { type: string }
+                required: [recipientId]
+              - type: object
+                properties:
+                  email: { type: string, format: email }
+                required: [email]
           examples:
-            example:
+            "recipient ID":
               value:
                 recipientId: 11111111-1111-1111-1111-111111111111
-                bundleId: 22222222-2222-2222-2222-222222222222
+            email:
+              value:
+                email: recipient@example.com
     responses:
       '204':
         description: OTP issued (dev logs only)
@@ -40,20 +44,28 @@ recipient_verify:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              recipientId:
-                type: string
-              bundleId:
-                type: string
-              otp:
-                type: string
-            required: [recipientId, bundleId, otp]
+            allOf:
+              - oneOf:
+                  - type: object
+                    properties:
+                      recipientId: { type: string }
+                    required: [recipientId]
+                  - type: object
+                    properties:
+                      email: { type: string, format: email }
+                    required: [email]
+              - type: object
+                properties:
+                  otp: { type: string }
+                required: [otp]
           examples:
             example:
               value:
                 recipientId: 11111111-1111-1111-1111-111111111111
-                bundleId: 22222222-2222-2222-2222-222222222222
+                otp: "123456"
+            example_by_email:
+              value:
+                email: recipient@example.com
                 otp: "123456"
     responses:
       '204':
