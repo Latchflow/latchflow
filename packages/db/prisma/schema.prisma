@@ -252,6 +252,7 @@ model BundleAssignment {
 
   @@unique([bundleId, recipientId])
   @@index([bundleId, recipientId, isEnabled])
+  @@index([updatedAt])
 }
 
 model DownloadEvent {
@@ -265,6 +266,8 @@ model DownloadEvent {
   ip                 String
   file               File?            @relation(fields: [fileId], references: [id])
   fileId             String?
+
+  @@index([bundleAssignmentId])
 }
 
 ///////////////////////////
