@@ -1,6 +1,6 @@
 import type { StorageDriver } from "./types.js";
 import { createHash } from "node:crypto";
-import { Readable } from "node:stream";
+// import { Readable } from "node:stream";
 import fs from "node:fs";
 
 export type StorageService = ReturnType<typeof createStorageService>;
@@ -90,7 +90,7 @@ export function createStorageService(deps: ServiceDeps) {
       const putRes = await deps.driver.put({
         bucket: deps.bucket,
         key: storageKey,
-        body: Readable.from(bodyBuf),
+        body: bodyBuf, // pass Buffer so S3 driver can set ContentLength
         contentType: args.contentType,
       });
       const size = putRes.size ?? bodyBuf.length;
