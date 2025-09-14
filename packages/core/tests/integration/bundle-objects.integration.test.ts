@@ -6,7 +6,10 @@ const db = {
   bundleObject: {
     findMany: vi.fn(async (): Promise<any[]> => []),
     findFirst: vi.fn(async (): Promise<any | null> => null),
+    findUnique: vi.fn(async (): Promise<any | null> => null),
     upsert: vi.fn(async (..._args: any[]): Promise<any> => ({})),
+    update: vi.fn(async (..._args: any[]): Promise<any> => ({})),
+    deleteMany: vi.fn(async (..._args: any[]): Promise<any> => ({})),
   },
   file: {
     findMany: vi.fn(async (): Promise<any[]> => []),
@@ -202,5 +205,46 @@ describe("bundle-objects admin routes (integration)", () => {
     expect(secondCall.sortOrder).toBe(6);
     expect(secondCall.required).toBe(true);
     expect(scheduler.schedule).toHaveBeenCalledWith("B1");
+  });
+
+  it("PATCH /bundles/:bundleId/objects/:id updates fields and returns 204 (integration)", async () => {
+    const { handlers, server, scheduler } = makeServer();
+    const { registerBundleObjectsAdminRoutes } = await import(
+      "../../src/routes/admin/bundle-objects.js"
+    );
+    registerBundleObjectsAdminRoutes(server, { scheduler });
+    (db.bundleObject.findUnique as any).mockResolvedValueOnce({ bundleId: "B1" });
+    const h = handlers.get("POST /bundles/:bundleId/objects/:id")!;
+    const rc = resCapture();
+    await h(
+      {
+        params: { bundleId: "B1", id: "BO1" },
+        body: { path: "renamed.txt", sortOrder: 7, required: true },
+        headers: {},
+      } as any,
+      rc.res,
+    );
+    expect(rc.status).toBe(204);
+    expect(db.bundleObject.update).toHaveBeenCalledWith({
+      where: { id: "BO1" },
+      data: expect.objectContaining({ path: "renamed.txt", sortOrder: 7, required: true }),
+    });
+    expect(scheduler.schedule).toHaveBeenCalledWith("B1");
+  });
+
+  it("DELETE /bundles/:bundleId/objects/:id detaches and returns 204 (integration)", async () => {
+    const { handlers, server, scheduler } = makeServer();
+    const { registerBundleObjectsAdminRoutes } = await import(
+      "../../src/routes/admin/bundle-objects.js"
+    );
+    registerBundleObjectsAdminRoutes(server, { scheduler });
+    const h = handlers.get("DELETE /bundles/:bundleId/objects/:id")!;
+    const rc = resCapture();
+    await h({ params: { bundleId: "B9", id: "BOX" }, headers: {} } as any, rc.res);
+    expect(rc.status).toBe(204);
+    expect(db.bundleObject.deleteMany).toHaveBeenCalledWith({
+      where: { id: "BOX", bundleId: "B9" },
+    });
+    expect(scheduler.schedule).toHaveBeenCalledWith("B9");
   });
 });
