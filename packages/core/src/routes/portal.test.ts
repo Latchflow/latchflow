@@ -310,4 +310,54 @@ describe("portal routes (unit)", () => {
     expect(rc2.streamed).toBe(true);
     expect(rc2.sentHeaders?.["ETag"]).toBe("dbsum");
   });
+
+  it("GET /portal/assignments returns per-assignment status", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      { storage } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    const now = Date.now();
+    db.bundleAssignment.findMany.mockResolvedValueOnce([
+      {
+        id: "A1",
+        bundleId: "B1",
+        maxDownloads: 5,
+        cooldownSeconds: null,
+        lastDownloadAt: null,
+        bundle: { id: "B1", name: "Bundle 1" },
+      },
+      {
+        id: "A2",
+        bundleId: "B2",
+        maxDownloads: null,
+        cooldownSeconds: 10,
+        lastDownloadAt: new Date(now - 3000),
+        bundle: { id: "B2", name: "Bundle 2" },
+      },
+    ] as any);
+    db.downloadEvent.count.mockResolvedValueOnce(2);
+    db.downloadEvent.count.mockResolvedValueOnce(1);
+    const h = handlers.get("GET /portal/assignments")!;
+    const rc = resCapture();
+    await h({ headers: { cookie: "lf_recipient_sess=tok" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(Array.isArray(rc.body?.items)).toBe(true);
+    const a1 = rc.body.items.find((x: any) => x.bundleId === "B1");
+    expect(a1.maxDownloads).toBe(5);
+    expect(a1.downloadsUsed).toBe(2);
+    expect(a1.downloadsRemaining).toBe(3);
+    const a2 = rc.body.items.find((x: any) => x.bundleId === "B2");
+    expect(a2.maxDownloads).toBeNull();
+    expect(a2.downloadsRemaining).toBeNull();
+    expect(a2.cooldownSeconds).toBe(10);
+    expect(a2.cooldownRemainingSeconds).toBeGreaterThan(0);
+  });
 });

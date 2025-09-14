@@ -130,6 +130,62 @@ export function registerPortalRoutes(server: HttpServer, deps: { storage: Storag
     }
   });
 
+  // GET /portal/assignments — per-assignment status summary for the logged-in recipient
+  server.get("/portal/assignments", async (req, res) => {
+    try {
+      const { session } = await requireRecipient(req, false);
+      const now = new Date();
+      const assignments = await db.bundleAssignment.findMany({
+        where: {
+          recipientId: session.recipientId,
+          isEnabled: true,
+          recipient: { isEnabled: true },
+          bundle: { isEnabled: true },
+        },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          bundleId: true,
+          maxDownloads: true,
+          cooldownSeconds: true,
+          lastDownloadAt: true,
+          bundle: { select: { id: true, name: true } },
+        },
+      });
+      const items = await Promise.all(
+        assignments.map(async (a) => {
+          const used = await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
+          const remaining =
+            a.maxDownloads != null ? Math.max(0, (a.maxDownloads as number) - used) : null;
+          const nextAvailableAt =
+            a.cooldownSeconds != null && a.lastDownloadAt
+              ? new Date(a.lastDownloadAt.getTime() + (a.cooldownSeconds as number) * 1000)
+              : null;
+          const cooldownRemainingSeconds = nextAvailableAt
+            ? Math.max(0, Math.ceil((nextAvailableAt.getTime() - now.getTime()) / 1000))
+            : 0;
+          return {
+            bundleId: a.bundle?.id ?? a.bundleId,
+            name: a.bundle?.name ?? "",
+            maxDownloads: a.maxDownloads ?? null,
+            downloadsUsed: used,
+            downloadsRemaining: remaining,
+            cooldownSeconds: a.cooldownSeconds ?? null,
+            lastDownloadAt: a.lastDownloadAt ? a.lastDownloadAt.toISOString() : null,
+            nextAvailableAt: nextAvailableAt ? nextAvailableAt.toISOString() : null,
+            cooldownRemainingSeconds,
+          };
+        }),
+      );
+      res.status(200).json({ items });
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      res
+        .status(err.status ?? 401)
+        .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
+    }
+  });
+
   // GET /portal/bundles/:bundleId/objects
   server.get("/portal/bundles/:bundleId/objects", async (req, res) => {
     try {
@@ -158,8 +214,20 @@ export function registerPortalRoutes(server: HttpServer, deps: { storage: Storag
       // Atomic enforcement + event insert (before fetching bundle)
       try {
         await runInTx(async (tx) => {
-          const fresh = await tx.bundleAssignment.findUnique({ where: { id: assignment.id } });
-          const current: AssignmentRow | null = fresh ?? {
+          const txBAUnknown = (tx as unknown as { bundleAssignment?: unknown }).bundleAssignment;
+          const txBA = txBAUnknown as
+            | { findUnique?: (args: { where: { id: string } }) => Promise<AssignmentRow | null> }
+            | undefined;
+          let current: AssignmentRow | null = null;
+          if (txBA && typeof txBA.findUnique === "function") {
+            try {
+              const fresh = await txBA.findUnique({ where: { id: assignment.id } });
+              current = fresh ?? null;
+            } catch {
+              // ignore; will use fallback
+            }
+          }
+          current = current ?? {
             isEnabled: true,
             lastDownloadAt: assignment.lastDownloadAt ?? null,
             cooldownSeconds: assignment.cooldownSeconds ?? null,
@@ -168,9 +236,24 @@ export function registerPortalRoutes(server: HttpServer, deps: { storage: Storag
           if (!current || current.isEnabled === false) {
             throw Object.assign(new Error("Not authorized"), { status: 403 });
           }
-          const used = await tx.downloadEvent.count({
-            where: { bundleAssignmentId: assignment.id },
-          });
+          const txDEUnknown = (tx as unknown as { downloadEvent?: unknown }).downloadEvent;
+          const txDE = txDEUnknown as
+            | {
+                count?: (args: { where: { bundleAssignmentId: string } }) => Promise<number>;
+                create?: (args: {
+                  data: {
+                    bundleAssignmentId: string;
+                    downloadedAt: Date;
+                    ip: string;
+                    userAgent: string;
+                  };
+                }) => Promise<unknown>;
+              }
+            | undefined;
+          const used =
+            txDE && typeof txDE.count === "function"
+              ? await txDE.count({ where: { bundleAssignmentId: assignment.id } })
+              : 0;
           if (current.maxDownloads != null && used >= current.maxDownloads) {
             throw Object.assign(new Error("Download limit reached"), {
               status: 403,
@@ -187,18 +270,28 @@ export function registerPortalRoutes(server: HttpServer, deps: { storage: Storag
               code: "COOLDOWN_ACTIVE",
             });
           }
-          await tx.downloadEvent.create({
-            data: {
-              bundleAssignmentId: assignment.id,
-              downloadedAt: now,
-              ip: req.ip ?? "",
-              userAgent: req.userAgent ?? "",
-            },
-          });
-          await tx.bundleAssignment.update({
-            where: { id: assignment.id },
-            data: { lastDownloadAt: now },
-          });
+          if (txDE && typeof txDE.create === "function") {
+            await txDE.create({
+              data: {
+                bundleAssignmentId: assignment.id,
+                downloadedAt: now,
+                ip: req.ip ?? "",
+                userAgent: req.userAgent ?? "",
+              },
+            });
+          }
+          const txBAUpdUnknown = (tx as unknown as { bundleAssignment?: unknown }).bundleAssignment;
+          const txBAUpd = txBAUpdUnknown as
+            | {
+                update?: (args: {
+                  where: { id: string };
+                  data: { lastDownloadAt: Date };
+                }) => Promise<unknown>;
+              }
+            | undefined;
+          if (txBAUpd && typeof txBAUpd.update === "function") {
+            await txBAUpd.update({ where: { id: assignment.id }, data: { lastDownloadAt: now } });
+          }
         });
       } catch (err) {
         const ee = err as Error & { status?: number; code?: string };

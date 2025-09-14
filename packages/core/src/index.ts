@@ -19,6 +19,7 @@ import { registerOpenApiRoute } from "./routes/openapi.js";
 import { registerPortalRoutes } from "./routes/portal.js";
 import { registerPluginRoutes } from "./routes/admin/plugins.js";
 import { registerFileAdminRoutes } from "./routes/admin/files.js";
+import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
 
 export async function main() {
   const config = loadConfig();
@@ -107,6 +108,7 @@ export async function main() {
   registerCliAuthRoutes(server, config);
   registerPluginRoutes(server);
   registerFileAdminRoutes(server, { storage: _storageService });
+  registerAssignmentAdminRoutes(server);
   registerOpenApiRoute(server);
   await server.listen(config.PORT);
   // eslint-disable-next-line no-console
