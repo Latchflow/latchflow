@@ -19,6 +19,24 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 - Docker Compose includes Postgres and MinIO (S3‑compatible). MailHog is planned.
 - OpenAPI spec lives in `packages/core/openapi` with scripts to lint/bundle/preview.
 
+### Recipient Portal Model (Account‑Scoped)
+- Recipients authenticate once (OTP) at the account level; no per‑bundle verification step after login.
+- After login, recipients can:
+  - `GET /portal/me` — identity and a list of accessible bundles
+  - `GET /portal/bundles` — paginated list of enabled bundles they’re assigned to
+  - `GET /portal/bundles/{bundleId}/objects` — enabled files within a bundle
+  - `GET /portal/bundles/{bundleId}` — stream the zipped bundle archive
+- Enforce limits atomically on download:
+  - `maxDownloads` per assignment
+  - `cooldownSeconds` between downloads
+  - Every download creates a `DownloadEvent` row and updates `lastDownloadAt`.
+- Assignment status endpoint for UX:
+  - `GET /portal/assignments` — returns per‑assignment summary with downloads used/remaining and cooldown timing.
+
+### Enable/Disable Semantics
+- `Recipient.isEnabled`, `Bundle.isEnabled`, `BundleAssignment.isEnabled`, and `BundleObject.isEnabled` control visibility and access without deleting data.
+- Portal lists and downloads require all relevant flags to be enabled.
+
 ## Quick Start
 Prerequisites: Node 20+, pnpm 9/10, Docker. Dev container/Codespace config included for convenience.
 
@@ -101,6 +119,26 @@ TriggerDefinition ──▶ PipelineStep ──▶ ActionDefinition
 - Dynamic plugin registry: No hard-coded trigger/action types.
 - Separation of concerns: Plugins handle business logic; core orchestrates and audits.
 - Pluggable: Storage, triggers, and actions are swappable/extensible via plugins.
+
+### Build Artifacts & Auto‑Rebuilds
+- Bundles are stored as zipped archives in object storage. ETag preference:
+  - Prefer storage‑native ETag for HTTP responses; fallback to stored checksum (sha256) when needed.
+- Composition digest:
+  - Each bundle stores a `bundleDigest` (sha256 over ordered `{fileId, file.contentHash, path, required, sortOrder}`) to skip redundant rebuilds.
+- Rebuild pipeline:
+  - On file content changes (upload/commit), the system enqueues an async rebuild for referencing bundles.
+  - Rebuilder coalesces multiple events per bundle, debounces bursts, and guarantees one build at a time.
+  - While rebuilding, existing artifacts continue to serve; when done, the pointer (`Bundle.storagePath`/`checksum`) is updated atomically.
+  - Lazy backstop: portal downloads and object listings compute the current digest and enqueue a rebuild if drift is detected — this never blocks the response stream.
+- Manual control (admin):
+  - `POST /admin/bundles/{bundleId}/build` → enqueues a rebuild (accepts `{ force?: boolean }`)
+  - `GET /admin/bundles/{bundleId}/build/status` → returns `idle|queued|running` and last result
+
+### Admin Assignment Summaries
+- Management endpoints expose assignment status with pagination:
+  - `GET /admin/bundles/{bundleId}/assignments`
+  - `GET /admin/recipients/{recipientId}/assignments`
+  - Items include: downloads used/remaining, cooldown timing, enable flags, and recipient/bundle labels.
 
 ## Project Structure
 ```

@@ -4,7 +4,10 @@ properties:
   name: { type: string }
   storagePath: { type: string }
   checksum: { type: string }
-  description: { type: string, nullable: true }
+  description:
+    oneOf:
+      - { type: string }
+      - { type: 'null' }
   createdAt: { type: string, format: date-time }
   updatedAt: { type: string, format: date-time }
 required: [id, name, storagePath, checksum, createdAt]

@@ -44,20 +44,15 @@ recipient_verify:
       content:
         application/json:
           schema:
-            allOf:
-              - oneOf:
-                  - type: object
-                    properties:
-                      recipientId: { type: string }
-                    required: [recipientId]
-                  - type: object
-                    properties:
-                      email: { type: string, format: email }
-                    required: [email]
-              - type: object
-                properties:
-                  otp: { type: string }
-                required: [otp]
+            type: object
+            properties:
+              recipientId: { type: string }
+              email: { type: string, format: email }
+              otp: { type: string }
+            required: [otp]
+            oneOf:
+              - required: [recipientId, otp]
+              - required: [email, otp]
           examples:
             example:
               value:

@@ -1,0 +1,36 @@
+type: object
+description: Assignment summary for admin views
+properties:
+  assignmentId: { type: string, format: uuid }
+  bundleId: { type: string, format: uuid }
+  bundleName: { type: string }
+  recipientId: { type: string, format: uuid }
+  recipientEmail: { type: string, format: email }
+  recipientName:
+    oneOf:
+      - { type: string }
+      - { type: 'null' }
+  isEnabled: { type: boolean }
+  maxDownloads:
+    oneOf:
+      - { type: integer }
+      - { type: 'null' }
+  downloadsUsed: { type: integer }
+  downloadsRemaining:
+    oneOf:
+      - { type: integer }
+      - { type: 'null' }
+  cooldownSeconds:
+    oneOf:
+      - { type: integer }
+      - { type: 'null' }
+  lastDownloadAt:
+    oneOf:
+      - { type: string, format: date-time }
+      - { type: 'null' }
+  nextAvailableAt:
+    oneOf:
+      - { type: string, format: date-time }
+      - { type: 'null' }
+  cooldownRemainingSeconds: { type: integer }
+required: [assignmentId, bundleId, bundleName, recipientId, recipientEmail, isEnabled, downloadsUsed, cooldownRemainingSeconds]

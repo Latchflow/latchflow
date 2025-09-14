@@ -33,6 +33,7 @@ function resCapture() {
   let body: any = null;
   const headers: Record<string, string | string[]> = {};
   let streamed = false;
+  let sentHeaders: Record<string, string | string[]> | undefined;
   const res = {
     status(c: number) {
       status = c;
@@ -46,8 +47,9 @@ function resCapture() {
       return this as any;
     },
     redirect() {},
-    sendStream() {
+    sendStream(_body?: any, h?: Record<string, string | string[]>) {
       streamed = true;
+      sentHeaders = h;
     },
     sendBuffer() {},
   } as any;
@@ -64,6 +66,9 @@ function resCapture() {
     },
     get streamed() {
       return streamed;
+    },
+    get sentHeaders() {
+      return sentHeaders;
     },
   };
 }
@@ -122,6 +127,7 @@ describe("portal routes (unit)", () => {
     expect(rc.status).toBe(200);
     expect(rc.body?.recipient?.id).toBe("R1");
     expect(rc.body?.bundles?.length).toBe(2);
+    expect(rc.body?.bundles?.[0]?.bundleId).toBe("B1");
   });
 
   it("/portal/bundles/:bundleId/objects lists files when authorized", async () => {
@@ -159,7 +165,7 @@ describe("portal routes (unit)", () => {
     expect(rc.body?.items?.length).toBe(2);
   });
 
-  it("/portal/bundles/:bundleId returns 403 when verification required", async () => {
+  it("/portal/bundles/:bundleId streams even when assignment has verificationType (login-only verification)", async () => {
     const { handlers, storage } = makeServer();
     const { registerPortalRoutes } = await import("./portal.js");
     registerPortalRoutes(
@@ -184,12 +190,18 @@ describe("portal routes (unit)", () => {
     } as any);
     const h = handlers.get("GET /portal/bundles/:bundleId")!;
     const rc = resCapture();
+    // allow when limits permit
+    db.downloadEvent.count.mockResolvedValueOnce(0);
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      storagePath: "path",
+      checksum: "etag",
+    } as any);
     await h(
       { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
       rc.res,
     );
-    expect(rc.status).toBe(403);
-    expect(rc.body?.code).toBe("VERIFICATION_REQUIRED");
+    expect(rc.streamed).toBe(true);
   });
 
   it("/portal/bundles/:bundleId streams when allowed", async () => {
@@ -229,5 +241,179 @@ describe("portal routes (unit)", () => {
     );
     // sendStream implies a 200 default in the real server adapter; here we just assert streaming occurred
     expect(rc.streamed).toBe(true);
+  });
+
+  it("/portal/bundles/:bundleId sets ETag from storage HEAD when available, otherwise checksum", async () => {
+    const { handlers } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    const storage = {
+      headFile: vi.fn(async () => ({ etag: "stor-etag" })),
+      getFileStream: vi.fn(async () => Readable.from(Buffer.from("ok"))),
+    } as any;
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      { storage } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({
+      id: "A1",
+      bundleId: "B1",
+      recipientId: "R1",
+      isEnabled: true,
+    } as any);
+    db.downloadEvent.count.mockResolvedValueOnce(0);
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      storagePath: "path",
+      checksum: "dbsum",
+    } as any);
+    const h = handlers.get("GET /portal/bundles/:bundleId")!;
+    const rc = resCapture();
+    await h(
+      { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
+      rc.res,
+    );
+    expect(rc.streamed).toBe(true);
+    expect(rc.sentHeaders?.["ETag"]).toBe("stor-etag");
+
+    // Now simulate missing headFile -> fallback to checksum
+    const rc2 = resCapture();
+    (storage.headFile as any).mockRejectedValueOnce(new Error("nope"));
+    // Re-seed DB mocks for second request
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({
+      id: "A1",
+      bundleId: "B1",
+      recipientId: "R1",
+      isEnabled: true,
+    } as any);
+    db.downloadEvent.count.mockResolvedValueOnce(0);
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      storagePath: "path",
+      checksum: "dbsum",
+    } as any);
+    await h(
+      { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
+      rc2.res,
+    );
+    expect(rc2.streamed).toBe(true);
+    expect(rc2.sentHeaders?.["ETag"]).toBe("dbsum");
+  });
+
+  it("/portal/bundles/:bundleId schedules rebuild when digest mismatch (lazy)", async () => {
+    const { handlers } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    const storage = {
+      headFile: vi.fn(async () => ({ etag: "stor-etag" })),
+      getFileStream: vi.fn(async () => Readable.from(Buffer.from("ok"))),
+    } as any;
+    const scheduler = { schedule: vi.fn(async () => void 0) } as any;
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      { storage, scheduler } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({
+      id: "A1",
+      bundleId: "B1",
+      recipientId: "R1",
+      isEnabled: true,
+    } as any);
+    // First bundle fetch for route
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      storagePath: "path",
+      checksum: "dbsum",
+      bundleDigest: "old",
+    } as any);
+    // computeBundleDigest will call db.bundle.findUnique with a select for bundleObjects; return one object
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      bundleObjects: [
+        {
+          fileId: "F1",
+          path: "a.txt",
+          required: true,
+          sortOrder: 1,
+          file: { id: "F1", contentHash: "h1" },
+        },
+      ],
+    } as any);
+    const h = handlers.get("GET /portal/bundles/:bundleId")!;
+    const rc = resCapture();
+    await h(
+      { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
+      rc.res,
+    );
+    // Allow the setTimeout(0) to fire
+    await new Promise((r) => setTimeout(r, 0));
+    expect(rc.streamed).toBe(true);
+    expect(scheduler.schedule).toHaveBeenCalledWith("B1");
+  });
+
+  it("GET /portal/assignments returns per-assignment status", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      { storage } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    const now = Date.now();
+    db.bundleAssignment.findMany.mockResolvedValueOnce([
+      {
+        id: "A1",
+        bundleId: "B1",
+        maxDownloads: 5,
+        cooldownSeconds: null,
+        lastDownloadAt: null,
+        bundle: { id: "B1", name: "Bundle 1" },
+      },
+      {
+        id: "A2",
+        bundleId: "B2",
+        maxDownloads: null,
+        cooldownSeconds: 10,
+        lastDownloadAt: new Date(now - 3000),
+        bundle: { id: "B2", name: "Bundle 2" },
+      },
+    ] as any);
+    db.downloadEvent.count.mockResolvedValueOnce(2);
+    db.downloadEvent.count.mockResolvedValueOnce(1);
+    const h = handlers.get("GET /portal/assignments")!;
+    const rc = resCapture();
+    await h({ headers: { cookie: "lf_recipient_sess=tok" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(Array.isArray(rc.body?.items)).toBe(true);
+    const a1 = rc.body.items.find((x: any) => x.bundleId === "B1");
+    expect(a1.maxDownloads).toBe(5);
+    expect(a1.downloadsUsed).toBe(2);
+    expect(a1.downloadsRemaining).toBe(3);
+    const a2 = rc.body.items.find((x: any) => x.bundleId === "B2");
+    expect(a2.maxDownloads).toBeNull();
+    expect(a2.downloadsRemaining).toBeNull();
+    expect(a2.cooldownSeconds).toBe(10);
+    expect(a2.cooldownRemainingSeconds).toBeGreaterThan(0);
   });
 });
