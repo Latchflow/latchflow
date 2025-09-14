@@ -342,11 +342,19 @@ describe("portal routes (unit)", () => {
       checksum: "dbsum",
       bundleDigest: "old",
     } as any);
-    // Second bundle fetch inside lazy check compares digest
-    db.bundle.findUnique.mockResolvedValueOnce({ bundleDigest: "old" } as any);
-    // Mock computeBundleDigest via DB: it calls bundle.findUnique under the hood, but
-    // our second findUnique is used above; to force mismatch, ensure compute returns different digest
-    // Here we instead let computeBundleDigest run and keep the mismatch by simulating different values
+    // computeBundleDigest will call db.bundle.findUnique with a select for bundleObjects; return one object
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      bundleObjects: [
+        {
+          fileId: "F1",
+          path: "a.txt",
+          required: true,
+          sortOrder: 1,
+          file: { id: "F1", contentHash: "h1" },
+        },
+      ],
+    } as any);
     const h = handlers.get("GET /portal/bundles/:bundleId")!;
     const rc = resCapture();
     await h(

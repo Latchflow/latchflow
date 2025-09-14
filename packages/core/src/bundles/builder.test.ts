@@ -34,7 +34,31 @@ vi.mock("zip-stream", () => {
 describe("buildBundleArtifact", () => {
   const db: any = {
     bundle: {
-      findUnique: vi.fn(async () => ({ id: "B1", name: "B", bundleDigest: "prev" })),
+      findUnique: vi.fn(async (args?: any) => {
+        // When computeBundleDigest selects bundleObjects, return them
+        if (args && args.select && args.select.bundleObjects) {
+          return {
+            id: "B1",
+            bundleObjects: [
+              {
+                fileId: "F1",
+                path: "a.txt",
+                required: true,
+                sortOrder: 1,
+                file: { id: "F1", contentHash: "h1" },
+              },
+              {
+                fileId: "F2",
+                path: null,
+                required: false,
+                sortOrder: 2,
+                file: { id: "F2", contentHash: "h2" },
+              },
+            ],
+          };
+        }
+        return { id: "B1", name: "B", bundleDigest: "prev" };
+      }),
       update: vi.fn(async () => ({})),
     },
     bundleObject: {
@@ -78,6 +102,12 @@ describe("buildBundleArtifact", () => {
     const { storage, puts } = makeStorage();
     const res1 = await buildBundleArtifact(db, storage, "B1", { force: true });
     expect(res1.status).toBe("built");
+    // DB updated with pointers
+    expect(db.bundle.update).toHaveBeenCalled();
+    const upd1 = db.bundle.update.mock.calls[0]?.[0]?.data;
+    expect(typeof upd1?.storagePath).toBe("string");
+    expect(typeof upd1?.checksum).toBe("string");
+    expect(typeof upd1?.bundleDigest).toBe("string");
     const first = Buffer.from(puts[0]);
     // Run again with force to avoid skip-by-digest
     const res2 = await buildBundleArtifact(db, storage, "B1", { force: true });

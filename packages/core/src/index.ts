@@ -103,14 +103,14 @@ export async function main() {
     return;
   };
 
+  // Initialize bundle rebuild scheduler before route registration
+  const rebuilder = createBundleRebuildScheduler({ db: getDb(), storage: _storageService });
   registerHealthRoutes(server, { queueName, storageName, checkDb, checkQueue, checkStorage });
   registerAdminAuthRoutes(server, config);
   registerRecipientAuthRoutes(server, config);
   registerPortalRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerCliAuthRoutes(server, config);
   registerPluginRoutes(server);
-  // Initialize bundle rebuild scheduler and wire to file updates
-  const rebuilder = createBundleRebuildScheduler({ db: getDb(), storage: _storageService });
   registerFileAdminRoutes(server, {
     storage: _storageService,
     onFilesChanged: async (fileIds) => {
