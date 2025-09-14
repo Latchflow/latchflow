@@ -75,7 +75,7 @@ export function createStorageService(deps: ServiceDeps) {
       recipientId: string;
       ttlSeconds?: number;
     }) => {
-      const url = `/portal/bundles/${args.bundleId}?rid=${args.recipientId}`;
+      const url = `/portal/bundles/${args.bundleId}`;
       const expiresAt = args.ttlSeconds
         ? new Date(Date.now() + args.ttlSeconds * 1000).toISOString()
         : undefined;

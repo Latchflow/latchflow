@@ -101,7 +101,7 @@ describe("portal routes (integration)", () => {
     });
     db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true });
     db.bundleAssignment.findMany.mockResolvedValueOnce([
-      { bundle: { id: "B1", name: "Bundle 1" } },
+      { id: "A1", updatedAt: futureDate(), bundle: { id: "B1", name: "Bundle 1" } },
     ]);
     const h = handlers.get("GET /portal/bundles")!;
     let status = 0;
@@ -129,6 +129,83 @@ describe("portal routes (integration)", () => {
     expect(args?.where?.isEnabled).toBe(true);
     expect(args?.where?.recipient?.isEnabled).toBe(true);
     expect(args?.where?.bundle?.isEnabled).toBe(true);
+  });
+
+  it("GET /portal/bundles supports cursor pagination", async () => {
+    const { handlers, storage } = makeServer();
+    const { registerPortalRoutes } = await import("../../src/routes/portal.js");
+    registerPortalRoutes({ get: serverGet } as any, { storage });
+    function serverGet(path: string, h: HttpHandler) {
+      handlers.set(`GET ${path}`, h);
+    }
+    db.recipientSession.findUnique.mockResolvedValue({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    });
+    db.recipient.findUnique.mockResolvedValue({ id: "R1", isEnabled: true });
+    db.bundleAssignment.findMany.mockResolvedValueOnce([
+      {
+        id: "A2",
+        updatedAt: new Date("2025-01-02T00:00:00.000Z"),
+        bundle: { id: "B2", name: "B 2" },
+      },
+    ]);
+    const h = handlers.get("GET /portal/bundles")!;
+    let status = 0;
+    let body: any = null;
+    await h({ headers: { cookie: "lf_recipient_sess=tok" }, query: { limit: "1" } } as any, {
+      status(c: number) {
+        status = c;
+        return this as any;
+      },
+      json(p: any) {
+        body = p;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+      sendStream() {},
+      sendBuffer() {},
+    });
+    expect(status).toBe(200);
+    expect(body?.items?.[0]?.id).toBe("B2");
+    expect(typeof body?.nextCursor === "string").toBe(true);
+
+    // second page after cursor
+    db.bundleAssignment.findMany.mockResolvedValueOnce([
+      {
+        id: "A1",
+        updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+        bundle: { id: "B1", name: "B 1" },
+      },
+    ]);
+    status = 0;
+    body = null;
+    await h(
+      {
+        headers: { cookie: "lf_recipient_sess=tok" },
+        query: { limit: "1", cursor: body?.nextCursor },
+      } as any,
+      {
+        status(c: number) {
+          status = c;
+          return this as any;
+        },
+        json(p: any) {
+          body = p;
+        },
+        header() {
+          return this as any;
+        },
+        redirect() {},
+        sendStream() {},
+        sendBuffer() {},
+      },
+    );
+    expect(status).toBe(200);
+    expect(body?.items?.[0]?.id).toBe("B1");
   });
 
   it("GET /portal/bundles/:bundleId/objects lists files", async () => {
@@ -180,7 +257,7 @@ describe("portal routes (integration)", () => {
     expect(args?.orderBy?.sortOrder).toBe("asc");
   });
 
-  it("GET /portal/bundles/:bundleId enforces verification", async () => {
+  it("GET /portal/bundles/:bundleId ignores per-assignment verification (login-only)", async () => {
     const { handlers, storage } = makeServer();
     const { registerPortalRoutes } = await import("../../src/routes/portal.js");
     registerPortalRoutes({ get: serverGet } as any, { storage });
@@ -202,25 +279,28 @@ describe("portal routes (integration)", () => {
       verificationMet: false,
     });
     const h = handlers.get("GET /portal/bundles/:bundleId")!;
-    let status = 0;
-    let body: any = null;
+    let streamed = false;
+    db.downloadEvent.count.mockResolvedValue(0);
+    db.bundle.findUnique.mockResolvedValue({
+      id: "B1",
+      storagePath: "objects/sha256/aa/bb/hhh",
+      checksum: "etag",
+    });
     await h({ headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any, {
-      status(c: number) {
-        status = c;
+      status() {
         return this as any;
       },
-      json(p: any) {
-        body = p;
-      },
+      json() {},
       header() {
         return this as any;
       },
       redirect() {},
-      sendStream() {},
+      sendStream() {
+        streamed = true;
+      },
       sendBuffer() {},
     });
-    expect(status).toBe(403);
-    expect(body?.code).toBe("VERIFICATION_REQUIRED");
+    expect(streamed).toBe(true);
   });
 
   it("GET /portal/bundles/:bundleId streams bundle when allowed", async () => {
