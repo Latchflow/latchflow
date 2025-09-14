@@ -3,6 +3,7 @@ import { getDb } from "../db/db.js";
 import { requireRecipient } from "../middleware/require-recipient.js";
 import type { StorageService } from "../storage/service.js";
 import type { Prisma } from "@latchflow/db";
+import { toAssignmentSummary, type AssignmentRowForSummary } from "../dto/assignment.js";
 
 export function registerPortalRoutes(server: HttpServer, deps: { storage: StorageService }) {
   const db = getDb();
@@ -150,31 +151,18 @@ export function registerPortalRoutes(server: HttpServer, deps: { storage: Storag
           cooldownSeconds: true,
           lastDownloadAt: true,
           bundle: { select: { id: true, name: true } },
+          _count: { select: { downloadEvents: true } },
         },
       });
       const items = await Promise.all(
         assignments.map(async (a) => {
-          const used = await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
-          const remaining =
-            a.maxDownloads != null ? Math.max(0, (a.maxDownloads as number) - used) : null;
-          const nextAvailableAt =
-            a.cooldownSeconds != null && a.lastDownloadAt
-              ? new Date(a.lastDownloadAt.getTime() + (a.cooldownSeconds as number) * 1000)
-              : null;
-          const cooldownRemainingSeconds = nextAvailableAt
-            ? Math.max(0, Math.ceil((nextAvailableAt.getTime() - now.getTime()) / 1000))
-            : 0;
-          return {
-            bundleId: a.bundle?.id ?? a.bundleId,
-            name: a.bundle?.name ?? "",
-            maxDownloads: a.maxDownloads ?? null,
-            downloadsUsed: used,
-            downloadsRemaining: remaining,
-            cooldownSeconds: a.cooldownSeconds ?? null,
-            lastDownloadAt: a.lastDownloadAt ? a.lastDownloadAt.toISOString() : null,
-            nextAvailableAt: nextAvailableAt ? nextAvailableAt.toISOString() : null,
-            cooldownRemainingSeconds,
-          };
+          const fromCount = (a as unknown as { _count?: { downloadEvents?: number } })._count
+            ?.downloadEvents;
+          const used =
+            typeof fromCount === "number"
+              ? fromCount
+              : await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
+          return toAssignmentSummary(a as AssignmentRowForSummary, used, now);
         }),
       );
       res.status(200).json({ items });

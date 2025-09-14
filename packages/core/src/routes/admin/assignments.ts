@@ -1,6 +1,7 @@
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import { requirePermission } from "../../middleware/require-permission.js";
+import { toAssignmentSummary, type AssignmentRowForSummary } from "../../dto/assignment.js";
 
 export function registerAssignmentAdminRoutes(server: HttpServer) {
   const db = getDb();
@@ -30,34 +31,33 @@ export function registerAssignmentAdminRoutes(server: HttpServer) {
           bundle: { select: { id: true, name: true } },
           recipient: { select: { id: true, email: true, name: true } },
           updatedAt: true,
+          _count: { select: { downloadEvents: true } },
         },
       });
       const items = await Promise.all(
         rows.map(async (a) => {
-          const used = await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
-          const remaining = a.maxDownloads != null ? Math.max(0, a.maxDownloads - used) : null;
-          const nextAvailableAt =
-            a.cooldownSeconds != null && a.lastDownloadAt
-              ? new Date(a.lastDownloadAt.getTime() + a.cooldownSeconds * 1000)
-              : null;
-          const cooldownRemainingSeconds = nextAvailableAt
-            ? Math.max(0, Math.ceil((nextAvailableAt.getTime() - now.getTime()) / 1000))
-            : 0;
+          const fromCount = (a as unknown as { _count?: { downloadEvents?: number } })._count
+            ?.downloadEvents;
+          const used =
+            typeof fromCount === "number"
+              ? fromCount
+              : await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
+          const summary = toAssignmentSummary(a as AssignmentRowForSummary, used, now);
           return {
             assignmentId: a.id,
-            bundleId: a.bundle?.id ?? a.bundleId,
-            bundleName: a.bundle?.name ?? "",
+            bundleId: summary.bundleId,
+            bundleName: summary.name,
             recipientId: a.recipientId,
             recipientEmail: a.recipient?.email ?? "",
             recipientName: a.recipient?.name ?? null,
             isEnabled: a.isEnabled,
-            maxDownloads: a.maxDownloads ?? null,
-            downloadsUsed: used,
-            downloadsRemaining: remaining,
-            cooldownSeconds: a.cooldownSeconds ?? null,
-            lastDownloadAt: a.lastDownloadAt ? a.lastDownloadAt.toISOString() : null,
-            nextAvailableAt: nextAvailableAt ? nextAvailableAt.toISOString() : null,
-            cooldownRemainingSeconds,
+            maxDownloads: summary.maxDownloads,
+            downloadsUsed: summary.downloadsUsed,
+            downloadsRemaining: summary.downloadsRemaining,
+            cooldownSeconds: summary.cooldownSeconds,
+            lastDownloadAt: summary.lastDownloadAt,
+            nextAvailableAt: summary.nextAvailableAt,
+            cooldownRemainingSeconds: summary.cooldownRemainingSeconds,
           };
         }),
       );
@@ -90,34 +90,33 @@ export function registerAssignmentAdminRoutes(server: HttpServer) {
           bundle: { select: { id: true, name: true } },
           recipient: { select: { id: true, email: true, name: true } },
           updatedAt: true,
+          _count: { select: { downloadEvents: true } },
         },
       });
       const items = await Promise.all(
         rows.map(async (a) => {
-          const used = await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
-          const remaining = a.maxDownloads != null ? Math.max(0, a.maxDownloads - used) : null;
-          const nextAvailableAt =
-            a.cooldownSeconds != null && a.lastDownloadAt
-              ? new Date(a.lastDownloadAt.getTime() + a.cooldownSeconds * 1000)
-              : null;
-          const cooldownRemainingSeconds = nextAvailableAt
-            ? Math.max(0, Math.ceil((nextAvailableAt.getTime() - now.getTime()) / 1000))
-            : 0;
+          const fromCount = (a as unknown as { _count?: { downloadEvents?: number } })._count
+            ?.downloadEvents;
+          const used =
+            typeof fromCount === "number"
+              ? fromCount
+              : await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
+          const summary = toAssignmentSummary(a as AssignmentRowForSummary, used, now);
           return {
             assignmentId: a.id,
-            bundleId: a.bundle?.id ?? a.bundleId,
-            bundleName: a.bundle?.name ?? "",
+            bundleId: summary.bundleId,
+            bundleName: summary.name,
             recipientId: a.recipientId,
             recipientEmail: a.recipient?.email ?? "",
             recipientName: a.recipient?.name ?? null,
             isEnabled: a.isEnabled,
-            maxDownloads: a.maxDownloads ?? null,
-            downloadsUsed: used,
-            downloadsRemaining: remaining,
-            cooldownSeconds: a.cooldownSeconds ?? null,
-            lastDownloadAt: a.lastDownloadAt ? a.lastDownloadAt.toISOString() : null,
-            nextAvailableAt: nextAvailableAt ? nextAvailableAt.toISOString() : null,
-            cooldownRemainingSeconds,
+            maxDownloads: summary.maxDownloads,
+            downloadsUsed: summary.downloadsUsed,
+            downloadsRemaining: summary.downloadsRemaining,
+            cooldownSeconds: summary.cooldownSeconds,
+            lastDownloadAt: summary.lastDownloadAt,
+            nextAvailableAt: summary.nextAvailableAt,
+            cooldownRemainingSeconds: summary.cooldownRemainingSeconds,
           };
         }),
       );
