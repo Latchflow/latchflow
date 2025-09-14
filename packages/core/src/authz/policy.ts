@@ -14,6 +14,12 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   // Admin stubs (can be refined as endpoints are implemented)
   "GET /admin/actions": { action: "read", resource: "action_def", v1AllowExecutor: true },
   "GET /admin/bundles": { action: "read", resource: "bundle", v1AllowExecutor: true },
+  "POST /admin/bundles/:bundleId/build": { action: "update", resource: "bundle" },
+  "GET /admin/bundles/:bundleId/build/status": {
+    action: "read",
+    resource: "bundle",
+    v1AllowExecutor: true,
+  },
   "GET /admin/bundles/:bundleId/assignments": {
     action: "read",
     resource: "bundle",

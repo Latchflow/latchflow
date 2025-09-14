@@ -36,6 +36,18 @@ async function makeServer() {
   return { handlers };
 }
 
+async function makeServerWithHook(onFilesChanged: (ids: string[]) => Promise<void> | void) {
+  const handlers = new Map<string, HttpHandler>();
+  const server = {
+    get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
+    post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+    delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
+  } as any;
+  const { registerFileAdminRoutes } = await import("../src/routes/admin/files.js");
+  registerFileAdminRoutes(server, { storage: storageSvc, onFilesChanged } as any);
+  return { handlers };
+}
+
 function resCapture() {
   let status = 0;
   let body: any = null;
@@ -178,5 +190,43 @@ describe("files integration (in-package)", () => {
       Array.isArray(rcList2.body?.items) &&
       rcList2.body.items.some((it: any) => it.id === "f-int-1");
     expect(hasItem).toBe(false);
+  });
+
+  it("upload triggers onFilesChanged hook with created file id", async () => {
+    const calls: string[][] = [];
+    (db.file.create as any).mockImplementationOnce(async ({ data, select }: any) => {
+      const row = {
+        id: "f-hook-1",
+        key: data.key,
+        size: data.size,
+        contentType: data.contentType,
+        metadata: data.metadata ?? null,
+        contentHash: data.contentHash,
+        storageKey: data.storageKey,
+        updatedAt: new Date().toISOString(),
+      };
+      return Object.fromEntries(Object.keys(select).map((k) => [k, (row as any)[k]]));
+    });
+    const { handlers } = await makeServerWithHook(async (ids) => {
+      calls.push(ids);
+    });
+    const hUpload = handlers.get("POST /files/upload")!;
+    const rcUp = resCapture();
+    await hUpload(
+      {
+        headers: { "content-type": "multipart/form-data" },
+        body: { key: "hook/file.txt" },
+        file: {
+          buffer: Buffer.from("x"),
+          originalname: "file.txt",
+          mimetype: "text/plain",
+          size: 1,
+        },
+      } as any,
+      rcUp.res,
+    );
+    expect(rcUp.status).toBe(201);
+    expect(Array.isArray(calls[0])).toBe(true);
+    expect(calls[0][0]).toBe("f-hook-1");
   });
 });

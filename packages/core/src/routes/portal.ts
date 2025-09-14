@@ -2,10 +2,15 @@ import type { HttpServer } from "../http/http-server.js";
 import { getDb } from "../db/db.js";
 import { requireRecipient } from "../middleware/require-recipient.js";
 import type { StorageService } from "../storage/service.js";
+import type { BundleRebuildScheduler } from "../bundles/scheduler.js";
+import { computeBundleDigest } from "../bundles/digest.js";
 import type { Prisma } from "@latchflow/db";
 import { toAssignmentSummary, type AssignmentRowForSummary } from "../dto/assignment.js";
 
-export function registerPortalRoutes(server: HttpServer, deps: { storage: StorageService }) {
+export function registerPortalRoutes(
+  server: HttpServer,
+  deps: { storage: StorageService; scheduler?: BundleRebuildScheduler },
+) {
   const db = getDb();
 
   // Minimal DB surface used inside the transactional download path
@@ -185,6 +190,25 @@ export function registerPortalRoutes(server: HttpServer, deps: { storage: Storag
         select: { file: true },
       });
       const items = objects.map((o) => o.file).filter(Boolean);
+      // Lazy background rebuild check (non-blocking)
+      if (deps.scheduler) {
+        const bundleId = assignment.bundleId;
+        setTimeout(() => {
+          computeBundleDigest(db, bundleId)
+            .then(({ digest }) => {
+              // Compare against current stored digest; if mismatch, enqueue
+              // Fetch latest bundle digest quickly; ignore errors
+              void db.bundle
+                .findUnique({ where: { id: bundleId }, select: { bundleDigest: true } })
+                .then((b) => {
+                  const current = (b as { bundleDigest?: string } | null)?.bundleDigest ?? "";
+                  if (digest && digest !== current) void deps.scheduler?.schedule(bundleId);
+                })
+                .catch(() => void 0);
+            })
+            .catch(() => void 0);
+        }, 0);
+      }
       res.status(200).json({ items });
     } catch (e) {
       const err = e as Error & { status?: number };
@@ -313,6 +337,18 @@ export function registerPortalRoutes(server: HttpServer, deps: { storage: Storag
         if (bundle.checksum) headers["ETag"] = bundle.checksum;
       }
       const stream = await deps.storage.getFileStream(bundle.storagePath);
+      // Trigger lazy rebuild in the background if digest has drifted
+      if (deps.scheduler) {
+        const bundleId = assignment.bundleId;
+        setTimeout(() => {
+          computeBundleDigest(db, bundleId)
+            .then(({ digest }) => {
+              const current = (bundle as { bundleDigest?: string } | null)?.bundleDigest ?? "";
+              if (digest && digest !== current) void deps.scheduler?.schedule(bundleId);
+            })
+            .catch(() => void 0);
+        }, 0);
+      }
       res.sendStream(stream, headers);
     } catch (e) {
       const err = e as Error & { status?: number };

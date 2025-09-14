@@ -19,6 +19,8 @@ import { registerOpenApiRoute } from "./routes/openapi.js";
 import { registerPortalRoutes } from "./routes/portal.js";
 import { registerPluginRoutes } from "./routes/admin/plugins.js";
 import { registerFileAdminRoutes } from "./routes/admin/files.js";
+import { registerBundleBuildAdminRoutes } from "./routes/admin/bundle-build.js";
+import { createBundleRebuildScheduler } from "./bundles/scheduler.js";
 import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
 
 export async function main() {
@@ -104,10 +106,18 @@ export async function main() {
   registerHealthRoutes(server, { queueName, storageName, checkDb, checkQueue, checkStorage });
   registerAdminAuthRoutes(server, config);
   registerRecipientAuthRoutes(server, config);
-  registerPortalRoutes(server, { storage: _storageService });
+  registerPortalRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerCliAuthRoutes(server, config);
   registerPluginRoutes(server);
-  registerFileAdminRoutes(server, { storage: _storageService });
+  // Initialize bundle rebuild scheduler and wire to file updates
+  const rebuilder = createBundleRebuildScheduler({ db: getDb(), storage: _storageService });
+  registerFileAdminRoutes(server, {
+    storage: _storageService,
+    onFilesChanged: async (fileIds) => {
+      await rebuilder.scheduleForFiles(fileIds);
+    },
+  });
+  registerBundleBuildAdminRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerAssignmentAdminRoutes(server);
   registerOpenApiRoute(server);
   await server.listen(config.PORT);

@@ -10,7 +10,10 @@ import type { RouteSignature } from "../../authz/policy.js";
 import { toFileDto, type FileRecordLike } from "../../dto/file.js";
 import type { StorageService } from "../../storage/service.js";
 
-export function registerFileAdminRoutes(server: HttpServer, deps: { storage: StorageService }) {
+export function registerFileAdminRoutes(
+  server: HttpServer,
+  deps: { storage: StorageService; onFilesChanged?: (fileIds: string[]) => Promise<void> | void },
+) {
   const db = getDb();
   const storage = deps.storage;
 
@@ -253,6 +256,12 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
           throw e;
         }
         // ETag response header (prefer storage-native, fallback to sha256)
+        // Fire-and-forget scheduling hook after successful write
+        try {
+          await deps.onFilesChanged?.([file.id]);
+        } catch {
+          // ignore scheduling errors
+        }
         res.header("ETag", result.storageEtag ?? result.sha256);
         res.header("Location", `/files/${file.id}`);
         res.status(overwrite ? 200 : 201).json(toFileDto(asFileRecord(file)));
@@ -526,6 +535,11 @@ export function registerFileAdminRoutes(server: HttpServer, deps: { storage: Sto
         });
         res.header("ETag", copyRes.etag ?? reservation.sha256.toLowerCase());
         res.header("Location", `/files/${file.id}`);
+        try {
+          await deps.onFilesChanged?.([file.id]);
+        } catch {
+          // ignore scheduling errors
+        }
         res.status(overwrite ? 200 : 201).json(toFileDto(asFileRecord(file)));
       } catch (e) {
         const err = e as Error & { status?: number };

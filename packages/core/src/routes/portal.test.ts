@@ -311,6 +311,54 @@ describe("portal routes (unit)", () => {
     expect(rc2.sentHeaders?.["ETag"]).toBe("dbsum");
   });
 
+  it("/portal/bundles/:bundleId schedules rebuild when digest mismatch (lazy)", async () => {
+    const { handlers } = makeServer();
+    const { registerPortalRoutes } = await import("./portal.js");
+    const storage = {
+      headFile: vi.fn(async () => ({ etag: "stor-etag" })),
+      getFileStream: vi.fn(async () => Readable.from(Buffer.from("ok"))),
+    } as any;
+    const scheduler = { schedule: vi.fn(async () => void 0) } as any;
+    registerPortalRoutes(
+      { get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h) } as any,
+      { storage, scheduler } as any,
+    );
+    db.recipientSession.findUnique.mockResolvedValueOnce({
+      jti: "tok",
+      recipientId: "R1",
+      expiresAt: futureDate(),
+    } as any);
+    db.recipient.findUnique.mockResolvedValueOnce({ id: "R1", isEnabled: true } as any);
+    db.bundleAssignment.findFirst.mockResolvedValueOnce({
+      id: "A1",
+      bundleId: "B1",
+      recipientId: "R1",
+      isEnabled: true,
+    } as any);
+    // First bundle fetch for route
+    db.bundle.findUnique.mockResolvedValueOnce({
+      id: "B1",
+      storagePath: "path",
+      checksum: "dbsum",
+      bundleDigest: "old",
+    } as any);
+    // Second bundle fetch inside lazy check compares digest
+    db.bundle.findUnique.mockResolvedValueOnce({ bundleDigest: "old" } as any);
+    // Mock computeBundleDigest via DB: it calls bundle.findUnique under the hood, but
+    // our second findUnique is used above; to force mismatch, ensure compute returns different digest
+    // Here we instead let computeBundleDigest run and keep the mismatch by simulating different values
+    const h = handlers.get("GET /portal/bundles/:bundleId")!;
+    const rc = resCapture();
+    await h(
+      { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
+      rc.res,
+    );
+    // Allow the setTimeout(0) to fire
+    await new Promise((r) => setTimeout(r, 0));
+    expect(rc.streamed).toBe(true);
+    expect(scheduler.schedule).toHaveBeenCalledWith("B1");
+  });
+
   it("GET /portal/assignments returns per-assignment status", async () => {
     const { handlers, storage } = makeServer();
     const { registerPortalRoutes } = await import("./portal.js");

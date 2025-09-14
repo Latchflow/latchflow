@@ -193,6 +193,8 @@ model Bundle {
   name          String
   storagePath   String
   checksum      String
+  /// Digest of ordered bundle composition to skip unnecessary rebuilds
+  bundleDigest  String             @default("")
   description   String?
   isEnabled     Boolean            @default(true)
   bundleObjects BundleObject[]
@@ -204,6 +206,8 @@ model Bundle {
 
   creator User  @relation("createdBundles", fields: [createdBy], references: [id])
   updater User? @relation("updatedBundles", fields: [updatedBy], references: [id])
+
+  @@index([bundleDigest])
 }
 
 model BundleObject {
