@@ -1,4 +1,4 @@
-import { PassThrough, Readable } from "node:stream";
+import { PassThrough } from "node:stream";
 import type { DbClient } from "../db/db.js";
 import type { StorageService } from "../storage/service.js";
 import { computeBundleDigest } from "./digest.js";
@@ -85,7 +85,7 @@ export async function buildBundleArtifact(
     if (!f || !f.storageKey) continue; // skip missing
     const name = row.path ?? f.key ?? f.id;
     // Stream file into zip entry
-    const fileStream: Readable = await storage.getFileStream(f.storageKey);
+    const fileStream: NodeJS.ReadableStream = await storage.getFileStream(f.storageKey);
     await new Promise<void>((resolve, reject) => {
       zip.entry(fileStream, { name, store: true, date: new Date(0) }, (err: Error | null) => {
         if (err) reject(err);
