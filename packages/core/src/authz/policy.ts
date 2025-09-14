@@ -45,4 +45,10 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   "DELETE /files/:id": { action: "delete", resource: "file" },
   "POST /files/batch/delete": { action: "delete", resource: "file" },
   "POST /files/batch/move": { action: "update", resource: "file" },
+
+  // Bundle objects (admin)
+  "GET /bundles/:bundleId/objects": { action: "read", resource: "bundle", v1AllowExecutor: true },
+  "POST /bundles/:bundleId/objects": { action: "update", resource: "bundle" },
+  "PATCH /bundles/:bundleId/objects/:id": { action: "update", resource: "bundle" },
+  "DELETE /bundles/:bundleId/objects/:id": { action: "delete", resource: "bundle" },
 } as const;

@@ -22,6 +22,7 @@ import { registerFileAdminRoutes } from "./routes/admin/files.js";
 import { registerBundleBuildAdminRoutes } from "./routes/admin/bundle-build.js";
 import { createBundleRebuildScheduler } from "./bundles/scheduler.js";
 import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
+import { registerBundleObjectsAdminRoutes } from "./routes/admin/bundle-objects.js";
 
 export async function main() {
   const config = loadConfig();
@@ -117,6 +118,7 @@ export async function main() {
       await rebuilder.scheduleForFiles(fileIds);
     },
   });
+  registerBundleObjectsAdminRoutes(server, { scheduler: rebuilder });
   registerBundleBuildAdminRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerAssignmentAdminRoutes(server);
   registerOpenApiRoute(server);
