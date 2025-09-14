@@ -1,0 +1,59 @@
+bundle_build:
+  post:
+    summary: Enqueue bundle rebuild
+    operationId: enqueueBundleBuild
+    tags: [Bundles]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              force: { type: boolean }
+    responses:
+      '202':
+        description: Build enqueued
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [queued]
+              required: [status]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+
+bundle_build_status:
+  get:
+    summary: Get bundle build status
+    operationId: getBundleBuildStatus
+    tags: [Bundles]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Build status
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/BuildStatus.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+

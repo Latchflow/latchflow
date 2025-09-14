@@ -1,0 +1,28 @@
+type: object
+description: Per-assignment status summary for a recipient
+properties:
+  bundleId: { type: string, format: uuid }
+  name: { type: string }
+  maxDownloads:
+    oneOf:
+      - { type: integer }
+      - { type: 'null' }
+  downloadsUsed: { type: integer }
+  downloadsRemaining:
+    oneOf:
+      - { type: integer }
+      - { type: 'null' }
+  cooldownSeconds:
+    oneOf:
+      - { type: integer }
+      - { type: 'null' }
+  lastDownloadAt:
+    oneOf:
+      - { type: string, format: date-time }
+      - { type: 'null' }
+  nextAvailableAt:
+    oneOf:
+      - { type: string, format: date-time }
+      - { type: 'null' }
+  cooldownRemainingSeconds: { type: integer }
+required: [bundleId, name, downloadsUsed, cooldownRemainingSeconds]

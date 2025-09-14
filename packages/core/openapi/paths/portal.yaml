@@ -123,3 +123,24 @@ portal_otp_resend:
       '204': { description: Sent }
       '429': { $ref: ../components/responses/RateLimited.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
+
+portal_assignments:
+  get:
+    summary: List per-assignment status for the current recipient
+    operationId: listPortalAssignments
+    tags: [Portal]
+    security:
+      - cookieRecipient: []
+    responses:
+      '200':
+        description: Assignment summaries
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/AssignmentSummary.yaml }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }

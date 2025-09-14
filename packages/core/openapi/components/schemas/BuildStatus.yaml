@@ -1,0 +1,23 @@
+type: object
+description: Bundle build status
+properties:
+  status:
+    type: string
+    enum: [idle, queued, running]
+  bundleId: { type: string, format: uuid }
+  bundleDigest: { type: string }
+  storagePath: { type: string }
+  checksum: { type: string }
+  updatedAt:
+    oneOf:
+      - { type: string, format: date-time }
+      - { type: 'null' }
+  last:
+    type: object
+    properties:
+      when: { type: string, format: date-time }
+      status:
+        type: string
+        enum: [built, skipped]
+      error: { type: string }
+    required: [when, status]

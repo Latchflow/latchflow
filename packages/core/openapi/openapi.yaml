@@ -160,6 +160,17 @@ paths:
     $ref: ./paths/portal.yaml#/portal_bundle_download
   /portal/auth/otp/resend:
     $ref: ./paths/portal.yaml#/portal_otp_resend
+  /portal/assignments:
+    $ref: ./paths/portal.yaml#/portal_assignments
+
+  /admin/bundles/{bundleId}/assignments:
+    $ref: ./paths/admin-assignments.yaml#/bundle_assignments
+  /admin/recipients/{recipientId}/assignments:
+    $ref: ./paths/admin-assignments.yaml#/recipient_assignments
+  /admin/bundles/{bundleId}/build:
+    $ref: ./paths/admin-bundle-build.yaml#/bundle_build
+  /admin/bundles/{bundleId}/build/status:
+    $ref: ./paths/admin-bundle-build.yaml#/bundle_build_status
 
   /plugins:
     $ref: ./paths/plugins.yaml#/plugins
@@ -237,6 +248,9 @@ components:
     DeviceStartResponse: { $ref: ./components/schemas/DeviceStartResponse.yaml }
     DevicePollPending: { $ref: ./components/schemas/DevicePollPending.yaml }
     DevicePollSuccess: { $ref: ./components/schemas/DevicePollSuccess.yaml }
+    AssignmentSummary: { $ref: ./components/schemas/AssignmentSummary.yaml }
+    AdminAssignmentSummary: { $ref: ./components/schemas/AdminAssignmentSummary.yaml }
+    BuildStatus: { $ref: ./components/schemas/BuildStatus.yaml }
   parameters:
     Cursor: { $ref: ./components/parameters/Cursor.yaml }
     Limit: { $ref: ./components/parameters/Limit.yaml }

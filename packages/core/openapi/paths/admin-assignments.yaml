@@ -1,0 +1,58 @@
+bundle_assignments:
+  get:
+    summary: List assignment summaries for a bundle
+    operationId: listBundleAssignments
+    tags: [Bundles]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: bundleId
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+    responses:
+      '200':
+        description: Assignment summaries
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/AdminAssignmentSummary.yaml }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+
+recipient_assignments:
+  get:
+    summary: List assignment summaries for a recipient
+    operationId: listRecipientAssignments
+    tags: [Recipients]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: recipientId
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+    responses:
+      '200':
+        description: Assignment summaries
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/AdminAssignmentSummary.yaml }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+
