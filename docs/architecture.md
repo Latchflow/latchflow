@@ -47,7 +47,7 @@ This document explains the runtime shape and key flows with an emphasis on the p
 - Triggers:
   - File content changes (upload or commit) locate referencing bundles and enqueue rebuilds.
   - Lazy backstop: portal routes compute digest and enqueue when drift is detected; serving is never blocked.
-  - BundleObject CRUD/reorder hooks will enqueue directly (to be added along with admin endpoints).
+  - BundleObject CRUD/reorder hooks enqueue directly (implemented in admin bundle-objects routes).
 
 ### Manual Admin Control
 - `POST /admin/bundles/{bundleId}/build` — enqueues an async build; supports `{ force: boolean }`.
@@ -71,4 +71,15 @@ This document explains the runtime shape and key flows with an emphasis on the p
 
 - Triggers and actions are declared by installed plugins and registered at startup.
 - The core runtime orchestrates trigger → action pipelines; no hard‑coded types.
+## Admin Bundle Objects
 
+- Endpoints to manage attachments within a bundle:
+  - `GET /bundles/{bundleId}/objects` — returns `BundleObjectWithFile[]` in `sortOrder`.
+  - `POST /bundles/{bundleId}/objects` — attach files; defaults `path` to `File.key`, `sortOrder` to `max+1`; idempotent on `(bundleId,fileId)`.
+  - `PATCH /bundles/{bundleId}/objects/{id}` — update `path`, `sortOrder`, `required`, `isEnabled`.
+  - `DELETE /bundles/{bundleId}/objects/{id}` — detach (idempotent).
+
+Semantics
+- Every write schedules a debounced rebuild for the bundle.
+- Rebuilds are coalesced; one build flight at a time; existing artifact continues to serve.
+- The HTTP layer uses POST for updates internally; the OpenAPI exposes both PATCH (preferred) and a POST alias to reflect this.

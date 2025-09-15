@@ -140,6 +140,20 @@ TriggerDefinition ──▶ PipelineStep ──▶ ActionDefinition
   - `GET /admin/recipients/{recipientId}/assignments`
   - Items include: downloads used/remaining, cooldown timing, enable flags, and recipient/bundle labels.
 
+### Admin Bundle Objects
+- Manage file attachments within a bundle (enqueues a rebuild via the scheduler on writes):
+  - `GET /bundles/{bundleId}/objects` — list with file metadata, ordered by `sortOrder`. Cursor pagination via `nextCursor`.
+  - `POST /bundles/{bundleId}/objects` — attach files; accepts an array or `{ items: [...] }`. Defaults:
+    - `path` ← `File.key` when omitted
+    - `sortOrder` ← `(max(sortOrder) + 1)` when omitted
+    - Enforces uniqueness per bundle on `(bundleId, fileId)` and is idempotent.
+  - `PATCH /bundles/{bundleId}/objects/{id}` — update `path`, `sortOrder`, `required`, `isEnabled` (soft toggle). Some deployments use a POST alias for this update.
+  - `DELETE /bundles/{bundleId}/objects/{id}` — detach (idempotent).
+
+Notes
+- Writes schedule a debounced rebuild; serving of the previous artifact is uninterrupted until the pointer swap completes.
+- OpenAPI documents both PATCH and a POST alias for updates to reflect implementation constraints of the HTTP layer.
+
 ## Project Structure
 ```
 packages/
