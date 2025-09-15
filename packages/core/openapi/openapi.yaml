@@ -19,7 +19,6 @@ servers:
     description: Self-hosted deployment
     variables:
       domain:
-        description: Fully-qualified domain name of your deployment
         default: api.yourdomain.tld
 tags:
   - name: System
