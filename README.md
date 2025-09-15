@@ -231,6 +231,23 @@ Tips
     - `pnpm -F core test:e2e` — E2E tests only (`tests/e2e/**/*.e2e.test.ts`)
   - Repo‑wide runs: `pnpm -r test` (all packages).
 
+## Admin Triggers (CRUD + Test-Fire)
+- API paths (route code lives under `packages/core/src/routes/admin/triggers.ts`):
+  - `GET /triggers` — list with filters: `q`, `pluginId`, `capabilityKey`, `enabled`, `updatedSince`, plus `limit`/`cursor`.
+  - `POST /triggers` — create with `{ name, capabilityId, config }`; validates capability exists in DB and `kind=TRIGGER`.
+  - `GET /triggers/{id}` — get by id.
+  - `PATCH /triggers/{id}` (alias `POST /triggers/{id}`) — update `{ name?, isEnabled?, config? }`.
+  - `DELETE /triggers/{id}` — 409 when referenced by pipelines or has events; prefer disabling.
+  - `POST /triggers/{id}/test-fire` — enqueues actions by creating a `TriggerEvent` and dispatching to the action queue.
+- AuthZ & scopes: guarded by `requireAdminOrApiToken` with `triggers:read` (list/get) and `triggers:write` (create/update/delete/test-fire). Admins always allowed; executors allowed to read when policy permits.
+- Capability validation is DB-backed (`PluginCapability`), not the in-memory registry.
+- Auditing: create and update append ChangeLog for `TRIGGER_DEFINITION` (sensitive config redacted in canonical view).
+- Example (bearer token):
+  - `curl -sS -H 'Authorization: Bearer lfk_...' http://localhost:3001/triggers`
+  - `curl -sS -X POST -H 'Authorization: Bearer lfk_...' -H 'Content-Type: application/json' \
+      -d '{"name":"Cron","capabilityId":"<capId>","config":{"schedule":"* * * * *"}}' \
+      http://localhost:3001/triggers`
+
 ## AuthN vs AuthZ (Current)
 - AuthN (authentication): lives under `packages/core/src/auth` and `packages/core/src/middleware/require-session.ts`.
   - Establishes identity via admin session cookies or API tokens.
@@ -266,6 +283,8 @@ Notes:
 - Current bearer-enabled endpoints include:
   - `GET /plugins`, `GET /capabilities` → `core:read`
   - `POST /plugins/install`, `DELETE /plugins/:pluginId` → `core:write`
+  - `GET /triggers`, `GET /triggers/{id}` → `triggers:read`
+  - `POST /triggers`, `POST /triggers/{id}`, `DELETE /triggers/{id}`, `POST /triggers/{id}/test-fire` → `triggers:write`
 
 ### AuthZ v1 Behavior
 - Admins: always allowed on guarded routes.

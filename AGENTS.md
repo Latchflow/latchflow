@@ -54,6 +54,15 @@ pnpm -r test
 - Verify bundle recipients before release (OTP/passphrase).
 - Enforce per-recipient download limits and rate throttles.
 
+### Admin Triggers
+- API paths live under `/triggers` (route code in `packages/core/src/routes/admin/triggers.ts`).
+- AuthZ is enforced via policy entries on resource `trigger_def`:
+  - Read: `GET /triggers`, `GET /triggers/:id` (v1 allows executor reads), scopes: `triggers:read`.
+  - Write: `POST /triggers`, `POST|PATCH /triggers/:id`, `DELETE /triggers/:id`, `POST /triggers/:id/test-fire`, scopes: `triggers:write`.
+- Capability validation is DB-backed: check `PluginCapability` (`kind = TRIGGER`, `isEnabled = true`). Do not depend on the in-memory runtime registry inside routes.
+- Delete semantics: return 409 when a trigger is referenced by pipelines or has events; prefer disabling (`isEnabled=false`).
+- Auditing: on create/update, append ChangeLog entries for `TRIGGER_DEFINITION` (canonical serializer redacts secrets).
+
 ---
 
 ## Coding Standards
