@@ -5,6 +5,13 @@ import type { PolicyEntry } from "./types.js";
 export type RouteSignature = `${"GET" | "POST" | "PUT" | "PATCH" | "DELETE"} ${string}`;
 
 export const POLICY: Record<RouteSignature, PolicyEntry> = {
+  // Triggers (API paths; route code lives under admin)
+  "GET /triggers": { action: "read", resource: "trigger_def", v1AllowExecutor: true },
+  "POST /triggers": { action: "create", resource: "trigger_def" },
+  "GET /triggers/:id": { action: "read", resource: "trigger_def", v1AllowExecutor: true },
+  "PATCH /triggers/:id": { action: "update", resource: "trigger_def" },
+  "DELETE /triggers/:id": { action: "delete", resource: "trigger_def" },
+  "POST /triggers/:id/test-fire": { action: "update", resource: "trigger_def" },
   // Admin plugin management
   "GET /plugins": { action: "read", resource: "plugin", v1AllowExecutor: true },
   "POST /plugins/install": { action: "manage", resource: "plugin" },

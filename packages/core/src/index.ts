@@ -18,6 +18,7 @@ import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
 import { registerPortalRoutes } from "./routes/portal.js";
 import { registerPluginRoutes } from "./routes/admin/plugins.js";
+import { registerTriggerAdminRoutes } from "./routes/admin/triggers.js";
 import { registerFileAdminRoutes } from "./routes/admin/files.js";
 import { registerBundleBuildAdminRoutes } from "./routes/admin/bundle-build.js";
 import { createBundleRebuildScheduler } from "./bundles/scheduler.js";
@@ -72,7 +73,7 @@ export async function main() {
     },
   });
 
-  await startTriggerRunner({
+  const triggerRunner = await startTriggerRunner({
     onFire: async (msg) => queue.enqueueAction(msg),
   });
 
@@ -112,6 +113,7 @@ export async function main() {
   registerPortalRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerCliAuthRoutes(server, config);
   registerPluginRoutes(server);
+  registerTriggerAdminRoutes(server, { fireTriggerOnce: triggerRunner.fireTriggerOnce, config });
   registerFileAdminRoutes(server, {
     storage: _storageService,
     onFilesChanged: async (fileIds) => {

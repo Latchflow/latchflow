@@ -9,6 +9,22 @@ triggers_collection:
     parameters:
       - $ref: ../components/parameters/Limit.yaml
       - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: q
+        schema: { type: string }
+        description: Case-insensitive name search
+      - in: query
+        name: pluginId
+        schema: { type: string, format: uuid }
+      - in: query
+        name: capabilityKey
+        schema: { type: string }
+      - in: query
+        name: enabled
+        schema: { type: boolean }
+      - in: query
+        name: updatedSince
+        schema: { type: string, format: date-time }
     responses:
       '200':
         description: Triggers
@@ -53,6 +69,56 @@ triggers_collection:
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 triggers_item:
+  post:
+    summary: Update trigger definition (alias)
+    description: Some deployments may use POST for updates; semantics match PATCH.
+    operationId: updateTriggerPost
+    tags: [Triggers]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              isEnabled: { type: boolean }
+              config: { type: object }
+    responses:
+      '204': { description: Updated }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  get:
+    summary: Get trigger definition
+    operationId: getTrigger
+    tags: [Triggers]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Trigger
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/TriggerDefinition.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   patch:
     summary: Update trigger definition
     operationId: updateTrigger
@@ -73,18 +139,17 @@ triggers_item:
             type: object
             properties:
               name: { type: string }
+              isEnabled: { type: boolean }
               config: { type: object }
     responses:
       '204': { description: Updated }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
-
-# TriggerDefinition versions (history)
-trigger_versions_collection:
-  get:
-    summary: List trigger definition versions
-    operationId: listTriggerVersions
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  delete:
+    summary: Delete trigger definition
+    operationId: deleteTrigger
     tags: [Triggers]
     security:
       - bearer: []
@@ -94,28 +159,16 @@ trigger_versions_collection:
         name: id
         required: true
         schema: { type: string, format: uuid }
-      - $ref: ../components/parameters/Limit.yaml
-      - $ref: ../components/parameters/Cursor.yaml
     responses:
-      '200':
-        description: Versions
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                items:
-                  type: array
-                  items: { $ref: ../components/schemas/ChangeLogVersion.yaml }
-                nextCursor: { type: string }
-              required: [items]
+      '204': { description: Deleted }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
-
-trigger_versions_item:
-  get:
-    summary: Get trigger definition version
-    operationId: getTriggerVersion
+test_fire:
+  post:
+    summary: Enqueue actions for a trigger definition
+    operationId: testFireTrigger
     tags: [Triggers]
     security:
       - bearer: []
@@ -125,15 +178,17 @@ trigger_versions_item:
         name: id
         required: true
         schema: { type: string, format: uuid }
-      - in: path
-        name: version
-        required: true
-        schema: { type: integer, minimum: 1 }
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              context: { type: object, additionalProperties: true }
     responses:
-      '200':
-        description: Materialized trigger definition at version
-        content:
-          application/json:
-            schema: { $ref: ../components/schemas/ChangeLogMaterialized.yaml }
+      '202': { description: Enqueued }
       '404': { $ref: ../components/responses/NotFound.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '503': { description: Trigger runner unavailable }
