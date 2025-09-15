@@ -172,8 +172,8 @@ export function registerTriggerAdminRoutes(
     }),
   );
 
-  // POST /triggers/:id — update (HTTP layer uses POST; OpenAPI exposes PATCH + alias)
-  server.post(
+  // PATCH /triggers/:id — update
+  server.patch(
     "/triggers/:id",
     requireAdminOrApiToken({
       policySignature: "PATCH /triggers/:id" as RouteSignature,

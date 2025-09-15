@@ -236,7 +236,7 @@ Tips
   - `GET /triggers` — list with filters: `q`, `pluginId`, `capabilityKey`, `enabled`, `updatedSince`, plus `limit`/`cursor`.
   - `POST /triggers` — create with `{ name, capabilityId, config }`; validates capability exists in DB and `kind=TRIGGER`.
   - `GET /triggers/{id}` — get by id.
-  - `PATCH /triggers/{id}` (alias `POST /triggers/{id}`) — update `{ name?, isEnabled?, config? }`.
+  - `PATCH /triggers/{id}` — update `{ name?, isEnabled?, config? }`.
   - `DELETE /triggers/{id}` — 409 when referenced by pipelines or has events; prefer disabling.
   - `POST /triggers/{id}/test-fire` — enqueues actions by creating a `TriggerEvent` and dispatching to the action queue.
 - AuthZ & scopes: guarded by `requireAdminOrApiToken` with `triggers:read` (list/get) and `triggers:write` (create/update/delete/test-fire). Admins always allowed; executors allowed to read when policy permits.
@@ -284,7 +284,7 @@ Notes:
   - `GET /plugins`, `GET /capabilities` → `core:read`
   - `POST /plugins/install`, `DELETE /plugins/:pluginId` → `core:write`
   - `GET /triggers`, `GET /triggers/{id}` → `triggers:read`
-  - `POST /triggers`, `POST /triggers/{id}`, `DELETE /triggers/{id}`, `POST /triggers/{id}/test-fire` → `triggers:write`
+  - `POST /triggers`, `PATCH /triggers/{id}`, `DELETE /triggers/{id}`, `POST /triggers/{id}/test-fire` → `triggers:write`
 
 ### AuthZ v1 Behavior
 - Admins: always allowed on guarded routes.

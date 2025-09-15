@@ -64,6 +64,7 @@ vi.mock("./http/express-server.js", () => ({
     get: noop,
     post: noop,
     put: noop,
+    patch: noop,
     delete: noop,
     use: noop,
     listen,

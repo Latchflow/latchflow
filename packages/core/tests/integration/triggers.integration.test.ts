@@ -34,6 +34,7 @@ function makeServer() {
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+    patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
   return { handlers, server };
@@ -121,7 +122,7 @@ describe("triggers admin routes (integration)", () => {
     // Enable toggle (disable now)
     db.triggerDefinition.update.mockResolvedValueOnce({ id: "t1" } as any);
     const rcUpdate = resCapture();
-    await handlers.get("POST /triggers/:id")!(
+    await handlers.get("PATCH /triggers/:id")!(
       { params: { id: "t1" }, body: { isEnabled: false } } as any,
       rcUpdate.res,
     );

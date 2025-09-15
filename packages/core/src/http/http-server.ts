@@ -35,6 +35,7 @@ export interface HttpServer {
   get(path: string, handler: HttpHandler): void;
   post(path: string, handler: HttpHandler): void;
   put(path: string, handler: HttpHandler): void;
+  patch(path: string, handler: HttpHandler): void;
   delete(path: string, handler: HttpHandler): void;
   use(mw: unknown): void;
   listen(port: number): Promise<void>;

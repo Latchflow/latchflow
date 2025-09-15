@@ -22,6 +22,10 @@ function makeServer() {
       handlers.set(`POST ${p}`, h);
       return undefined as any;
     },
+    patch: (p, h) => {
+      handlers.set(`PATCH ${p}`, h);
+      return undefined as any;
+    },
     put: (p, h) => {
       handlers.set(`PUT ${p}`, h);
       return undefined as any;
@@ -159,7 +163,7 @@ describe("E2E: Triggers endpoints", () => {
     const triggerId = rcCreate.body.id as string;
 
     // Update: disable
-    const hUpdate = handlers.get("POST /triggers/:id")!;
+    const hUpdate = handlers.get("PATCH /triggers/:id")!;
     const rcUpdate = resCapture();
     await hUpdate(
       { headers: {}, params: { id: triggerId }, body: { isEnabled: false } } as any,

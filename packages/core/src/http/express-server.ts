@@ -146,6 +146,7 @@ export function createExpressServer(): HttpServer {
     get: (p, h) => app.get(p, wrap(h)),
     post: (p, h) => app.post(p, wrap(h)),
     put: (p, h) => app.put(p, wrap(h)),
+    patch: (p, h) => app.patch(p, wrap(h)),
     delete: (p, h) => app.delete(p, wrap(h)),
     use: (mw: unknown) => {
       if (typeof mw === "function") {

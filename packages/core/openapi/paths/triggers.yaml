@@ -69,35 +69,6 @@ triggers_collection:
       '400': { $ref: ../components/responses/ValidationError.yaml }
 
 triggers_item:
-  post:
-    summary: Update trigger definition (alias)
-    description: Some deployments may use POST for updates; semantics match PATCH.
-    operationId: updateTriggerPost
-    tags: [Triggers]
-    security:
-      - bearer: []
-      - cookieAdmin: []
-    parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string, format: uuid }
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              name: { type: string }
-              isEnabled: { type: boolean }
-              config: { type: object }
-    responses:
-      '204': { description: Updated }
-      '401': { $ref: ../components/responses/Unauthorized.yaml }
-      '403': { $ref: ../components/responses/Forbidden.yaml }
-      '400': { $ref: ../components/responses/ValidationError.yaml }
-      '404': { $ref: ../components/responses/NotFound.yaml }
   get:
     summary: Get trigger definition
     operationId: getTrigger

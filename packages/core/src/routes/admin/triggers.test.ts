@@ -171,10 +171,10 @@ describe("triggers routes", () => {
     expect(rc.status).toBe(404);
   });
 
-  it("POST /triggers/:id updates and returns 204", async () => {
+  it("PATCH /triggers/:id updates and returns 204", async () => {
     const { handlers } = await makeServer();
     db.triggerDefinition.update.mockResolvedValueOnce({ id: "t1" } as any);
-    const h = handlers.get("POST /triggers/:id")!;
+    const h = handlers.get("PATCH /triggers/:id")!;
     const rc = resCapture();
     await h({ params: { id: "t1" }, body: { isEnabled: false } } as any, rc.res);
     expect(rc.status).toBe(204);
