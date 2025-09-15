@@ -180,7 +180,6 @@ describe("triggers routes", () => {
     expect(rc.status).toBe(204);
     const args = (db.triggerDefinition.update as any).mock.calls[0]?.[0]?.data;
     expect(args).toHaveProperty("isEnabled", false);
-    expect(args).toHaveProperty("updatedBy");
   });
 
   it("DELETE /triggers/:id returns 409 when in use", async () => {

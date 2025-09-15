@@ -202,7 +202,6 @@ export function registerTriggerAdminRoutes(
         ...(parsed.data.config !== undefined
           ? { config: parsed.data.config as unknown as Prisma.InputJsonValue }
           : {}),
-        updatedBy: userId,
       };
       const updated = await db.triggerDefinition.update({ where: { id }, data }).catch(() => null);
       if (!updated) {
