@@ -310,7 +310,9 @@ export function registerBundleObjectsAdminRoutes(
           res.status(404).json({ status: "error", code: "NOT_FOUND", message: "Not found" });
           return;
         }
-        const patch: Prisma.BundleObjectUpdateInput = {};
+        // Use UncheckedUpdateInput so we can set the scalar updatedBy field directly
+        // (the checked UpdateInput exposes only the relation `updater`).
+        const patch: Prisma.BundleObjectUncheckedUpdateInput = {};
         if ("path" in body.data) patch.path = body.data.path ?? null;
         if ("sortOrder" in body.data) patch.sortOrder = body.data.sortOrder!;
         if ("required" in body.data) patch.required = body.data.required!;

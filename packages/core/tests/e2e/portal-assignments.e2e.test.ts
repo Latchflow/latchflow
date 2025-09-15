@@ -128,6 +128,20 @@ describe("E2E: portal assignments summary", () => {
     const recipient = await prisma.recipient.create({
       data: { email: "e2e.assign.rec@example.com", createdBy: admin.id },
     });
+    // Create an assignment so the recipient is authorized to download,
+    // and configure limits to validate summary fields.
+    await prisma.bundleAssignment.create({
+      data: {
+        bundleId: bundle.id,
+        recipientId: recipient.id,
+        isEnabled: true,
+        verificationType: null,
+        verificationMet: true,
+        maxDownloads: 2,
+        cooldownSeconds: 1,
+        createdBy: admin.id,
+      },
+    });
     await prisma.recipientSession.create({
       data: {
         recipientId: recipient.id,
