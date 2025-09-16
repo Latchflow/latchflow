@@ -88,6 +88,9 @@ export function createExpressServer(): HttpServer {
         if (status) res.redirect(status, url);
         else res.redirect(url);
       },
+      sendStatus(code: number) {
+        res.sendStatus(code);
+      },
       sendStream(body, headers) {
         if (headers) {
           for (const [k, v] of Object.entries(headers)) {
