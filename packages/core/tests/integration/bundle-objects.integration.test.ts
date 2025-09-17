@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { HttpHandler } from "../../src/http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Prisma-like mock
 const db = {
@@ -32,40 +33,6 @@ function makeServer() {
   } as any;
   const scheduler = { schedule: vi.fn(), scheduleForFiles: vi.fn(), getStatus: vi.fn() } as any;
   return { handlers, server, scheduler };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res = {
-    status(c: number) {
-      status = c;
-      return this as any;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this as any;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  } as any;
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    get headers() {
-      return headers;
-    },
-  };
 }
 
 describe("bundle-objects admin routes (integration)", () => {
@@ -109,7 +76,7 @@ describe("bundle-objects admin routes (integration)", () => {
     ] as any[]);
 
     const hList = handlers.get("GET /bundles/:bundleId/objects")!;
-    const rc1 = resCapture();
+    const rc1 = createResponseCapture();
     await hList({ params: { bundleId: "B1" }, query: { limit: "1" }, headers: {} } as any, rc1.res);
     expect(rc1.status).toBe(200);
     expect(rc1.body?.items?.[0]?.bundleObject?.id).toBe("bo1");
@@ -142,7 +109,7 @@ describe("bundle-objects admin routes (integration)", () => {
         },
       },
     ] as any[]);
-    const rc2 = resCapture();
+    const rc2 = createResponseCapture();
     await hList(
       {
         params: { bundleId: "B1" },
@@ -186,7 +153,7 @@ describe("bundle-objects admin routes (integration)", () => {
     }));
 
     const hAttach = handlers.get("POST /bundles/:bundleId/objects")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await hAttach(
       {
         params: { bundleId: "B1" },
@@ -215,7 +182,7 @@ describe("bundle-objects admin routes (integration)", () => {
     registerBundleObjectsAdminRoutes(server, { scheduler });
     (db.bundleObject.findUnique as any).mockResolvedValueOnce({ bundleId: "B1" });
     const h = handlers.get("POST /bundles/:bundleId/objects/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         params: { bundleId: "B1", id: "BO1" },
@@ -239,7 +206,7 @@ describe("bundle-objects admin routes (integration)", () => {
     );
     registerBundleObjectsAdminRoutes(server, { scheduler });
     const h = handlers.get("DELETE /bundles/:bundleId/objects/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { bundleId: "B9", id: "BOX" }, headers: {} } as any, rc.res);
     expect(rc.status).toBe(204);
     expect(db.bundleObject.deleteMany).toHaveBeenCalledWith({

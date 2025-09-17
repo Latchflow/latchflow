@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { HttpHandler, RequestLike, ResponseLike } from "../http/http-server.js";
+import type { HttpHandler, RequestLike } from "../http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Use the prisma mock via the @latchflow/db alias (mapped to tests/helpers/prisma-mock.ts in Vitest)
 import { prisma } from "@latchflow/db";
@@ -13,34 +14,7 @@ import { requireSession } from "./require-session.js";
 // Use real requirePermission and requireApiToken (which see prisma mock via alias)
 import { requireAdminOrApiToken } from "./require-admin-or-api-token.js";
 
-function makeResCapture() {
-  let statusCode = 0;
-  let jsonBody: any = undefined;
-  const res: ResponseLike = {
-    status(c: number) {
-      statusCode = c;
-      return this;
-    },
-    json(p: any) {
-      jsonBody = p;
-    },
-    header() {
-      return this;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  };
-  return {
-    res,
-    get status() {
-      return statusCode;
-    },
-    get body() {
-      return jsonBody;
-    },
-  };
-}
+const makeResCapture = () => createResponseCapture();
 
 describe("requireAdminOrApiToken", () => {
   beforeEach(() => {

@@ -1,14 +1,10 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
-import type {
-  HttpHandler,
-  HttpServer,
-  RequestLike,
-  ResponseLike,
-} from "../../src/http/http-server.js";
+import type { HttpHandler, HttpServer, RequestLike } from "../../src/http/http-server.js";
 import { createStorageService } from "../../src/storage/service.js";
 import { createS3Storage } from "../../src/storage/s3.js";
 import { getEnv } from "@tests/helpers/containers";
 import { putPresigned, sha256Hex as shaHex } from "@tests/helpers/s3";
+import { createResponseCapture } from "@tests/helpers/response";
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -33,38 +29,6 @@ function makeServer() {
     listen: async () => undefined as any,
   } as unknown as HttpServer;
   return { handlers, server };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res: ResponseLike = {
-    status(c: number) {
-      status = c;
-      return this;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  };
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    headers,
-  };
 }
 
 // Bypass auth for this E2E — focus on storage path; attach a synthetic admin user id
@@ -115,7 +79,7 @@ describe("E2E: presigned upload (S3/MinIO)", () => {
     const data = new TextEncoder().encode("hello-presigned");
     const hex = await shaHex(data);
     const hUploadUrl = handlers.get("POST /files/upload-url")!;
-    const rcUpUrl = resCapture();
+    const rcUpUrl = createResponseCapture();
     await hUploadUrl(
       {
         headers: {},
@@ -161,7 +125,7 @@ describe("E2E: presigned upload (S3/MinIO)", () => {
 
     // Commit
     const hCommit = handlers.get("POST /files/commit")!;
-    const rcCommit = resCapture();
+    const rcCommit = createResponseCapture();
     await hCommit(
       {
         headers: {},
@@ -208,7 +172,7 @@ describe("E2E: presigned upload (S3/MinIO)", () => {
     const dataB = new TextEncoder().encode("mismatch-B");
     const hexA = await shaHex(dataA);
     const hUploadUrl = handlers.get("POST /files/upload-url")!;
-    const rcUpUrl = resCapture();
+    const rcUpUrl = createResponseCapture();
     await hUploadUrl(
       {
         headers: {},
@@ -251,7 +215,7 @@ describe("E2E: presigned upload (S3/MinIO)", () => {
     // MinIO may accept the PUT even with mismatched content; commit should succeed, but
     // the recorded contentHash will still reflect the requested sha (hexA).
     const hCommit = handlers.get("POST /files/commit")!;
-    const rcCommit = resCapture();
+    const rcCommit = createResponseCapture();
     await hCommit(
       {
         headers: {},

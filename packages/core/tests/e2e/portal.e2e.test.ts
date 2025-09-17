@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import type { HttpHandler, HttpServer, ResponseLike } from "../../src/http/http-server.js";
+import type { HttpHandler, HttpServer } from "../../src/http/http-server.js";
 import { loadStorage } from "../../src/storage/loader.js";
 import { createStorageService } from "../../src/storage/service.js";
 import { getEnv } from "@tests/helpers/containers";
+import { createResponseCapture } from "@tests/helpers/response";
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -27,44 +28,6 @@ function makeServer() {
     listen: async () => undefined as any,
   } as unknown as HttpServer;
   return { handlers, server };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  let streamed = false;
-  const res: ResponseLike = {
-    status(c: number) {
-      status = c;
-      return this;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this;
-    },
-    redirect() {},
-    sendStream() {
-      streamed = true;
-    },
-    sendBuffer() {},
-  };
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    headers,
-    get streamed() {
-      return streamed;
-    },
-  };
 }
 
 function futureDate(ms = 60_000) {
@@ -171,7 +134,7 @@ describe("E2E: recipient portal", () => {
 
     // 1) GET /portal/me
     const hMe = handlers.get("GET /portal/me")!;
-    const rcMe = resCapture();
+    const rcMe = createResponseCapture();
     await hMe({ headers: { cookie: "lf_recipient_sess=sess-e2e-1" } } as any, rcMe.res);
     expect(rcMe.status).toBe(200);
     expect(rcMe.body?.recipient?.id).toBe(recipient.id);
@@ -179,7 +142,7 @@ describe("E2E: recipient portal", () => {
 
     // 2) GET /portal/bundles/:bundleId (stream)
     const hDl = handlers.get("GET /portal/bundles/:bundleId")!;
-    const rcDl = resCapture();
+    const rcDl = createResponseCapture();
     await hDl(
       {
         headers: { cookie: "lf_recipient_sess=sess-e2e-1" },

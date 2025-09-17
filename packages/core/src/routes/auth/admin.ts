@@ -56,8 +56,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
 
     if (!user) {
       console.log(`[auth] Magic link requested for non-existent user: ${email}`);
-      res.status(204); // Do not reveal whether the user exists
-      return;
+      return res.sendStatus(204); // Do not reveal whether the user exists
     }
 
     const token = randomToken(32);
@@ -67,8 +66,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
 
     // Dev helper: optionally return login_url instead of relying on email delivery
     if (config.ALLOW_DEV_AUTH) {
-      res.status(200).json({ login_url: `/auth/admin/callback?token=${token}` });
-      return;
+      return res.status(200).json({ login_url: `/auth/admin/callback?token=${token}` });
     }
     // Attempt email delivery via SMTP when configured
     if (config.SMTP_URL) {
@@ -99,18 +97,25 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
         });
         // eslint-disable-next-line no-console
         console.log(`[auth] SMTP send completed for ${email}`);
+        return res.sendStatus(204);
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn("[auth] SMTP delivery failed:", (e as Error).message);
+        return res.status(500).json({
+          status: "error",
+          code: "EMAIL_FAILED",
+          message: "Failed to send email",
+        });
       }
-    } else {
-      // Dev-only: log the callback URL (partial token)
-      // eslint-disable-next-line no-console
-      console.log(
-        `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
-      );
     }
-    res.status(204);
+
+    // Dev-only: log the callback URL (partial token)
+    // eslint-disable-next-line no-console
+    console.log(
+      `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
+    );
+
+    return res.sendStatus(204);
   });
 
   // GET /auth/admin/callback
@@ -193,7 +198,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       res.redirect(config.ADMIN_UI_ORIGIN);
       return;
     }
-    res.status(204);
+    res.sendStatus(204);
   });
 
   // POST /auth/admin/logout

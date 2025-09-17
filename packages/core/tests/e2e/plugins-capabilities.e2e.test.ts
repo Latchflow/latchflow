@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
-import type { HttpHandler, HttpServer, ResponseLike } from "../../src/http/http-server.js";
+import type { HttpHandler, HttpServer } from "../../src/http/http-server.js";
 import { getEnv } from "@tests/helpers/containers";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Bypass auth like in presigned upload E2E; attach a synthetic admin user id
 let ADMIN_ID = "e2e-admin";
@@ -34,38 +35,6 @@ function makeServer() {
     listen: async () => undefined as any,
   } as unknown as HttpServer;
   return { handlers, server };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res: ResponseLike = {
-    status(c: number) {
-      status = c;
-      return this;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  };
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    headers,
-  };
 }
 
 async function seedPlugins(suffix: string) {
@@ -132,7 +101,7 @@ describe("E2E: Plugins & Capabilities endpoints", () => {
 
     // Basic list
     const hList = handlers.get("GET /plugins")!;
-    const rc1 = resCapture();
+    const rc1 = createResponseCapture();
     await hList({ headers: {} } as any, rc1.res);
     expect(rc1.status).toBe(200);
     expect(Array.isArray(rc1.body?.items)).toBe(true);
@@ -141,7 +110,7 @@ describe("E2E: Plugins & Capabilities endpoints", () => {
     expect(foundAlpha?.capabilities?.length).toBe(2);
 
     // Filter by capabilityKey substring
-    const rc2 = resCapture();
+    const rc2 = createResponseCapture();
     await hList({ headers: {}, query: { capabilityKey: "cron" } } as any, rc2.res);
     expect(rc2.status).toBe(200);
     expect(
@@ -149,13 +118,13 @@ describe("E2E: Plugins & Capabilities endpoints", () => {
     ).toBe(true);
 
     // Filter by kind=TRIGGER
-    const rc3 = resCapture();
+    const rc3 = createResponseCapture();
     await hList({ headers: {}, query: { kind: "TRIGGER" } } as any, rc3.res);
     expect(rc3.status).toBe(200);
     expect(rc3.body.items.length).toBeGreaterThanOrEqual(1);
 
     // Free-text q against name
-    const rc4 = resCapture();
+    const rc4 = createResponseCapture();
     await hList({ headers: {}, query: { q: p1.name } } as any, rc4.res);
     expect(rc4.status).toBe(200);
     expect(rc4.body.items.length).toBe(1);
@@ -178,20 +147,20 @@ describe("E2E: Plugins & Capabilities endpoints", () => {
     const { p2 } = await seedPlugins(S);
 
     const hCaps = handlers.get("GET /capabilities")!;
-    const rc1 = resCapture();
+    const rc1 = createResponseCapture();
     await hCaps({ headers: {} } as any, rc1.res);
     expect(rc1.status).toBe(200);
     expect(Array.isArray(rc1.body?.items)).toBe(true);
     expect(rc1.body.items.length).toBeGreaterThanOrEqual(3);
 
     // Filter kind=ACTION
-    const rc2 = resCapture();
+    const rc2 = createResponseCapture();
     await hCaps({ headers: {}, query: { kind: "ACTION" } } as any, rc2.res);
     expect(rc2.status).toBe(200);
     expect(rc2.body.items.every((c: any) => c.kind === "ACTION")).toBe(true);
 
     // Filter by pluginId
-    const rc3 = resCapture();
+    const rc3 = createResponseCapture();
     await hCaps({ headers: {}, query: { pluginId: p2.id } } as any, rc3.res);
     expect(rc3.status).toBe(200);
     expect(rc3.body.items.every((c: any) => c.key === "webhook")).toBe(true);
@@ -213,12 +182,12 @@ describe("E2E: Plugins & Capabilities endpoints", () => {
     const plugin = await prisma.plugin.create({ data: { name: `e2e_plugin_gamma_${S}` } });
 
     const hInstall = handlers.get("POST /plugins/install")!;
-    const rc1 = resCapture();
+    const rc1 = createResponseCapture();
     await hInstall({ headers: {}, body: { source: "file:./plugins/x" } } as any, rc1.res);
     expect(rc1.status).toBe(202);
 
     const hDel = handlers.get("DELETE /plugins/:pluginId")!;
-    const rc2 = resCapture();
+    const rc2 = createResponseCapture();
     await hDel({ headers: {}, params: { pluginId: plugin.id } } as any, rc2.res);
     expect(rc2.status).toBe(204);
     const exists = await prisma.plugin.findUnique({ where: { id: plugin.id } });

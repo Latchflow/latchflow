@@ -1,38 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { HttpHandler, RequestLike, ResponseLike } from "../http/http-server.js";
+import type { HttpHandler, RequestLike } from "../http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 vi.mock("./require-session.js", () => ({
   requireSession: vi.fn(async (_req: any) => ({ user: { id: "u1", role: "ADMIN" } })),
 }));
 
-function mkRes() {
-  let statusCode = 200;
-  let payload: any = null;
-  const res: ResponseLike = {
-    status(c: number) {
-      statusCode = c;
-      return this;
-    },
-    json(p: any) {
-      payload = p;
-    },
-    header() {
-      return this;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  };
-  return {
-    res,
-    get status() {
-      return statusCode;
-    },
-    get body() {
-      return payload;
-    },
-  };
-}
+const mkRes = () => createResponseCapture();
 
 describe("requirePermission (v1)", () => {
   beforeEach(() => {

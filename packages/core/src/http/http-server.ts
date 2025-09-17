@@ -21,6 +21,7 @@ export interface RequestLike {
 
 export interface ResponseLike {
   status(code: number): ResponseLike;
+  sendStatus(code: number): void;
   json(payload: unknown): void;
   header(name: string, value: string | string[]): ResponseLike;
   redirect(url: string, status?: number): void;

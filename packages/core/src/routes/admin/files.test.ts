@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import type { HttpHandler } from "../../http/http-server.js";
 import { createMemoryStorage } from "../../storage/memory.js";
 import { createStorageService } from "../../storage/service.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Mock DB client
 const db = {
@@ -46,46 +47,6 @@ async function makeServer() {
   return { handlers };
 }
 
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  let streamCalled: { headers: Record<string, string | string[]>; stream?: any } | null = null;
-  const res = {
-    status(c: number) {
-      status = c;
-      return this as any;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this as any;
-    },
-    redirect() {},
-    sendStream(s: any, h?: any) {
-      streamCalled = { headers: h ?? {}, stream: s };
-    },
-    sendBuffer() {},
-  } as any;
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    get headers() {
-      return headers;
-    },
-    get stream() {
-      return streamCalled;
-    },
-  };
-}
-
 describe("files admin routes", () => {
   beforeAll(async () => {
     const driver = await createMemoryStorage({ config: null } as any);
@@ -112,7 +73,7 @@ describe("files admin routes", () => {
     ] as any);
     const { handlers } = await makeServer();
     const h = handlers.get("GET /files")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: {} } as any, rc.res);
     expect(rc.status).toBe(200);
     expect(rc.body?.items?.[0]?.key).toBe("docs/readme.txt");
@@ -132,7 +93,7 @@ describe("files admin routes", () => {
     } as any);
     const { handlers } = await makeServer();
     const h = handlers.get("GET /files/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "f1" }, headers: {} } as any, rc.res);
     expect(rc.status).toBe(200);
     expect(rc.body?.id).toBe("f1");
@@ -154,7 +115,7 @@ describe("files admin routes", () => {
     } as any);
     const { handlers } = await makeServer();
     const h = handlers.get("GET /files/:id/download")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "f1" }, headers: {} } as any, rc.res);
     expect(rc.stream).toBeTruthy();
     expect(rc.stream?.headers?.["Content-Type"]).toBe("text/plain");
@@ -169,7 +130,7 @@ describe("files admin routes", () => {
     } as any);
     const { handlers } = await makeServer();
     const h = handlers.get("DELETE /files/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "f1" }, headers: {} } as any, rc.res);
     expect(rc.status).toBe(204);
     expect(db.file.deleteMany).toHaveBeenCalled();
@@ -178,7 +139,7 @@ describe("files admin routes", () => {
   it("POST /files/:id/move updates key and returns 204", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/:id/move")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "f1" }, body: { newKey: "b.txt" }, headers: {} } as any, rc.res);
     expect(rc.status).toBe(204);
     expect(db.file.update).toHaveBeenCalledWith({ where: { id: "f1" }, data: { key: "b.txt" } });
@@ -187,7 +148,7 @@ describe("files admin routes", () => {
   it("PATCH /files/:id/metadata updates metadata and returns 204", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/:id/metadata")!; // using POST route for metadata per implementation
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         params: { id: "f1" },
@@ -206,7 +167,7 @@ describe("files admin routes", () => {
   it("POST /files/upload creates a File and returns 201 with ETag", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/upload")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     // Mock DB create to echo back fields
     (db.file.create as any).mockResolvedValueOnce({
       id: "f-new",
@@ -239,7 +200,7 @@ describe("files admin routes", () => {
   it("POST /files/upload returns 409 when key already exists", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/upload")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     // Simulate unique constraint violation
     (db.file.create as any).mockRejectedValueOnce({ code: "P2002" });
     await h(
@@ -262,7 +223,7 @@ describe("files admin routes", () => {
   it("POST /files/upload with overwrite updates existing and returns 200", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/upload")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     // Simulate existing file
     (db.file.findUnique as any).mockResolvedValueOnce({ id: "f1" });
     // update returns the selected shape
@@ -297,7 +258,7 @@ describe("files admin routes", () => {
   it("POST /files/batch/delete deletes storage and DB then returns 204", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/batch/delete")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     // Spy on storage deleteFile to verify calls
     const spy = vi.spyOn(storageSvc, "deleteFile");
     (db.file.findMany as any).mockResolvedValueOnce([
@@ -313,7 +274,7 @@ describe("files admin routes", () => {
   it("POST /files/batch/move updates keys and returns 204", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/batch/move")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         headers: {},
@@ -334,7 +295,7 @@ describe("files admin routes", () => {
   it("POST /files/batch/move returns 409 on key conflict", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/batch/move")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     // First update succeeds, second fails with unique constraint
     (db.file.update as any).mockResolvedValueOnce({}).mockRejectedValueOnce({ code: "P2002" });
     await h(
@@ -359,7 +320,7 @@ describe("files admin routes", () => {
     storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/upload-url")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         headers: {},
@@ -386,7 +347,7 @@ describe("files admin routes", () => {
     storageSvc = createStorageService({ driver, bucket: "b", keyPrefix: "p" } as any);
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/upload-url")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         headers: {},
@@ -445,7 +406,7 @@ describe("files admin routes", () => {
     });
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/commit")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: {}, body: { key: "k-final", reservationId } } as any, rc.res);
     expect(rc.status).toBe(201);
     expect(db.file.create).toHaveBeenCalled();
@@ -483,7 +444,7 @@ describe("files admin routes", () => {
     (db.file.create as any).mockRejectedValueOnce({ code: "P2002" });
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/commit")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: {}, body: { key: "k-exists", reservationId } } as any, rc.res);
     expect(rc.status).toBe(409);
     expect(rc.body?.code).toBe("CONFLICT");
@@ -512,7 +473,7 @@ describe("files admin routes", () => {
     });
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/commit")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: {}, body: { key: "k-final", reservationId } } as any, rc.res);
     expect(rc.status).toBe(400);
     expect(rc.body?.code).toBe("CHECKSUM_MISMATCH");
@@ -542,7 +503,7 @@ describe("files admin routes", () => {
     });
     let { handlers } = await makeServer();
     let h = handlers.get("POST /files/commit")!;
-    let rc = resCapture();
+    let rc = createResponseCapture();
     await h({ headers: {}, body: { key: "k1", reservationId: expiredId } } as any, rc.res);
     expect(rc.status).toBe(400);
     expect(rc.body?.code).toBe("EXPIRED");
@@ -559,7 +520,7 @@ describe("files admin routes", () => {
     });
     ({ handlers } = await makeServer());
     h = handlers.get("POST /files/commit")!;
-    rc = resCapture();
+    rc = createResponseCapture();
     await h({ headers: {}, body: { key: "k1", reservationId: usedId } } as any, rc.res);
     expect(rc.status).toBe(400);
     expect(rc.body?.code).toBe("INVALID_RESERVATION");
@@ -588,7 +549,7 @@ describe("files admin routes", () => {
     });
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/commit")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: {}, body: { key: "k-wrong", reservationId } } as any, rc.res);
     expect(rc.status).toBe(400);
     expect(rc.body?.code).toBe("KEY_MISMATCH");
@@ -629,7 +590,7 @@ describe("files admin routes", () => {
     });
     const { handlers } = await makeServer();
     const h = handlers.get("POST /files/commit")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       { headers: {}, body: { key: "k-overwrite", reservationId, overwrite: true } } as any,
       rc.res,
