@@ -298,7 +298,7 @@ Notes:
 - Input guardrails for execute/create/update and 2FA enforcement for admin routes.
 
 ## Roadmap
-- CLI, Admin UI, Recipient Portal, CLI, and built-in plugins are planned additions.
+- Admin UI, Recipient Portal, CLI, and built-in plugins are planned additions.
 - See `docs/ROADMAP.md` for phased milestones.
 
 ## See Also
