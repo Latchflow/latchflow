@@ -89,6 +89,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -122,6 +125,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -159,6 +165,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -185,6 +194,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -212,6 +224,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -240,6 +255,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -288,6 +306,9 @@ describe("admin auth routes", () => {
       redirect(url: string, status?: number) {
         redirected = [url, status];
       },
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -323,6 +344,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -366,6 +390,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -392,6 +419,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -425,6 +455,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -459,6 +492,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -503,6 +539,9 @@ describe("admin auth routes", () => {
         return this as any;
       },
       redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
       sendStream() {},
       sendBuffer() {},
     });
@@ -536,6 +575,9 @@ describe("admin auth routes", () => {
           return this as any;
         },
         redirect() {},
+        sendStatus(c: number) {
+          code = c;
+        },
         sendStream() {},
         sendBuffer() {},
       },

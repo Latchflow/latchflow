@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerTriggerAdminRoutes } from "../../routes/admin/triggers.js";
 import type { HttpHandler } from "../../http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 const db = {
   triggerDefinition: {
@@ -48,40 +49,6 @@ async function makeServer() {
     } as any,
   });
   return { handlers };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res = {
-    status(c: number) {
-      status = c;
-      return this as any;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this as any;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  } as any;
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    get headers() {
-      return headers;
-    },
-  };
 }
 
 describe("triggers routes", () => {
@@ -132,7 +99,7 @@ describe("triggers routes", () => {
   it("POST /triggers validates capability and returns 400 when invalid", async () => {
     const { handlers } = await makeServer();
     const h = handlers.get("POST /triggers")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ body: { name: "n1", capabilityId: "capX", config: {} } } as any, rc.res);
     expect(rc.status).toBe(400);
     expect(rc.body?.code).toBe("INVALID_CAPABILITY");
@@ -155,7 +122,7 @@ describe("triggers routes", () => {
       updatedAt: new Date().toISOString(),
     } as any);
     const h = handlers.get("POST /triggers")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ body: { name: "n1", capabilityId: "cap1", config: {} } } as any, rc.res);
     expect(rc.status).toBe(201);
     expect(rc.body?.id).toBe("t1");
@@ -166,7 +133,7 @@ describe("triggers routes", () => {
     const { handlers } = await makeServer();
     db.triggerDefinition.findUnique.mockResolvedValueOnce(null as any);
     const h = handlers.get("GET /triggers/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "missing" } } as any, rc.res);
     expect(rc.status).toBe(404);
   });
@@ -175,7 +142,7 @@ describe("triggers routes", () => {
     const { handlers } = await makeServer();
     db.triggerDefinition.update.mockResolvedValueOnce({ id: "t1" } as any);
     const h = handlers.get("PATCH /triggers/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "t1" }, body: { isEnabled: false } } as any, rc.res);
     expect(rc.status).toBe(204);
     const args = (db.triggerDefinition.update as any).mock.calls[0]?.[0]?.data;
@@ -187,7 +154,7 @@ describe("triggers routes", () => {
     db.triggerEvent.count.mockResolvedValueOnce(1 as any);
     db.pipelineTrigger.count.mockResolvedValueOnce(0 as any);
     const h = handlers.get("DELETE /triggers/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "t1" } } as any, rc.res);
     expect(rc.status).toBe(409);
   });
@@ -210,7 +177,7 @@ describe("triggers routes", () => {
       } as any,
     });
     const h = handlers.get("POST /triggers/:id/test-fire")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ params: { id: "t1" }, body: { context: { a: 1 } } } as any, rc.res);
     expect(rc.status).toBe(202);
     expect(fire).toHaveBeenCalledWith("t1", { a: 1 });

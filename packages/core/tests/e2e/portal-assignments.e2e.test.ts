@@ -1,13 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import type {
-  HttpHandler,
-  HttpServer,
-  RequestLike,
-  ResponseLike,
-} from "../../src/http/http-server.js";
+import type { HttpHandler, HttpServer, RequestLike } from "../../src/http/http-server.js";
 import { loadStorage } from "../../src/storage/loader.js";
 import { createStorageService } from "../../src/storage/service.js";
 import { getEnv } from "@tests/helpers/containers";
+import { createResponseCapture } from "@tests/helpers/response";
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -32,48 +28,6 @@ function makeServer() {
     listen: async () => undefined as any,
   } as unknown as HttpServer;
   return { handlers, server };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  let streamed = false;
-  const res: ResponseLike = {
-    status(c: number) {
-      status = c;
-      return this;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this;
-    },
-    redirect() {},
-    sendStream() {
-      if (status === 0) status = 200;
-      streamed = true;
-    },
-    sendBuffer() {
-      if (status === 0) status = 200;
-      streamed = true;
-    },
-  };
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    headers,
-    get streamed() {
-      return streamed;
-    },
-  };
 }
 
 function futureDate(ms = 60_000) {
@@ -153,7 +107,7 @@ describe("E2E: portal assignments summary", () => {
 
     // Make one download to increment used and set lastDownloadAt
     const hDl = handlers.get("GET /portal/bundles/:bundleId")!;
-    const r0 = resCapture();
+    const r0 = createResponseCapture();
     await hDl(
       {
         headers: { cookie: "lf_recipient_sess=sess-assign-1" },
@@ -166,7 +120,7 @@ describe("E2E: portal assignments summary", () => {
 
     // Query assignments summary
     const hSum = handlers.get("GET /portal/assignments")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await hSum(
       { headers: { cookie: "lf_recipient_sess=sess-assign-1" } } as unknown as RequestLike,
       rc.res,

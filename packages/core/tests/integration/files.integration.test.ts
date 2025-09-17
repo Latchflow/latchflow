@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
 import type { HttpHandler } from "../../src/http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 import { createMemoryStorage } from "../../src/storage/memory.js";
 import { createStorageService } from "../../src/storage/service.js";
 
@@ -48,46 +49,6 @@ async function makeServerWithHook(onFilesChanged: (ids: string[]) => Promise<voi
   return { handlers };
 }
 
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  let streamCalled: { headers: Record<string, string | string[]>; stream?: any } | null = null;
-  const res = {
-    status(c: number) {
-      status = c;
-      return this as any;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this as any;
-    },
-    redirect() {},
-    sendStream(s: any, h?: any) {
-      streamCalled = { headers: h ?? {}, stream: s };
-    },
-    sendBuffer() {},
-  } as any;
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    get headers() {
-      return headers;
-    },
-    get stream() {
-      return streamCalled;
-    },
-  };
-}
-
 describe("files integration (in-package)", () => {
   beforeAll(async () => {
     const driver = await createMemoryStorage({ config: null } as any);
@@ -132,7 +93,7 @@ describe("files integration (in-package)", () => {
 
     // 1) upload
     const hUpload = handlers.get("POST /files/upload")!;
-    const rcUp = resCapture();
+    const rcUp = createResponseCapture();
     await hUpload(
       {
         headers: { "content-type": "multipart/form-data" },
@@ -152,18 +113,18 @@ describe("files integration (in-package)", () => {
 
     // 2) list
     const hList = handlers.get("GET /files")!;
-    const rcList = resCapture();
+    const rcList = createResponseCapture();
     await hList({ headers: {} } as any, rcList.res);
     expect(rcList.status).toBe(200);
     expect(rcList.body?.items?.length).toBeGreaterThan(0);
 
     // 3) download
     const hGet = handlers.get("GET /files/:id")!;
-    const rcMeta = resCapture();
+    const rcMeta = createResponseCapture();
     await hGet({ headers: {}, params: { id: "f-int-1" } } as any, rcMeta.res);
     expect(rcMeta.status).toBe(200);
     const hDl = handlers.get("GET /files/:id/download")!;
-    const rcDl = resCapture();
+    const rcDl = createResponseCapture();
     await hDl({ headers: {}, params: { id: "f-int-1" } } as any, rcDl.res);
     expect(rcDl.stream).toBeTruthy();
     expect(rcDl.stream?.headers?.["ETag"]).toBe(etag);
@@ -178,12 +139,12 @@ describe("files integration (in-package)", () => {
 
     // 4) delete
     const hDel = handlers.get("DELETE /files/:id")!;
-    const rcDel = resCapture();
+    const rcDel = createResponseCapture();
     await hDel({ headers: {}, params: { id: "f-int-1" } } as any, rcDel.res);
     expect(rcDel.status).toBe(204);
 
     // 5) confirm list no longer includes the item
-    const rcList2 = resCapture();
+    const rcList2 = createResponseCapture();
     await hList({ headers: {} } as any, rcList2.res);
     expect(rcList2.status).toBe(200);
     const hasItem =
@@ -211,7 +172,7 @@ describe("files integration (in-package)", () => {
       calls.push(ids);
     });
     const hUpload = handlers.get("POST /files/upload")!;
-    const rcUp = resCapture();
+    const rcUp = createResponseCapture();
     await hUpload(
       {
         headers: { "content-type": "multipart/form-data" },

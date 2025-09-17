@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { HttpHandler } from "../http/http-server.js";
 import { Readable } from "node:stream";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Mock DB client used by requireRecipient and routes
 const db = {
@@ -28,51 +29,6 @@ function makeServer() {
   return { handlers, storage };
 }
 
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  let streamed = false;
-  let sentHeaders: Record<string, string | string[]> | undefined;
-  const res = {
-    status(c: number) {
-      status = c;
-      return this as any;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this as any;
-    },
-    redirect() {},
-    sendStream(_body?: any, h?: Record<string, string | string[]>) {
-      streamed = true;
-      sentHeaders = h;
-    },
-    sendBuffer() {},
-  } as any;
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    get headers() {
-      return headers;
-    },
-    get streamed() {
-      return streamed;
-    },
-    get sentHeaders() {
-      return sentHeaders;
-    },
-  };
-}
-
 function futureDate(ms = 60_000) {
   return new Date(Date.now() + ms);
 }
@@ -96,7 +52,7 @@ describe("portal routes (unit)", () => {
       } as any,
     );
     const h = handlers.get("GET /portal/me")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: {} } as any, rc.res);
     expect(rc.status).toBe(401);
     expect(rc.body?.code).toBe("UNAUTHORIZED");
@@ -122,7 +78,7 @@ describe("portal routes (unit)", () => {
       { bundle: { id: "B2", name: "Bundle 2" } },
     ] as any);
     const h = handlers.get("GET /portal/me")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: { cookie: "lf_recipient_sess=tok" } } as any, rc.res);
     expect(rc.status).toBe(200);
     expect(rc.body?.recipient?.id).toBe("R1");
@@ -156,7 +112,7 @@ describe("portal routes (unit)", () => {
       { file: { id: "F2" } },
     ] as any);
     const h = handlers.get("GET /portal/bundles/:bundleId/objects")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
       rc.res,
@@ -189,7 +145,7 @@ describe("portal routes (unit)", () => {
       verificationMet: false,
     } as any);
     const h = handlers.get("GET /portal/bundles/:bundleId")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     // allow when limits permit
     db.downloadEvent.count.mockResolvedValueOnce(0);
     db.bundle.findUnique.mockResolvedValueOnce({
@@ -234,7 +190,7 @@ describe("portal routes (unit)", () => {
       checksum: "etag",
     } as any);
     const h = handlers.get("GET /portal/bundles/:bundleId")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
       rc.res,
@@ -273,16 +229,16 @@ describe("portal routes (unit)", () => {
       checksum: "dbsum",
     } as any);
     const h = handlers.get("GET /portal/bundles/:bundleId")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
       rc.res,
     );
     expect(rc.streamed).toBe(true);
-    expect(rc.sentHeaders?.["ETag"]).toBe("stor-etag");
+    expect(rc.stream?.headers?.["ETag"]).toBe("stor-etag");
 
     // Now simulate missing headFile -> fallback to checksum
-    const rc2 = resCapture();
+    const rc2 = createResponseCapture();
     (storage.headFile as any).mockRejectedValueOnce(new Error("nope"));
     // Re-seed DB mocks for second request
     db.recipientSession.findUnique.mockResolvedValueOnce({
@@ -308,7 +264,7 @@ describe("portal routes (unit)", () => {
       rc2.res,
     );
     expect(rc2.streamed).toBe(true);
-    expect(rc2.sentHeaders?.["ETag"]).toBe("dbsum");
+    expect(rc2.stream?.headers?.["ETag"]).toBe("dbsum");
   });
 
   it("/portal/bundles/:bundleId schedules rebuild when digest mismatch (lazy)", async () => {
@@ -356,7 +312,7 @@ describe("portal routes (unit)", () => {
       ],
     } as any);
     const h = handlers.get("GET /portal/bundles/:bundleId")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       { headers: { cookie: "lf_recipient_sess=tok" }, params: { bundleId: "B1" } } as any,
       rc.res,
@@ -402,7 +358,7 @@ describe("portal routes (unit)", () => {
     db.downloadEvent.count.mockResolvedValueOnce(2);
     db.downloadEvent.count.mockResolvedValueOnce(1);
     const h = handlers.get("GET /portal/assignments")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h({ headers: { cookie: "lf_recipient_sess=tok" } } as any, rc.res);
     expect(rc.status).toBe(200);
     expect(Array.isArray(rc.body?.items)).toBe(true);

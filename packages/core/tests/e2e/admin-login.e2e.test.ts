@@ -1,13 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import type {
-  HttpHandler,
-  HttpServer,
-  RequestLike,
-  ResponseLike,
-} from "../../src/http/http-server.js";
+import type { HttpHandler, HttpServer, RequestLike } from "../../src/http/http-server.js";
 import { loadConfig } from "../../src/config/config.js";
 import { getEnv } from "@tests/helpers/containers";
 import { waitForMessage, extractMagicLinkPath } from "@tests/helpers/mailhog";
+import { createResponseCapture } from "@tests/helpers/response";
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -32,38 +28,6 @@ function makeServer() {
     listen: async () => undefined as any,
   } as unknown as HttpServer;
   return { handlers, server };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res: ResponseLike = {
-    status(c: number) {
-      status = c;
-      return this;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  };
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    headers,
-  };
 }
 
 function parseSetCookie(setCookie: string | string[] | undefined): Record<string, string> {
@@ -109,7 +73,7 @@ describe("E2E: admin magic-link login (dev-allowed)", () => {
 
     // 1) Request magic link start
     const hStart = handlers.get("POST /auth/admin/start")!;
-    const rcStart = resCapture();
+    const rcStart = createResponseCapture();
     await hStart(
       { body: { email: "e2e.admin@example.com" }, headers: {} } as unknown as RequestLike,
       rcStart.res,
@@ -126,7 +90,7 @@ describe("E2E: admin magic-link login (dev-allowed)", () => {
 
     // 2) Redeem token
     const hCb = handlers.get("GET /auth/admin/callback")!;
-    const rcCb = resCapture();
+    const rcCb = createResponseCapture();
     await hCb({ query: { token }, headers: {} } as unknown as RequestLike, rcCb.res);
     expect([204, 302]).toContain(rcCb.status);
 
@@ -169,7 +133,7 @@ describe("E2E: admin magic-link login (email delivery)", () => {
       create: { email: targetEmail },
     });
     const hStart = handlers.get("POST /auth/admin/start")!;
-    const rcStart = resCapture();
+    const rcStart = createResponseCapture();
     await hStart({ body: { email: targetEmail }, headers: {} } as any, rcStart.res);
     expect(rcStart.status).toBe(204);
 
@@ -189,7 +153,7 @@ describe("E2E: admin magic-link login (email delivery)", () => {
     const token = urlObj.searchParams.get("token");
     expect(token).toBeTruthy();
     const hCb = handlers.get("GET /auth/admin/callback")!;
-    const rcCb = resCapture();
+    const rcCb = createResponseCapture();
     await hCb({ query: { token }, headers: {} } as any, rcCb.res);
     expect([204, 302]).toContain(rcCb.status);
 
@@ -221,7 +185,7 @@ describe("E2E: admin magic-link login (negative cases)", () => {
     registerAdminAuthRoutes(server, config);
 
     const hCb = handlers.get("GET /auth/admin/callback")!;
-    const rcCb = resCapture();
+    const rcCb = createResponseCapture();
     await hCb({ query: { token: "totally_invalid_token" }, headers: {} } as any, rcCb.res);
     expect(rcCb.status).toBe(401);
     expect(rcCb.body?.code).toBe("INVALID_TOKEN");
@@ -254,7 +218,7 @@ describe("E2E: admin magic-link login (negative cases)", () => {
     registerAdminAuthRoutes(server, config);
 
     const hCb = handlers.get("GET /auth/admin/callback")!;
-    const rcCb = resCapture();
+    const rcCb = createResponseCapture();
     await hCb({ query: { token }, headers: {} } as any, rcCb.res);
     expect(rcCb.status).toBe(401);
     expect(rcCb.body?.code).toBe("INVALID_TOKEN");

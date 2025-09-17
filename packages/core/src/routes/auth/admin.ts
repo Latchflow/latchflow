@@ -56,8 +56,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
 
     if (!user) {
       console.log(`[auth] Magic link requested for non-existent user: ${email}`);
-      res.status(204); // Do not reveal whether the user exists
-      return;
+      return res.sendStatus(204); // Do not reveal whether the user exists
     }
 
     const token = randomToken(32);
@@ -108,13 +107,15 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
           message: "Failed to send email",
         });
       }
-    } else {
-      // Dev-only: log the callback URL (partial token)
-      // eslint-disable-next-line no-console
-      console.log(
-        `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
-      );
     }
+
+    // Dev-only: log the callback URL (partial token)
+    // eslint-disable-next-line no-console
+    console.log(
+      `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
+    );
+
+    return res.sendStatus(204);
   });
 
   // GET /auth/admin/callback

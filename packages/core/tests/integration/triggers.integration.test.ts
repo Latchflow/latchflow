@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { HttpHandler } from "../../src/http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Prisma-like mock
 const db = {
@@ -40,40 +41,6 @@ function makeServer() {
   return { handlers, server };
 }
 
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res = {
-    status(c: number) {
-      status = c;
-      return this as any;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this as any;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  } as any;
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    get headers() {
-      return headers;
-    },
-  };
-}
-
 describe("triggers admin routes (integration)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -112,7 +79,7 @@ describe("triggers admin routes (integration)", () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     } as any);
-    const rcCreate = resCapture();
+    const rcCreate = createResponseCapture();
     await handlers.get("POST /triggers")!(
       { body: { name: "Cron", capabilityId: "cap1", config: {} } } as any,
       rcCreate.res,
@@ -121,7 +88,7 @@ describe("triggers admin routes (integration)", () => {
 
     // Enable toggle (disable now)
     db.triggerDefinition.update.mockResolvedValueOnce({ id: "t1" } as any);
-    const rcUpdate = resCapture();
+    const rcUpdate = createResponseCapture();
     await handlers.get("PATCH /triggers/:id")!(
       { params: { id: "t1" }, body: { isEnabled: false } } as any,
       rcUpdate.res,
@@ -130,7 +97,7 @@ describe("triggers admin routes (integration)", () => {
 
     // List with filter
     db.triggerDefinition.findMany.mockResolvedValueOnce([] as any);
-    const rcList = resCapture();
+    const rcList = createResponseCapture();
     await handlers.get("GET /triggers")!(
       { query: { pluginId: "p1", capabilityKey: "cron", q: "cr" } } as any,
       rcList.res,
@@ -147,7 +114,7 @@ describe("triggers admin routes (integration)", () => {
     db.triggerEvent.count.mockResolvedValueOnce(0 as any);
     db.pipelineTrigger.count.mockResolvedValueOnce(0 as any);
     db.triggerDefinition.delete.mockResolvedValueOnce({} as any);
-    const rcDelete = resCapture();
+    const rcDelete = createResponseCapture();
     await handlers.get("DELETE /triggers/:id")!({ params: { id: "t1" } } as any, rcDelete.res);
     expect(rcDelete.status).toBe(204);
   });

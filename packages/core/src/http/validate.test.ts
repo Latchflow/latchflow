@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { z } from "zod";
 import { validate } from "../http/validate.js";
-import type { RequestLike, ResponseLike } from "../http/http-server.js";
+import type { RequestLike } from "../http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 describe("validate helper", () => {
   it("parses body/query/params via zod and calls handler", async () => {
@@ -15,26 +16,10 @@ describe("validate helper", () => {
     })(handler);
 
     const req: RequestLike = { body: { id: "123" }, query: { q: "hey" }, params: { pid: "p" } };
-    let status = 0;
-    let json: unknown = null;
-    const res: ResponseLike = {
-      status(code: number) {
-        status = code;
-        return this;
-      },
-      json(payload: unknown) {
-        json = payload;
-      },
-      header() {
-        return this;
-      },
-      redirect() {},
-      sendStream() {},
-      sendBuffer() {},
-    };
-    await wrapped(req, res);
+    const rc = createResponseCapture();
+    await wrapped(req, rc.res);
     expect(handler).toHaveBeenCalledOnce();
-    expect(status).toBe(201);
-    expect(json).toEqual({ ok: true });
+    expect(rc.status).toBe(201);
+    expect(rc.body).toEqual({ ok: true });
   });
 });

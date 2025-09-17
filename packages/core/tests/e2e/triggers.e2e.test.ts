@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
-import type { HttpHandler, HttpServer, ResponseLike } from "../../src/http/http-server.js";
+import type { HttpHandler, HttpServer } from "../../src/http/http-server.js";
 import { getEnv } from "@tests/helpers/containers";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Bypass auth; attach synthetic admin user id on requests
 let ADMIN_ID = "e2e-admin";
@@ -38,38 +39,6 @@ function makeServer() {
     listen: async () => undefined as any,
   } as unknown as HttpServer;
   return { handlers, server };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res: ResponseLike = {
-    status(c: number) {
-      status = c;
-      return this;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  };
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    headers,
-  };
 }
 
 async function seedPluginWithTriggerAndAction() {
@@ -147,7 +116,7 @@ describe("E2E: Triggers endpoints", () => {
 
     // Create trigger
     const hCreate = handlers.get("POST /triggers")!;
-    const rcCreate = resCapture();
+    const rcCreate = createResponseCapture();
     await hCreate(
       {
         headers: {},
@@ -164,7 +133,7 @@ describe("E2E: Triggers endpoints", () => {
 
     // Update: disable
     const hUpdate = handlers.get("PATCH /triggers/:id")!;
-    const rcUpdate = resCapture();
+    const rcUpdate = createResponseCapture();
     await hUpdate(
       { headers: {}, params: { id: triggerId }, body: { isEnabled: false } } as any,
       rcUpdate.res,
@@ -205,7 +174,7 @@ describe("E2E: Triggers endpoints", () => {
     });
 
     // Re-enable trigger for firing
-    const rcUpdate2 = resCapture();
+    const rcUpdate2 = createResponseCapture();
     await hUpdate(
       { headers: {}, params: { id: triggerId }, body: { isEnabled: true } } as any,
       rcUpdate2.res,
@@ -214,7 +183,7 @@ describe("E2E: Triggers endpoints", () => {
 
     // Test-fire
     const hFire = handlers.get("POST /triggers/:id/test-fire")!;
-    const rcFire = resCapture();
+    const rcFire = createResponseCapture();
     await hFire(
       { headers: {}, params: { id: triggerId }, body: { context: { foo: "bar" } } } as any,
       rcFire.res,
@@ -229,7 +198,7 @@ describe("E2E: Triggers endpoints", () => {
 
     // List with filters
     const hList = handlers.get("GET /triggers")!;
-    const rcList = resCapture();
+    const rcList = createResponseCapture();
     await hList(
       { headers: {}, query: { pluginId: seed.plugin.id, capabilityKey: "cron", q: "Cron" } } as any,
       rcList.res,
@@ -240,12 +209,12 @@ describe("E2E: Triggers endpoints", () => {
 
     // Delete should now fail with 409 due to usage/linkage
     const hDel = handlers.get("DELETE /triggers/:id")!;
-    const rcDelFail = resCapture();
+    const rcDelFail = createResponseCapture();
     await hDel({ headers: {}, params: { id: triggerId } } as any, rcDelFail.res);
     expect(rcDelFail.status).toBe(409);
 
     // Create an unused trigger and delete it
-    const rcCreate2 = resCapture();
+    const rcCreate2 = createResponseCapture();
     await hCreate(
       {
         headers: {},
@@ -254,7 +223,7 @@ describe("E2E: Triggers endpoints", () => {
       rcCreate2.res,
     );
     const tempId = rcCreate2.body.id as string;
-    const rcDelOk = resCapture();
+    const rcDelOk = createResponseCapture();
     await hDel({ headers: {}, params: { id: tempId } } as any, rcDelOk.res);
     expect(rcDelOk.status).toBe(204);
     const missing = await prisma.triggerDefinition.findUnique({ where: { id: tempId } });

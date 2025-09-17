@@ -1,13 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import type {
-  HttpHandler,
-  HttpServer,
-  RequestLike,
-  ResponseLike,
-} from "../../src/http/http-server.js";
+import type { HttpHandler, HttpServer, RequestLike } from "../../src/http/http-server.js";
 import { loadStorage } from "../../src/storage/loader.js";
 import { createStorageService } from "../../src/storage/service.js";
 import { getEnv } from "@tests/helpers/containers";
+import { createResponseCapture } from "@tests/helpers/response";
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -32,48 +28,6 @@ function makeServer() {
     listen: async () => undefined as any,
   } as unknown as HttpServer;
   return { handlers, server };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  let streamed = false;
-  const res: ResponseLike = {
-    status(c: number) {
-      status = c;
-      return this;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this;
-    },
-    redirect() {},
-    sendStream() {
-      if (status === 0) status = 200;
-      streamed = true;
-    },
-    sendBuffer() {
-      if (status === 0) status = 200;
-      streamed = true;
-    },
-  };
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    headers,
-    get streamed() {
-      return streamed;
-    },
-  };
 }
 
 function futureDate(ms = 60_000) {
@@ -153,7 +107,7 @@ describe("E2E: bundle download limits (portal)", () => {
 
     const hDl = handlers.get("GET /portal/bundles/:bundleId")!;
     // First download OK
-    const rc1 = resCapture();
+    const rc1 = createResponseCapture();
     await hDl(
       {
         headers: { cookie: "lf_recipient_sess=sess-limits-1" },
@@ -164,7 +118,7 @@ describe("E2E: bundle download limits (portal)", () => {
     expect(rc1.status).toBe(200);
     expect(rc1.streamed).toBe(true);
     // Second download blocked
-    const rc2 = resCapture();
+    const rc2 = createResponseCapture();
     await hDl(
       {
         headers: { cookie: "lf_recipient_sess=sess-limits-1" },
@@ -242,7 +196,7 @@ describe("E2E: bundle download limits (portal)", () => {
 
     const hDl = handlers.get("GET /portal/bundles/:bundleId")!;
     // First download
-    const r1 = resCapture();
+    const r1 = createResponseCapture();
     await hDl(
       {
         headers: { cookie: "lf_recipient_sess=sess-cooldown-1" },
@@ -253,7 +207,7 @@ describe("E2E: bundle download limits (portal)", () => {
     expect(r1.status).toBe(200);
     expect(r1.streamed).toBe(true);
     // Immediate second should 429
-    const r2 = resCapture();
+    const r2 = createResponseCapture();
     await hDl(
       {
         headers: { cookie: "lf_recipient_sess=sess-cooldown-1" },
@@ -265,7 +219,7 @@ describe("E2E: bundle download limits (portal)", () => {
     expect(r2.body?.code).toBe("COOLDOWN_ACTIVE");
     // Wait for cooldown to pass
     await new Promise((r) => setTimeout(r, 1200));
-    const r3 = resCapture();
+    const r3 = createResponseCapture();
     await hDl(
       {
         headers: { cookie: "lf_recipient_sess=sess-cooldown-1" },

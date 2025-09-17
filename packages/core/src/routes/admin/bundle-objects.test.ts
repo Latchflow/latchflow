@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { HttpHandler } from "../../http/http-server.js";
+import { createResponseCapture } from "@tests/helpers/response";
 
 // Mock DB client
 const db = {
@@ -31,40 +32,6 @@ function makeServer() {
   } as any;
   const scheduler = { schedule: vi.fn(), scheduleForFiles: vi.fn(), getStatus: vi.fn() } as any;
   return { handlers, server, scheduler };
-}
-
-function resCapture() {
-  let status = 0;
-  let body: any = null;
-  const headers: Record<string, string | string[]> = {};
-  const res = {
-    status(c: number) {
-      status = c;
-      return this as any;
-    },
-    json(p: any) {
-      body = p;
-    },
-    header(name: string, value: any) {
-      headers[name] = value;
-      return this as any;
-    },
-    redirect() {},
-    sendStream() {},
-    sendBuffer() {},
-  } as any;
-  return {
-    res,
-    get status() {
-      return status;
-    },
-    get body() {
-      return body;
-    },
-    get headers() {
-      return headers;
-    },
-  };
 }
 
 describe("bundle-objects admin routes", () => {
@@ -119,7 +86,7 @@ describe("bundle-objects admin routes", () => {
       },
     ]);
     const h = handlers.get("GET /bundles/:bundleId/objects")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         params: { bundleId: "11111111-1111-1111-1111-111111111111" },
@@ -161,7 +128,7 @@ describe("bundle-objects admin routes", () => {
       };
     });
     const h = handlers.get("POST /bundles/:bundleId/objects")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         params: { bundleId: "11111111-1111-1111-1111-111111111111" },
@@ -186,7 +153,7 @@ describe("bundle-objects admin routes", () => {
       bundleId: "11111111-1111-1111-1111-111111111111",
     });
     const h = handlers.get("POST /bundles/:bundleId/objects/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         params: {
@@ -213,7 +180,7 @@ describe("bundle-objects admin routes", () => {
     const { registerBundleObjectsAdminRoutes } = await import("./bundle-objects.js");
     registerBundleObjectsAdminRoutes(server, { scheduler });
     const h = handlers.get("DELETE /bundles/:bundleId/objects/:id")!;
-    const rc = resCapture();
+    const rc = createResponseCapture();
     await h(
       {
         params: {
