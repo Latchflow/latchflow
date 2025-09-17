@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import type { HttpHandler } from "../src/http/http-server.js";
-import { createMemoryStorage } from "../src/storage/memory.js";
-import { createStorageService } from "../src/storage/service.js";
+import type { HttpHandler } from "../../src/http/http-server.js";
+import { createMemoryStorage } from "../../src/storage/memory.js";
+import { createStorageService } from "../../src/storage/service.js";
 
 // Minimal DB mock wired via getDb() mock
 const db = {
@@ -15,10 +15,10 @@ const db = {
   apiToken: { findUnique: vi.fn(async (): Promise<any> => null), update: vi.fn(async () => ({})) },
   user: { findUnique: vi.fn(async (): Promise<any> => null) },
 };
-vi.mock("../src/db/db.js", () => ({ getDb: () => db }));
+vi.mock("../../src/db/db.js", () => ({ getDb: () => db }));
 
 // Admin session shortcut
-vi.mock("../src/middleware/require-session.js", () => ({
+vi.mock("../../src/middleware/require-session.js", () => ({
   requireSession: vi.fn(async () => ({ user: { id: "u1", role: "ADMIN", isActive: true } })),
 }));
 
@@ -31,7 +31,7 @@ async function makeServer() {
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
-  const { registerFileAdminRoutes } = await import("../src/routes/admin/files.js");
+  const { registerFileAdminRoutes } = await import("../../src/routes/admin/files.js");
   registerFileAdminRoutes(server, { storage: storageSvc } as any);
   return { handlers };
 }
@@ -43,7 +43,7 @@ async function makeServerWithHook(onFilesChanged: (ids: string[]) => Promise<voi
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
-  const { registerFileAdminRoutes } = await import("../src/routes/admin/files.js");
+  const { registerFileAdminRoutes } = await import("../../src/routes/admin/files.js");
   registerFileAdminRoutes(server, { storage: storageSvc, onFilesChanged } as any);
   return { handlers };
 }
