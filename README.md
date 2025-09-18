@@ -269,6 +269,12 @@ Tips
       -d '{"name":"Email","capabilityId":"<capId>","config":{"template":"welcome"}}' \
       http://localhost:3001/actions`
 
+## ChangeLog & Auditing
+- Aggregate-only history: ChangeLog rows are written for root entities (Pipeline, Bundle, Recipient, TriggerDefinition, ActionDefinition). Child updates append history on the parent aggregate.
+- Snapshots vs. diffs: `HISTORY_SNAPSHOT_INTERVAL` and `HISTORY_MAX_CHAIN_DEPTH` control when we persist full snapshots versus JSON Patch diffs; hashes protect against drift.
+- Provenance: all admin mutations must populate `createdBy`/`updatedBy` and supply actor context so ChangeLog answers “who changed what, when”.
+- See [docs/architecture.md#history--changelog-strategy](docs/architecture.md#history--changelog-strategy) for canonical serialisation rules and guidance when adding new endpoints.
+
 ## AuthN vs AuthZ (Current)
 - AuthN (authentication): lives under `packages/core/src/auth` and `packages/core/src/middleware/require-session.ts`.
   - Establishes identity via admin session cookies or API tokens.

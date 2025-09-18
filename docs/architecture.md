@@ -71,6 +71,18 @@ This document explains the runtime shape and key flows with an emphasis on the p
 
 - Triggers and actions are declared by installed plugins and registered at startup.
 - The core runtime orchestrates trigger → action pipelines; no hard‑coded types.
+
+## History & ChangeLog Strategy
+
+Latchflow records configuration changes using a parent‑aggregate ChangeLog. Only aggregate roots (Pipeline, Bundle, Recipient, TriggerDefinition, ActionDefinition) receive history rows; child mutations are captured by serialising the full parent state.
+
+- **Aggregate snapshots vs. diffs** — Every ChangeLog entry stores either a full canonical snapshot (`isSnapshot=true`) or a JSON Patch diff against the previous version. Snapshot cadence is controlled by `HISTORY_SNAPSHOT_INTERVAL`, with an additional guard (`HISTORY_MAX_CHAIN_DEPTH`) that forces a snapshot when diff chains grow too long.
+- **Canonical serialisation** — Each aggregate is materialised via `serializeAggregate`, which orders child collections deterministically, redacts sensitive config, and omits volatile fields like timestamps, linkage IDs, and child provenance. Hashes are computed from this canonical JSON to detect drift.
+- **Append‑only provenance** — Entries include actor context (`actorType`, `actorUserId`, `actorInvocationId`, etc.) and optional `changeNote`/`changedPath` metadata so we can answer “who changed what, when”. Application code never mutates an existing ChangeLog row.
+- **Parent responsibility** — Any write that affects an aggregate (including step reorders, trigger attachments, or bundle assignment edits) must update the parent’s `updatedBy` and append a ChangeLog row for that parent aggregate. Children do not have independent history tables.
+- **Materialisation** — Historical reads use `materializeVersion`, which walks the ChangeLog entries for an aggregate, applies the latest snapshot, then replays diffs to build the requested version.
+
+This strategy keeps history compact while ensuring we can time‑travel entire aggregates without redundant per‑child logs. When adding new admin endpoints (e.g., pipelines/steps), ensure mutations flow through the same helper APIs so provenance and ChangeLog state remain consistent.
 ## Admin Bundle Objects
 
 - Endpoints to manage attachments within a bundle:
