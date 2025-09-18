@@ -1,11 +1,7 @@
 type: object
 properties:
   id: { type: string, format: uuid }
-  pipelineId: { type: string, format: uuid }
-  action: { $ref: ./ActionDefinition.yaml }
   actionId: { type: string, format: uuid }
   sortOrder: { type: integer }
   isEnabled: { type: boolean }
-  createdAt: { type: string, format: date-time }
-  updatedAt: { type: string, format: date-time }
-required: [id, pipelineId, actionId, isEnabled]
+required: [id, actionId, sortOrder, isEnabled]

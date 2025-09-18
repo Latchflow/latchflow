@@ -204,14 +204,18 @@ paths:
     $ref: ./paths/pipelines.yaml#/pipelines_collection
   /pipelines/{id}:
     $ref: ./paths/pipelines.yaml#/pipelines_item
-  /pipelines/{pipelineId}/steps:
-    $ref: ./paths/pipelines.yaml#/pipeline_steps_collection
-  /pipelines/{pipelineId}/steps/{stepId}:
+  /pipelines/{id}/steps:
+    $ref: ./paths/pipelines.yaml#/pipeline_steps_create
+  /pipelines/{id}/steps/{stepId}:
     $ref: ./paths/pipelines.yaml#/pipeline_steps_item
-  /pipelines/{pipelineId}/triggers:
-    $ref: ./paths/pipelines.yaml#/pipeline_triggers_collection
-  /pipelines/{pipelineId}/triggers/{triggerId}:
+  /pipelines/{id}/steps/reorder:
+    $ref: ./paths/pipelines.yaml#/pipeline_steps_reorder
+  /pipelines/{id}/triggers:
+    $ref: ./paths/pipelines.yaml#/pipeline_triggers_create
+  /pipelines/{id}/triggers/{triggerId}:
     $ref: ./paths/pipelines.yaml#/pipeline_triggers_item
+  /pipelines/{id}/triggers/reorder:
+    $ref: ./paths/pipelines.yaml#/pipeline_triggers_reorder
   /pipelines/{id}/versions:
     $ref: ./paths/pipelines.yaml#/pipeline_versions_collection
   /pipelines/{id}/versions/{version}:

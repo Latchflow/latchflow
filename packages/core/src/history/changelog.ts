@@ -7,8 +7,10 @@ import { serializeAggregate, canonicalStringify, type EntityType } from "./canon
 import { applyPatch, computePatch, type JsonPatchOp } from "./patch.js";
 import type { ChangeKind as PrismaChangeKind, Prisma } from "@latchflow/db";
 
+type ChangeLogDbClient = DbClient | Prisma.TransactionClient;
+
 export async function materializeVersion(
-  db: DbClient,
+  db: ChangeLogDbClient,
   entityType: EntityType,
   entityId: string,
   version: number,
@@ -27,7 +29,7 @@ export async function materializeVersion(
 }
 
 export async function appendChangeLog(
-  db: DbClient,
+  db: ChangeLogDbClient,
   cfg: Pick<AppConfig, "HISTORY_SNAPSHOT_INTERVAL" | "HISTORY_MAX_CHAIN_DEPTH">,
   entityType: EntityType,
   entityId: string,
