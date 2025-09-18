@@ -18,8 +18,21 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   "DELETE /plugins/:pluginId": { action: "delete", resource: "plugin" },
   "GET /capabilities": { action: "read", resource: "capability", v1AllowExecutor: true },
 
-  // Admin stubs (can be refined as endpoints are implemented)
-  "GET /admin/actions": { action: "read", resource: "action_def", v1AllowExecutor: true },
+  // Actions (admin API)
+  "GET /actions": { action: "read", resource: "action_def", v1AllowExecutor: true },
+  "POST /actions": { action: "create", resource: "action_def" },
+  "GET /actions/:id": { action: "read", resource: "action_def", v1AllowExecutor: true },
+  "PATCH /actions/:id": { action: "update", resource: "action_def" },
+  "DELETE /actions/:id": { action: "delete", resource: "action_def" },
+  "GET /actions/:id/versions": { action: "read", resource: "action_def", v1AllowExecutor: true },
+  "POST /actions/:id/versions": { action: "update", resource: "action_def" },
+  "GET /actions/:id/versions/:version": {
+    action: "read",
+    resource: "action_def",
+    v1AllowExecutor: true,
+  },
+  "POST /actions/:id/versions/:version/activate": { action: "update", resource: "action_def" },
+  "POST /actions/:id/test-run": { action: "update", resource: "action_def" },
   "GET /admin/bundles": { action: "read", resource: "bundle", v1AllowExecutor: true },
   "POST /admin/bundles/:bundleId/build": { action: "update", resource: "bundle" },
   "GET /admin/bundles/:bundleId/build/status": {

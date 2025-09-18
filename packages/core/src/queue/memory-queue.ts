@@ -2,7 +2,8 @@ import { LatchflowQueue, QueueFactory } from "./types.js";
 
 type Msg = {
   actionDefinitionId: string;
-  triggerEventId: string;
+  triggerEventId?: string;
+  manualInvokerId?: string;
   context?: Record<string, unknown>;
 };
 

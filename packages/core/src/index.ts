@@ -19,6 +19,7 @@ import { registerOpenApiRoute } from "./routes/openapi.js";
 import { registerPortalRoutes } from "./routes/portal.js";
 import { registerPluginRoutes } from "./routes/admin/plugins.js";
 import { registerTriggerAdminRoutes } from "./routes/admin/triggers.js";
+import { registerActionAdminRoutes } from "./routes/admin/actions.js";
 import { registerFileAdminRoutes } from "./routes/admin/files.js";
 import { registerBundleBuildAdminRoutes } from "./routes/admin/bundle-build.js";
 import { createBundleRebuildScheduler } from "./bundles/scheduler.js";
@@ -114,6 +115,7 @@ export async function main() {
   registerCliAuthRoutes(server, config);
   registerPluginRoutes(server);
   registerTriggerAdminRoutes(server, { fireTriggerOnce: triggerRunner.fireTriggerOnce, config });
+  registerActionAdminRoutes(server, { queue, config });
   registerFileAdminRoutes(server, {
     storage: _storageService,
     onFilesChanged: async (fileIds) => {
