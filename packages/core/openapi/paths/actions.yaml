@@ -9,6 +9,28 @@ actions_collection:
     parameters:
       - $ref: ../components/parameters/Limit.yaml
       - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: q
+        required: false
+        description: Filter by name (case-insensitive, substring)
+        schema: { type: string }
+      - in: query
+        name: pluginId
+        required: false
+        schema: { type: string, format: uuid }
+      - in: query
+        name: kind
+        required: false
+        description: Filter by capability key (case-insensitive, substring)
+        schema: { type: string }
+      - in: query
+        name: enabled
+        required: false
+        schema: { type: boolean }
+      - in: query
+        name: updatedSince
+        required: false
+        schema: { type: string, format: date-time }
     responses:
       '200':
         description: Actions
@@ -48,13 +70,34 @@ actions_collection:
         content:
           application/json:
             schema: { $ref: ../components/schemas/ActionDefinition.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
-      '400': { $ref: ../components/responses/ValidationError.yaml }
 
 actions_item:
+  get:
+    summary: Get action definition
+    operationId: getAction
+    tags: [Actions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Action definition
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ActionDefinition.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
   patch:
-    summary: Update action definition
+    summary: Update action definition metadata
     operationId: updateAction
     tags: [Actions]
     security:
@@ -73,12 +116,31 @@ actions_item:
             type: object
             properties:
               name: { type: string }
-              config: { type: object }
+              isEnabled: { type: boolean }
     responses:
       '204': { description: Updated }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
-      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  delete:
+    summary: Delete action definition
+    operationId: deleteAction
+    tags: [Actions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
 
 # ActionDefinition versions (history)
 action_versions_collection:
@@ -111,6 +173,38 @@ action_versions_collection:
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
+  post:
+    summary: Create new action version
+    operationId: createActionVersion
+    tags: [Actions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              config: { type: object }
+              changeNote: { type: string }
+            required: [config]
+    responses:
+      '201':
+        description: Version created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ChangeLogVersion.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
 
 action_versions_item:
   get:
@@ -135,6 +229,62 @@ action_versions_item:
         content:
           application/json:
             schema: { $ref: ../components/schemas/ChangeLogMaterialized.yaml }
-      '404': { $ref: ../components/responses/NotFound.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+action_versions_activate:
+  post:
+    summary: Activate action definition version
+    operationId: activateActionVersion
+    tags: [Actions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: version
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '204': { description: Activated }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
+
+action_test_run:
+  post:
+    summary: Enqueue test run for an action definition
+    operationId: testRunAction
+    tags: [Actions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              context:
+                type: object
+                additionalProperties: true
+    responses:
+      '202': { description: Enqueued }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '503': { description: Queue unavailable }

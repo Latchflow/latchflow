@@ -7,4 +7,4 @@ properties:
   isEnabled: { type: boolean }
   createdAt: { type: string, format: date-time }
   updatedAt: { type: string, format: date-time }
-required: [id, name, capabilityId, config]
+required: [id, name, capabilityId, config, isEnabled, createdAt, updatedAt]

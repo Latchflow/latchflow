@@ -63,6 +63,16 @@ pnpm -r test
 - Delete semantics: return 409 when a trigger is referenced by pipelines or has events; prefer disabling (`isEnabled=false`).
 - Auditing: on create/update, append ChangeLog entries for `TRIGGER_DEFINITION` (canonical serializer redacts secrets).
 
+### Admin Actions
+- API paths live under `/actions` (route code in `packages/core/src/routes/admin/actions.ts`).
+- AuthZ is enforced via policy entries on resource `action_def`:
+  - Read: `GET /actions`, `GET /actions/:id`, `GET /actions/:id/versions`, `GET /actions/:id/versions/:version`; scope `actions:read` (executors may read when policy allows).
+  - Write: `POST /actions`, `PATCH /actions/:id`, `DELETE /actions/:id`, `POST /actions/:id/versions`, `POST /actions/:id/versions/{version}/activate`, `POST /actions/:id/test-run`; scope `actions:write`.
+- Capability validation is DB-backed (`PluginCapability.kind = ACTION`, `isEnabled = true`). Never rely on the runtime registry from within routes.
+- Delete semantics: return 409 when pipelines reference the action or when `ActionInvocation` history exists; prefer `isEnabled=false` toggles when in use.
+- Versioning is ChangeLog-backed: create/update/activate append `ACTION_DEFINITION` entries; `materializeVersion` is used to serve historical state.
+- `POST /actions/{id}/test-run` enqueues onto the queue and records the invoking user via `manualInvokerId`.
+
 ---
 
 ## Coding Standards

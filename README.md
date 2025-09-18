@@ -248,6 +248,27 @@ Tips
       -d '{"name":"Cron","capabilityId":"<capId>","config":{"schedule":"* * * * *"}}' \
       http://localhost:3001/triggers`
 
+## Admin Actions (CRUD + Versions + Test-Run)
+- API paths (route code lives under `packages/core/src/routes/admin/actions.ts`):
+  - `GET /actions` — list with filters: `q`, `pluginId`, `kind`, `enabled`, `updatedSince`, plus pagination (`limit`/`cursor`).
+  - `POST /actions` — create with `{ name, capabilityId, config }`; validates capability via DB (`PluginCapability.kind = ACTION`, `isEnabled = true`).
+  - `GET /actions/{id}` — fetch a single definition.
+  - `PATCH /actions/{id}` — update `{ name?, isEnabled? }`.
+  - `DELETE /actions/{id}` — returns 409 when referenced by pipelines or has invocations; prefer disabling when in use.
+  - `GET /actions/{id}/versions` — list ChangeLog history for the definition.
+  - `POST /actions/{id}/versions` — persist a new configuration version (appends ChangeLog entry).
+  - `GET /actions/{id}/versions/{version}` — materialize historical state.
+  - `POST /actions/{id}/versions/{version}/activate` — rollback to a prior version (updates config, appends ChangeLog).
+  - `POST /actions/{id}/test-run` — enqueue a manual invocation on the action queue (records `manualInvokerId`).
+- AuthZ & scopes: guarded by `requireAdminOrApiToken` with `actions:read` (list/get/version read) and `actions:write` (create/update/delete/version-create/activate/test-run).
+- Capability validation is DB-backed; routes never depend on the in-memory registry.
+- Auditing: every create/update/version/activation appends ChangeLog for `ACTION_DEFINITION` (canonically redacted config).
+- Example (bearer token):
+  - `curl -sS -H 'Authorization: Bearer lfk_...' http://localhost:3001/actions`
+  - `curl -sS -X POST -H 'Authorization: Bearer lfk_...' -H 'Content-Type: application/json' \
+      -d '{"name":"Email","capabilityId":"<capId>","config":{"template":"welcome"}}' \
+      http://localhost:3001/actions`
+
 ## AuthN vs AuthZ (Current)
 - AuthN (authentication): lives under `packages/core/src/auth` and `packages/core/src/middleware/require-session.ts`.
   - Establishes identity via admin session cookies or API tokens.

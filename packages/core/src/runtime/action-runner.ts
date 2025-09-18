@@ -7,7 +7,8 @@ export async function startActionConsumer(
   deps: {
     executeAction: (msg: {
       actionDefinitionId: string;
-      triggerEventId: string;
+      triggerEventId?: string;
+      manualInvokerId?: string;
       context?: Record<string, unknown>;
     }) => Promise<unknown>;
   },
@@ -17,7 +18,8 @@ export async function startActionConsumer(
     const inv = await db.actionInvocation.create({
       data: {
         actionDefinitionId: msg.actionDefinitionId,
-        triggerEventId: msg.triggerEventId,
+        triggerEventId: msg.triggerEventId ?? null,
+        manualInvokerId: msg.manualInvokerId ?? null,
         status: "PENDING",
       },
     });
