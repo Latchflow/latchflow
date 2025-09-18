@@ -1,5 +1,8 @@
 import type { DbClient } from "../db/db.js";
 import { createHash } from "node:crypto";
+import type { Prisma } from "@latchflow/db";
+
+type CanonicalDbClient = DbClient | Prisma.TransactionClient;
 
 export type EntityType =
   | "PIPELINE"
@@ -23,7 +26,7 @@ function sortBy<T>(arr: T[], keyGet: (x: T) => string | number): T[] {
 }
 
 export async function serializeAggregate(
-  db: DbClient,
+  db: CanonicalDbClient,
   entityType: EntityType,
   id: string,
 ): Promise<Canonical | null> {

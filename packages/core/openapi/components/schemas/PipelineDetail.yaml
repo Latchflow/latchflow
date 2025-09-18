@@ -1,0 +1,23 @@
+type: object
+properties:
+  id: { type: string, format: uuid }
+  name: { type: string }
+  description:
+    oneOf:
+      - { type: string }
+      - { type: 'null' }
+  isEnabled: { type: boolean }
+  createdAt: { type: string, format: date-time }
+  updatedAt: { type: string, format: date-time }
+  createdBy: { type: string }
+  updatedBy:
+    oneOf:
+      - { type: string }
+      - { type: 'null' }
+  steps:
+    type: array
+    items: { $ref: ./PipelineStep.yaml }
+  triggers:
+    type: array
+    items: { $ref: ./PipelineTrigger.yaml }
+required: [id, name, isEnabled, createdAt, updatedAt, createdBy, steps, triggers]
