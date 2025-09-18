@@ -184,7 +184,12 @@ paths:
     $ref: ./paths/triggers.yaml#/triggers_collection
   /triggers/{id}:
     $ref: ./paths/triggers.yaml#/triggers_item
-  # Versioned trigger endpoints removed (use ChangeLog endpoints in the future)
+  /triggers/{id}/versions:
+    $ref: ./paths/triggers.yaml#/trigger_versions_collection
+  /triggers/{id}/versions/{version}:
+    $ref: ./paths/triggers.yaml#/trigger_versions_item
+  /triggers/{id}/versions/{version}/activate:
+    $ref: ./paths/triggers.yaml#/trigger_versions_activate
   /triggers/{id}/test-fire:
     $ref: ./paths/triggers.yaml#/test_fire
   /actions:
