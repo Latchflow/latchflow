@@ -16,6 +16,10 @@ const db = {
   },
   triggerEvent: { count: vi.fn(async () => 0) },
   pipelineTrigger: { count: vi.fn(async () => 0) },
+  changeLog: {
+    findMany: vi.fn(async () => []),
+    findFirst: vi.fn(async () => null),
+  },
   apiToken: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) },
   user: { findUnique: vi.fn(async () => null) },
 };
@@ -27,9 +31,31 @@ vi.mock("../../middleware/require-session.js", () => ({
   requireSession: vi.fn(async () => ({ user: { id: "u1", role: "ADMIN" } })),
 }));
 
-// Stub ChangeLog appends
+// Stub ChangeLog utilities (use vi.hoisted so hoist-safe for vi.mock)
+const { appendChangeLogMock, materializeVersionMock } = vi.hoisted(() => {
+  return {
+    appendChangeLogMock: vi.fn(async () => ({
+      id: "cl1",
+      version: 2,
+      isSnapshot: false,
+      hash: "abc",
+      changeNote: null,
+      changedPath: null,
+      changeKind: "UPDATE_PARENT",
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+      actorType: "USER",
+      actorUserId: "u1",
+      actorInvocationId: null,
+      actorActionDefinitionId: null,
+      onBehalfOfUserId: null,
+    })),
+    materializeVersionMock: vi.fn(async () => ({ config: { foo: "bar" } })),
+  };
+});
+
 vi.mock("../../history/changelog.js", () => ({
-  appendChangeLog: vi.fn(async () => ({ id: "cl1", version: 1 })),
+  appendChangeLog: appendChangeLogMock,
+  materializeVersion: materializeVersionMock,
 }));
 
 async function makeServer() {
@@ -54,6 +80,24 @@ async function makeServer() {
 describe("triggers routes", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    appendChangeLogMock.mockReset();
+    appendChangeLogMock.mockResolvedValue({
+      id: "cl1",
+      version: 2,
+      isSnapshot: false,
+      hash: "abc",
+      changeNote: null,
+      changedPath: null,
+      changeKind: "UPDATE_PARENT",
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+      actorType: "USER",
+      actorUserId: "u1",
+      actorInvocationId: null,
+      actorActionDefinitionId: null,
+      onBehalfOfUserId: null,
+    });
+    materializeVersionMock.mockReset();
+    materializeVersionMock.mockResolvedValue({ config: { foo: "bar" } });
     for (const model of Object.values(db) as any[]) {
       for (const fn of Object.values(model) as any[]) {
         if (typeof fn?.mockReset === "function") fn.mockReset();
@@ -147,6 +191,15 @@ describe("triggers routes", () => {
     expect(rc.status).toBe(204);
     const args = (db.triggerDefinition.update as any).mock.calls[0]?.[0]?.data;
     expect(args).toHaveProperty("isEnabled", false);
+    expect(args).toHaveProperty("updatedBy", "u1");
+  });
+
+  it("PATCH /triggers/:id rejects empty payload", async () => {
+    const { handlers } = await makeServer();
+    const h = handlers.get("PATCH /triggers/:id")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "t1" }, body: {} } as any, rc.res);
+    expect(rc.status).toBe(400);
   });
 
   it("DELETE /triggers/:id returns 409 when in use", async () => {
@@ -177,9 +230,92 @@ describe("triggers routes", () => {
       } as any,
     });
     const h = handlers.get("POST /triggers/:id/test-fire")!;
+    (db.triggerDefinition.findUnique as any).mockResolvedValueOnce({ id: "t1" });
     const rc = createResponseCapture();
     await h({ params: { id: "t1" }, body: { context: { a: 1 } } } as any, rc.res);
     expect(rc.status).toBe(202);
     expect(fire).toHaveBeenCalledWith("t1", { a: 1 });
+  });
+
+  it("POST /triggers/:id/test-fire 404s when trigger missing", async () => {
+    const { handlers } = await makeServer();
+    db.triggerDefinition.findUnique.mockResolvedValueOnce(null as any);
+    const h = handlers.get("POST /triggers/:id/test-fire")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "missing" } } as any, rc.res);
+    expect(rc.status).toBe(404);
+  });
+
+  it("GET /triggers/:id/versions returns changelog items", async () => {
+    const { handlers } = await makeServer();
+    db.changeLog.findMany.mockResolvedValueOnce([
+      {
+        version: 3,
+        isSnapshot: false,
+        hash: "h123",
+        changeNote: null,
+        changedPath: null,
+        changeKind: "UPDATE_PARENT",
+        createdAt: new Date("2024-01-02T00:00:00Z"),
+        actorType: "USER",
+        actorUserId: "u1",
+        actorInvocationId: null,
+        actorActionDefinitionId: null,
+        onBehalfOfUserId: null,
+      },
+    ] as any);
+    const h = handlers.get("GET /triggers/:id/versions")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "t1" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(rc.body?.items?.[0]?.version).toBe(3);
+  });
+
+  it("GET /triggers/:id/versions/:version returns materialized state", async () => {
+    const { handlers } = await makeServer();
+    db.changeLog.findFirst.mockResolvedValueOnce({
+      version: 2,
+      isSnapshot: false,
+      hash: "hash",
+      createdAt: new Date("2024-01-03T00:00:00Z"),
+      actorType: "USER",
+      actorUserId: "u1",
+      actorInvocationId: null,
+      actorActionDefinitionId: null,
+      onBehalfOfUserId: null,
+    } as any);
+    materializeVersionMock.mockResolvedValueOnce({ config: { foo: "bar" } });
+    const h = handlers.get("GET /triggers/:id/versions/:version")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "t1", version: "2" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(rc.body?.state?.config?.foo).toBe("bar");
+  });
+
+  it("POST /triggers/:id/versions updates config and returns version", async () => {
+    const { handlers } = await makeServer();
+    db.triggerDefinition.update.mockResolvedValueOnce({ id: "t1" } as any);
+    const h = handlers.get("POST /triggers/:id/versions")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "t1" }, body: { config: { bar: 1 } } } as any, rc.res);
+    expect(rc.status).toBe(201);
+    expect(appendChangeLogMock).toHaveBeenCalled();
+    const data = (db.triggerDefinition.update as any).mock.calls[0]?.[0]?.data;
+    expect(data).toHaveProperty("config");
+    expect(data).toHaveProperty("updatedBy", "u1");
+    expect(rc.body?.version).toBe(2);
+  });
+
+  it("POST /triggers/:id/versions/:version/activate copies config", async () => {
+    const { handlers } = await makeServer();
+    db.triggerDefinition.update.mockResolvedValueOnce({ id: "t1" } as any);
+    materializeVersionMock.mockResolvedValueOnce({ config: { restored: true } });
+    const h = handlers.get("POST /triggers/:id/versions/:version/activate")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "t1", version: "2" } } as any, rc.res);
+    expect(rc.status).toBe(204);
+    const data = (db.triggerDefinition.update as any).mock.calls[0]?.[0]?.data;
+    expect(data.config).toEqual({ restored: true });
+    expect(appendChangeLogMock).toHaveBeenCalled();
   });
 });

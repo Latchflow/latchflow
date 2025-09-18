@@ -12,6 +12,14 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   "PATCH /triggers/:id": { action: "update", resource: "trigger_def" },
   "DELETE /triggers/:id": { action: "delete", resource: "trigger_def" },
   "POST /triggers/:id/test-fire": { action: "update", resource: "trigger_def" },
+  "GET /triggers/:id/versions": { action: "read", resource: "trigger_def", v1AllowExecutor: true },
+  "POST /triggers/:id/versions": { action: "update", resource: "trigger_def" },
+  "GET /triggers/:id/versions/:version": {
+    action: "read",
+    resource: "trigger_def",
+    v1AllowExecutor: true,
+  },
+  "POST /triggers/:id/versions/:version/activate": { action: "update", resource: "trigger_def" },
   // Admin plugin management
   "GET /plugins": { action: "read", resource: "plugin", v1AllowExecutor: true },
   "POST /plugins/install": { action: "manage", resource: "plugin" },

@@ -136,6 +136,123 @@ triggers_item:
       '409': { $ref: ../components/responses/Conflict.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
+
+# TriggerDefinition versions (history)
+trigger_versions_collection:
+  get:
+    summary: List trigger definition versions
+    operationId: listTriggerVersions
+    tags: [Triggers]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Versions
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/ChangeLogVersion.yaml }
+                nextCursor: { type: string }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+  post:
+    summary: Create new trigger version
+    operationId: createTriggerVersion
+    tags: [Triggers]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              config: { type: object }
+              changeNote: { type: string }
+            required: [config]
+    responses:
+      '201':
+        description: Version created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ChangeLogVersion.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+trigger_versions_item:
+  get:
+    summary: Get trigger definition version
+    operationId: getTriggerVersion
+    tags: [Triggers]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: version
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '200':
+        description: Materialized trigger definition at version
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ChangeLogMaterialized.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+trigger_versions_activate:
+  post:
+    summary: Activate trigger definition version
+    operationId: activateTriggerVersion
+    tags: [Triggers]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: version
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '204': { description: Activated }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
+
 test_fire:
   post:
     summary: Enqueue actions for a trigger definition
