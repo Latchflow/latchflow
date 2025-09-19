@@ -1,0 +1,14 @@
+type: object
+properties:
+  id: { type: string, format: uuid }
+  createdAt: { type: string, format: date-time }
+  expiresAt: { type: string, format: date-time }
+  ip:
+    oneOf:
+      - { type: string }
+      - { type: 'null' }
+  userAgent:
+    oneOf:
+      - { type: string }
+      - { type: 'null' }
+required: [id, createdAt, expiresAt]

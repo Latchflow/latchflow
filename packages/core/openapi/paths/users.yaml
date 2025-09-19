@@ -1,9 +1,10 @@
 users_collection:
   get:
-    summary: List users/executors
+    summary: List users
     operationId: listUsers
-    tags: [Executors/Users]
+    tags: [Users]
     security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - $ref: ../components/parameters/Limit.yaml
@@ -11,6 +12,16 @@ users_collection:
       - in: query
         name: q
         schema: { type: string }
+        description: Case-insensitive search over email, name, displayName.
+      - in: query
+        name: role
+        schema: { type: string, enum: [ADMIN, EXECUTOR] }
+      - in: query
+        name: isActive
+        schema: { type: boolean }
+      - in: query
+        name: updatedSince
+        schema: { type: string, format: date-time }
     responses:
       '200':
         description: Users
@@ -24,19 +35,15 @@ users_collection:
                   items: { $ref: ../components/schemas/User.yaml }
                 nextCursor: { type: string }
               required: [items]
+      '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
-
-users_invite:
   post:
-    summary: Invite a user (issue magic link)
-    description: |
-      Upserts a user by email.
-      Issues a one-time magic link for login. Implementations may return a `login_url`
-      for copy-paste delivery or send an email if SMTP is configured.
-    operationId: inviteUser
-    tags: [Executors/Users]
+    summary: Create user
+    operationId: createUser
+    tags: [Users]
     security:
+      - bearer: []
       - cookieAdmin: []
     requestBody:
       required: true
@@ -45,49 +52,93 @@ users_invite:
           schema:
             type: object
             properties:
-              email:
-                type: string
-                format: email
-                description: Email address of the invitee
+              email: { type: string, format: email }
+              name:
+                oneOf:
+                  - { type: string }
+                  - { type: 'null' }
+              displayName:
+                oneOf:
+                  - { type: string }
+                  - { type: 'null' }
               role:
                 type: string
                 enum: [ADMIN, EXECUTOR]
-                description: Role to assign to the user. Defaults to EXECUTOR.
             required: [email]
-          examples:
-            basic:
-              value:
-                email: teammate@example.com
-                role: EXECUTOR
-            admin:
-              value:
-                email: admin2@example.com
-                role: ADMIN
     responses:
       '201':
-        description: Invitation created
+        description: Created
         content:
           application/json:
-            schema:
-              type: object
-              properties:
-                login_url:
-                  type: string
-                  description: Magic-link callback URL usable by the invitee
+            schema: { $ref: ../components/schemas/User.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '409': { $ref: ../components/responses/Conflict.yaml }
 
-users_revoke:
+users_invite:
   post:
-    summary: Revoke a user's access tokens and/or sessions
-    description: |
-      Soft-revoke user access by invalidating active sessions and/or CLI API tokens.
-      Avoids hard deletion since users are referenced widely by audit trails.
-    operationId: revokeUserAccess
-    tags: [Executors/Users]
+    summary: Invite user (inactive until login)
+    operationId: inviteUser
+    tags: [Users]
     security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              email: { type: string, format: email }
+              name:
+                oneOf:
+                  - { type: string }
+                  - { type: 'null' }
+              displayName:
+                oneOf:
+                  - { type: string }
+                  - { type: 'null' }
+              role:
+                type: string
+                enum: [ADMIN, EXECUTOR]
+            required: [email]
+    responses:
+      '202': { description: Invitation created }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
+
+users_item:
+  get:
+    summary: Get user
+    operationId: getUser
+    tags: [Users]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: User
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/User.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  patch:
+    summary: Update user
+    operationId: updateUser
+    tags: [Users]
+    security:
+      - bearer: []
       - cookieAdmin: []
     parameters:
       - in: path
@@ -95,21 +146,91 @@ users_revoke:
         required: true
         schema: { type: string, format: uuid }
     requestBody:
-      required: false
+      required: true
       content:
         application/json:
           schema:
             type: object
             properties:
-              sessions:
-                type: boolean
-                default: true
-              tokens:
-                type: boolean
-                default: true
+              name:
+                oneOf:
+                  - { type: string }
+                  - { type: 'null' }
+              displayName:
+                oneOf:
+                  - { type: string }
+                  - { type: 'null' }
+              role:
+                type: string
+                enum: [ADMIN, EXECUTOR]
+              isActive: { type: boolean }
     responses:
-      '204': { description: Revoked }
+      '204': { description: Updated }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
-      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  delete:
+    summary: Delete user (not recommended; prefer deactivate)
+    operationId: deleteUser
+    tags: [Users]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
       '409': { $ref: ../components/responses/Conflict.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+
+users_sessions:
+  get:
+    summary: List user sessions
+    operationId: listUserSessions
+    tags: [Users]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Sessions
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/UserSession.yaml }
+              required: [items]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+users_revoke:
+  post:
+    summary: Revoke all sessions for a user
+    operationId: revokeUserSessions
+    tags: [Users]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Sessions revoked }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }

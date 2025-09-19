@@ -4,6 +4,7 @@ export type ExecResource =
   | "file"
   | "bundle"
   | "recipient"
+  | "user"
   | "pipeline"
   | "trigger_def"
   | "action_def"

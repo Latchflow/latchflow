@@ -269,6 +269,20 @@ Tips
       -d '{"name":"Email","capabilityId":"<capId>","config":{"template":"welcome"}}' \
       http://localhost:3001/actions`
 
+## Admin Users (CRUD + Sessions)
+- API paths (route code lives under `packages/core/src/routes/admin/users.ts`):
+  - `GET /users` — list with filters: `q`, `role`, `isActive`, `updatedSince`, plus pagination (`limit`/`cursor`).
+  - `POST /users` — create an active user; returns 201 with the user DTO.
+  - `POST /users/invite` — create an inactive invitee and issue a magic link (dev mode returns `loginUrl`).
+  - `GET /users/{id}` — fetch a single user by id.
+  - `PATCH /users/{id}` — update `{ name?, displayName?, role?, isActive? }`; updates append a `USER` ChangeLog entry.
+  - `DELETE /users/{id}` — returns 409 (`DELETE_DISABLED`); prefer PATCH with `isActive=false`.
+  - `GET /users/{id}/sessions` — list active (unrevoked, unexpired) admin sessions for the user.
+  - `POST /users/{id}/revoke` — revoke all sessions for the user (sets `revokedAt`).
+- AuthZ & scopes: guarded by `requireAdminOrApiToken` with `users:read` / `users:write`; no executor access in v1.
+- ChangeLog: user create/update/deactivate append entries for `USER`; historical reads via `GET /users/{id}/versions` (future work).
+- Invites share the same magic link delivery as `/auth/admin/start`; SMTP is optional in dev.
+
 ## ChangeLog & Auditing
 - Aggregate-only history: ChangeLog rows are written for root entities (Pipeline, Bundle, Recipient, TriggerDefinition, ActionDefinition). Child updates append history on the parent aggregate.
 - Snapshots vs. diffs: `HISTORY_SNAPSHOT_INTERVAL` and `HISTORY_MAX_CHAIN_DEPTH` control when we persist full snapshots versus JSON Patch diffs; hashes protect against drift.

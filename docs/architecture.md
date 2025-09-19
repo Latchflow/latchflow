@@ -74,7 +74,7 @@ This document explains the runtime shape and key flows with an emphasis on the p
 
 ## History & ChangeLog Strategy
 
-Latchflow records configuration changes using a parent‑aggregate ChangeLog. Only aggregate roots (Pipeline, Bundle, Recipient, TriggerDefinition, ActionDefinition) receive history rows; child mutations are captured by serialising the full parent state.
+Latchflow records configuration changes using a parent‑aggregate ChangeLog. Aggregate roots (Pipeline, Bundle, Recipient, TriggerDefinition, ActionDefinition, User) receive history rows; child mutations are captured by serialising the full parent state.
 
 - **Aggregate snapshots vs. diffs** — Every ChangeLog entry stores either a full canonical snapshot (`isSnapshot=true`) or a JSON Patch diff against the previous version. Snapshot cadence is controlled by `HISTORY_SNAPSHOT_INTERVAL`, with an additional guard (`HISTORY_MAX_CHAIN_DEPTH`) that forces a snapshot when diff chains grow too long.
 - **Canonical serialisation** — Each aggregate is materialised via `serializeAggregate`, which orders child collections deterministically, redacts sensitive config, and omits volatile fields like timestamps, linkage IDs, and child provenance. Hashes are computed from this canonical JSON to detect drift.
