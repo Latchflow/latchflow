@@ -68,6 +68,17 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   },
   "POST /actions/:id/versions/:version/activate": { action: "update", resource: "action_def" },
   "POST /actions/:id/test-run": { action: "update", resource: "action_def" },
+  "GET /bundles": { action: "read", resource: "bundle", v1AllowExecutor: true },
+  "POST /bundles": { action: "create", resource: "bundle" },
+  "GET /bundles/:bundleId": { action: "read", resource: "bundle", v1AllowExecutor: true },
+  "PATCH /bundles/:bundleId": { action: "update", resource: "bundle" },
+  "DELETE /bundles/:bundleId": { action: "delete", resource: "bundle" },
+  "GET /bundles/:bundleId/versions": { action: "read", resource: "bundle", v1AllowExecutor: true },
+  "GET /bundles/:bundleId/versions/:version": {
+    action: "read",
+    resource: "bundle",
+    v1AllowExecutor: true,
+  },
   "GET /admin/bundles": { action: "read", resource: "bundle", v1AllowExecutor: true },
   "POST /admin/bundles/:bundleId/build": { action: "update", resource: "bundle" },
   "GET /admin/bundles/:bundleId/build/status": {
