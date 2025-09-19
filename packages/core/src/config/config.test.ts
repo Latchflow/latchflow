@@ -39,6 +39,31 @@ describe("config loader", () => {
     ).toThrow(/Invalid API_TOKEN_SCOPES_DEFAULT/);
   });
 
+  it("parses authz metrics configuration", () => {
+    const cfg = loadConfig({
+      DATABASE_URL: "postgres://user:pass@localhost:5432/db",
+      AUTHZ_METRICS_ENABLED: "true",
+      AUTHZ_METRICS_OTLP_URL: "http://collector:4318/v1/metrics",
+      AUTHZ_METRICS_OTLP_HEADERS: JSON.stringify({ Authorization: "Bearer test" }),
+      AUTHZ_METRICS_EXPORT_INTERVAL_MS: "5000",
+      AUTHZ_METRICS_EXPORT_TIMEOUT_MS: "10000",
+      AUTHZ_METRICS_ENABLE_DIAGNOSTICS: "true",
+      AUTHZ_METRICS_SERVICE_NAME: "latchflow-core-tests",
+      AUTHZ_METRICS_SERVICE_NAMESPACE: "latchflow",
+      AUTHZ_METRICS_SERVICE_INSTANCE_ID: "test-node",
+    } as unknown as NodeJS.ProcessEnv);
+
+    expect(cfg.AUTHZ_METRICS_ENABLED).toBe(true);
+    expect(cfg.AUTHZ_METRICS_OTLP_URL).toBe("http://collector:4318/v1/metrics");
+    expect(cfg.AUTHZ_METRICS_OTLP_HEADERS).toEqual({ Authorization: "Bearer test" });
+    expect(cfg.AUTHZ_METRICS_EXPORT_INTERVAL_MS).toBe(5000);
+    expect(cfg.AUTHZ_METRICS_EXPORT_TIMEOUT_MS).toBe(10000);
+    expect(cfg.AUTHZ_METRICS_ENABLE_DIAGNOSTICS).toBe(true);
+    expect(cfg.AUTHZ_METRICS_SERVICE_NAME).toBe("latchflow-core-tests");
+    expect(cfg.AUTHZ_METRICS_SERVICE_NAMESPACE).toBe("latchflow");
+    expect(cfg.AUTHZ_METRICS_SERVICE_INSTANCE_ID).toBe("test-node");
+  });
+
   it("throws when required env missing", () => {
     expect(() => loadConfig({} as any)).toThrow(/Invalid environment/);
   });

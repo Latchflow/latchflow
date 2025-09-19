@@ -127,6 +127,44 @@ const EnvSchema = z.object({
     .transform((v) => Number(v))
     .pipe(z.number().int().positive()),
   SYSTEM_USER_ID: z.string().default("system"),
+
+  AUTHZ_METRICS_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => (v == null ? false : v === "true")),
+  AUTHZ_METRICS_OTLP_URL: z.string().optional(),
+  AUTHZ_METRICS_OTLP_HEADERS: z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (!v) return undefined;
+      try {
+        const parsed = JSON.parse(v);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, string>;
+        }
+        throw new Error("expected JSON object");
+      } catch (e) {
+        throw new Error("Invalid AUTHZ_METRICS_OTLP_HEADERS: " + (e as Error).message);
+      }
+    }),
+  AUTHZ_METRICS_SERVICE_NAME: z.string().optional(),
+  AUTHZ_METRICS_SERVICE_NAMESPACE: z.string().optional(),
+  AUTHZ_METRICS_SERVICE_INSTANCE_ID: z.string().optional(),
+  AUTHZ_METRICS_EXPORT_INTERVAL_MS: z
+    .string()
+    .optional()
+    .transform((v) => (v == null || v === "" ? undefined : Number(v)))
+    .pipe(z.number().positive().optional()),
+  AUTHZ_METRICS_EXPORT_TIMEOUT_MS: z
+    .string()
+    .optional()
+    .transform((v) => (v == null || v === "" ? undefined : Number(v)))
+    .pipe(z.number().positive().optional()),
+  AUTHZ_METRICS_ENABLE_DIAGNOSTICS: z
+    .string()
+    .optional()
+    .transform((v) => (v == null ? undefined : v === "true")),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema> & {
@@ -140,6 +178,11 @@ export type AppConfig = z.infer<typeof EnvSchema> & {
   HISTORY_MAX_CHAIN_DEPTH: number;
   SYSTEM_USER_ID: string;
   ALLOW_DEV_AUTH: boolean;
+  AUTHZ_METRICS_ENABLED: boolean;
+  AUTHZ_METRICS_OTLP_HEADERS?: Record<string, string>;
+  AUTHZ_METRICS_EXPORT_INTERVAL_MS?: number;
+  AUTHZ_METRICS_EXPORT_TIMEOUT_MS?: number;
+  AUTHZ_METRICS_ENABLE_DIAGNOSTICS?: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -154,6 +197,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (typeof cfg.AUTH_COOKIE_SECURE !== "boolean") {
     cfg.AUTH_COOKIE_SECURE = process.env.NODE_ENV === "development" ? false : true;
   }
+  cfg.AUTHZ_METRICS_ENABLED = Boolean(cfg.AUTHZ_METRICS_ENABLED);
   return cfg;
 }
 

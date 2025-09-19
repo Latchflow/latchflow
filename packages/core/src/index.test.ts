@@ -27,6 +27,7 @@ vi.mock("./config/config.js", () => ({
     DEVICE_CODE_INTERVAL_SEC: 5,
     API_TOKEN_SCOPES_DEFAULT: ["core:read"],
     API_TOKEN_PREFIX: "lfk_",
+    AUTHZ_METRICS_ENABLED: false,
   }),
   ADMIN_SESSION_COOKIE: "lf_admin_sess",
   RECIPIENT_SESSION_COOKIE: "lf_recipient_sess",
@@ -85,6 +86,9 @@ vi.mock("./routes/auth/recipient.js", () => ({
 }));
 vi.mock("./routes/auth/cli.js", () => ({
   registerCliAuthRoutes: (...a: any[]) => regCli(...a),
+}));
+vi.mock("./observability/setup.js", () => ({
+  configureAuthzMetrics: vi.fn(async () => ({})),
 }));
 
 describe("main bootstrap", () => {

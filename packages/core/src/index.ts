@@ -27,9 +27,32 @@ import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
 import { registerBundleObjectsAdminRoutes } from "./routes/admin/bundle-objects.js";
 import { registerPipelineAdminRoutes } from "./routes/admin/pipelines.js";
 import { registerUserAdminRoutes } from "./routes/admin/users.js";
+import { configureAuthzMetrics } from "./observability/setup.js";
 
 export async function main() {
   const config = loadConfig();
+
+  const metricsHandle = await configureAuthzMetrics(config);
+  if (metricsHandle.shutdown) {
+    const forwardSignal = (signal: NodeJS.Signals) => {
+      process.once(signal, () => {
+        void (async () => {
+          try {
+            await metricsHandle.shutdown?.();
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[core] Failed to flush authz metrics on ${signal}: ${(err as Error).message}`,
+            );
+          } finally {
+            process.kill(process.pid, signal);
+          }
+        })();
+      });
+    };
+    forwardSignal("SIGTERM");
+    forwardSignal("SIGINT");
+  }
 
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
   const runtime = new PluginRuntimeRegistry();
