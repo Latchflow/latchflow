@@ -10,7 +10,7 @@ const db = {
     findUnique: vi.fn(async (): Promise<any | null> => null),
     upsert: vi.fn(async (..._args: any[]): Promise<any> => ({})),
     update: vi.fn(async (..._args: any[]): Promise<any> => ({})),
-    deleteMany: vi.fn(async (..._args: any[]): Promise<any> => ({})),
+    deleteMany: vi.fn(async (..._args: any[]): Promise<any> => ({ count: 1 })),
   },
   file: {
     findMany: vi.fn(async (): Promise<any[]> => []),
@@ -18,6 +18,11 @@ const db = {
 };
 
 vi.mock("../../src/db/db.js", () => ({ getDb: () => db }));
+
+vi.mock("../../src/history/changelog.js", () => ({
+  appendChangeLog: vi.fn(async () => ({})),
+  materializeVersion: vi.fn(),
+}));
 
 // Permission path relies on requireSession; allow ADMIN through
 vi.mock("../../src/middleware/require-session.js", () => ({
@@ -29,6 +34,7 @@ function makeServer() {
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+    patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
   const scheduler = { schedule: vi.fn(), scheduleForFiles: vi.fn(), getStatus: vi.fn() } as any;
@@ -181,7 +187,7 @@ describe("bundle-objects admin routes (integration)", () => {
     );
     registerBundleObjectsAdminRoutes(server, { scheduler });
     (db.bundleObject.findUnique as any).mockResolvedValueOnce({ bundleId: "B1" });
-    const h = handlers.get("POST /bundles/:bundleId/objects/:id")!;
+    const h = handlers.get("PATCH /bundles/:bundleId/objects/:id")!;
     const rc = createResponseCapture();
     await h(
       {

@@ -117,38 +117,6 @@ bundle_objects_item:
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
-  post:
-    summary: Update bundle object (alias)
-    description: Some deployments may use POST for updates; semantics match PATCH.
-    operationId: updateBundleObjectPost
-    tags: ["Bundle Objects"]
-    security:
-      - bearer: []
-      - cookieAdmin: []
-    parameters:
-      - in: path
-        name: bundleId
-        required: true
-        schema: { type: string, format: uuid }
-      - in: path
-        name: id
-        required: true
-        schema: { type: string, format: uuid }
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              path: { type: string }
-              sortOrder: { type: integer }
-              required: { type: boolean }
-    responses:
-      '204': { description: Updated }
-      '401': { $ref: ../components/responses/Unauthorized.yaml }
-      '403': { $ref: ../components/responses/Forbidden.yaml }
-      '400': { $ref: ../components/responses/ValidationError.yaml }
   delete:
     summary: Detach bundle object
     operationId: deleteBundleObject

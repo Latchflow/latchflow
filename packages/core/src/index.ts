@@ -130,7 +130,7 @@ export async function main() {
       await rebuilder.scheduleForFiles(fileIds);
     },
   });
-  registerBundleObjectsAdminRoutes(server, { scheduler: rebuilder });
+  registerBundleObjectsAdminRoutes(server, { scheduler: rebuilder, config });
   registerBundleBuildAdminRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerAssignmentAdminRoutes(server);
   registerOpenApiRoute(server);
