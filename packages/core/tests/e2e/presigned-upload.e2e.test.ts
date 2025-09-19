@@ -17,6 +17,10 @@ function makeServer() {
       handlers.set(`POST ${p}`, h);
       return undefined as any;
     },
+    patch: (p, h) => {
+      handlers.set(`PATCH ${p}`, h);
+      return undefined as any;
+    },
     put: (p, h) => {
       handlers.set(`PUT ${p}`, h);
       return undefined as any;

@@ -391,7 +391,7 @@ describe("E2E: bundle objects + build + portal download", () => {
     const first = bos[0];
     if (!first) throw new Error("Expected at least one bundle object to toggle");
     const disableId = first.id;
-    const hPatch = handlers.get("POST /bundles/:bundleId/objects/:id")!;
+    const hPatch = handlers.get("PATCH /bundles/:bundleId/objects/:id")!;
     const rcPatch = createResponseCapture();
     await hPatch(
       {
