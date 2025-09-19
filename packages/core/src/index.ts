@@ -26,6 +26,7 @@ import { createBundleRebuildScheduler } from "./bundles/scheduler.js";
 import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
 import { registerBundleObjectsAdminRoutes } from "./routes/admin/bundle-objects.js";
 import { registerPipelineAdminRoutes } from "./routes/admin/pipelines.js";
+import { registerUserAdminRoutes } from "./routes/admin/users.js";
 
 export async function main() {
   const config = loadConfig();
@@ -118,6 +119,7 @@ export async function main() {
   registerTriggerAdminRoutes(server, { fireTriggerOnce: triggerRunner.fireTriggerOnce, config });
   registerActionAdminRoutes(server, { queue, config });
   registerPipelineAdminRoutes(server, { config });
+  registerUserAdminRoutes(server, config);
   registerFileAdminRoutes(server, {
     storage: _storageService,
     onFilesChanged: async (fileIds) => {

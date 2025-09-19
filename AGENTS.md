@@ -73,6 +73,16 @@ pnpm -r test
 - Versioning is ChangeLog-backed: create/update/activate append `ACTION_DEFINITION` entries; `materializeVersion` is used to serve historical state.
 - `POST /actions/{id}/test-run` enqueues onto the queue and records the invoking user via `manualInvokerId`.
 
+### Admin Users
+- API paths live under `/users` (route code in `packages/core/src/routes/admin/users.ts`).
+- AuthZ uses policy resource `user` with scopes:
+  - Read: `GET /users`, `GET /users/:id`, `GET /users/:id/sessions` → `users:read` (ADMIN only in v1).
+  - Write: `POST /users`, `POST /users/invite`, `PATCH /users/:id`, `DELETE /users/:id`, `POST /users/:id/revoke` → `users:write`.
+- Duplicate email yields 409 `EMAIL_EXISTS`; prefer deactivation over deletion (DELETE returns 409 `DELETE_DISABLED`).
+- Invites create inactive users and enqueue a magic link (SMTP optional; dev mode surfaces `loginUrl`).
+- Mutations append ChangeLog entries for entity type `USER` using canonical serialization (captures role/isActive/display fields).
+- `GET /users/:id/sessions` returns active admin sessions; `POST /users/:id/revoke` sets `revokedAt` on all sessions for that user.
+
 ---
 
 ## Coding Standards

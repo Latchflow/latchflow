@@ -51,6 +51,8 @@ tags:
     description: Trigger to action pipelines
   - name: Executors/Users
     description: Admins and executors management
+  - name: Users
+    description: Admin API for managing executor/admin accounts
   - name: Portal
     description: Recipient portal data and downloads
   - name: Audit
@@ -220,6 +222,16 @@ paths:
     $ref: ./paths/pipelines.yaml#/pipeline_versions_collection
   /pipelines/{id}/versions/{version}:
     $ref: ./paths/pipelines.yaml#/pipeline_versions_item
+  /users:
+    $ref: ./paths/users.yaml#/users_collection
+  /users/invite:
+    $ref: ./paths/users.yaml#/users_invite
+  /users/{id}:
+    $ref: ./paths/users.yaml#/users_item
+  /users/{id}/sessions:
+    $ref: ./paths/users.yaml#/users_sessions
+  /users/{id}/revoke:
+    $ref: ./paths/users.yaml#/users_revoke
 
   /users:
     $ref: ./paths/users.yaml#/users_collection
