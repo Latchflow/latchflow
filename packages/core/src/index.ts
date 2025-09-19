@@ -27,6 +27,8 @@ import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
 import { registerBundleObjectsAdminRoutes } from "./routes/admin/bundle-objects.js";
 import { registerPipelineAdminRoutes } from "./routes/admin/pipelines.js";
 import { registerUserAdminRoutes } from "./routes/admin/users.js";
+import { registerBundleAdminRoutes } from "./routes/admin/bundles.js";
+import { registerRecipientAdminRoutes } from "./routes/admin/recipients.js";
 
 export async function main() {
   const config = loadConfig();
@@ -120,13 +122,15 @@ export async function main() {
   registerActionAdminRoutes(server, { queue, config });
   registerPipelineAdminRoutes(server, { config });
   registerUserAdminRoutes(server, config);
+  registerBundleAdminRoutes(server, { scheduler: rebuilder, config });
+  registerRecipientAdminRoutes(server, config);
   registerFileAdminRoutes(server, {
     storage: _storageService,
     onFilesChanged: async (fileIds) => {
       await rebuilder.scheduleForFiles(fileIds);
     },
   });
-  registerBundleObjectsAdminRoutes(server, { scheduler: rebuilder });
+  registerBundleObjectsAdminRoutes(server, { scheduler: rebuilder, config });
   registerBundleBuildAdminRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerAssignmentAdminRoutes(server);
   registerOpenApiRoute(server);

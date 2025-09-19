@@ -40,6 +40,7 @@ async function makeServer() {
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+    patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
   const { registerFileAdminRoutes } = await import("./files.js");
@@ -147,7 +148,7 @@ describe("files admin routes", () => {
 
   it("PATCH /files/:id/metadata updates metadata and returns 204", async () => {
     const { handlers } = await makeServer();
-    const h = handlers.get("POST /files/:id/metadata")!; // using POST route for metadata per implementation
+    const h = handlers.get("PATCH /files/:id/metadata")!;
     const rc = createResponseCapture();
     await h(
       {

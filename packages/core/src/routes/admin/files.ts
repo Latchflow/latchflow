@@ -651,7 +651,7 @@ export function registerFileAdminRoutes(
   );
 
   // PATCH /files/:id/metadata
-  server.post(
+  server.patch(
     "/files/:id/metadata",
     requireAdminOrApiToken({
       policySignature: "PATCH /files/:id/metadata" as RouteSignature,
