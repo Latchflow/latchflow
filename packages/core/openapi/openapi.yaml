@@ -233,13 +233,6 @@ paths:
   /users/{id}/revoke:
     $ref: ./paths/users.yaml#/users_revoke
 
-  /users:
-    $ref: ./paths/users.yaml#/users_collection
-  /users/invite:
-    $ref: ./paths/users.yaml#/users_invite
-  /users/{id}/revoke:
-    $ref: ./paths/users.yaml#/users_revoke
-
 components:
   securitySchemes:
     cookieAdmin: { $ref: ./components/securitySchemes/cookieAdmin.yaml }
