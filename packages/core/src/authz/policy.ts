@@ -86,6 +86,18 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
     resource: "recipient",
     v1AllowExecutor: true,
   },
+  // Permission presets management
+  "GET /admin/permissions/presets": { action: "read", resource: "user", v1AllowExecutor: true },
+  "POST /admin/permissions/presets": { action: "create", resource: "user" },
+  "GET /admin/permissions/presets/:id": { action: "read", resource: "user", v1AllowExecutor: true },
+  "PATCH /admin/permissions/presets/:id": { action: "update", resource: "user" },
+  "DELETE /admin/permissions/presets/:id": { action: "delete", resource: "user" },
+  "GET /admin/permissions/presets/:id/versions": { action: "read", resource: "user", v1AllowExecutor: true },
+  "POST /admin/permissions/presets/:id/versions": { action: "update", resource: "user" },
+  "GET /admin/permissions/presets/:id/versions/:version": { action: "read", resource: "user", v1AllowExecutor: true },
+  "POST /admin/permissions/presets/:id/versions/:version/activate": { action: "update", resource: "user" },
+  // Permission simulation
+  "POST /admin/permissions/simulate": { action: "read", resource: "user" },
   "GET /admin/triggers": { action: "read", resource: "trigger_def", v1AllowExecutor: true },
 
   // Files

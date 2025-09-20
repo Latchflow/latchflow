@@ -27,6 +27,7 @@ import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
 import { registerBundleObjectsAdminRoutes } from "./routes/admin/bundle-objects.js";
 import { registerPipelineAdminRoutes } from "./routes/admin/pipelines.js";
 import { registerUserAdminRoutes } from "./routes/admin/users.js";
+import { registerPermissionPresetAdminRoutes } from "./routes/admin/permissionPresets.js";
 import { configureAuthzMetrics } from "./observability/setup.js";
 import { configureAuthzFlags } from "./authz/featureFlags.js";
 
@@ -152,6 +153,7 @@ export async function main() {
   registerActionAdminRoutes(server, { queue, config });
   registerPipelineAdminRoutes(server, { config });
   registerUserAdminRoutes(server, config);
+  registerPermissionPresetAdminRoutes(server, { config });
   registerFileAdminRoutes(server, {
     storage: _storageService,
     onFilesChanged: async (fileIds) => {
