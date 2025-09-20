@@ -14,6 +14,9 @@ export type ExecResource =
   | "capability";
 
 export type Permission = {
+  id?: string;
+  description?: string;
+  source?: "preset" | "direct" | "system";
   action: ExecAction;
   resource: ExecResource | "*";
   where?: {
@@ -49,11 +52,36 @@ export type PolicyEntry = {
   v1AllowExecutor?: boolean;
 };
 
+export type CompiledRule = {
+  id?: string;
+  source?: string;
+  where?: NonNullable<Permission["where"]>;
+  input?: Permission["input"];
+  raw: Permission;
+};
+
 export type Compiled = Record<
-  ExecResource,
-  Record<ExecAction, { where?: NonNullable<Permission["where"]>[]; input?: Permission["input"][] }>
+  ExecResource | "*",
+  Record<ExecAction | "*", CompiledRule[]>
 >;
 
 export type AuthorizeDecision =
-  | { ok: true; reason: "ADMIN" | "RULE_MATCH"; inputRules?: NonNullable<Permission["input"]> }
-  | { ok: false; reason: "NO_POLICY" | "WHERE_MISS" | "NOT_ADMIN_V1" };
+  | {
+      ok: true;
+      reason: "ADMIN" | "RULE_MATCH";
+      matchedRule?: CompiledRule;
+      presetId?: string;
+      presetVersion?: number;
+    }
+  | {
+      ok: false;
+      reason:
+        | "NO_POLICY"
+        | "WHERE_MISS"
+        | "NOT_ADMIN_V1"
+        | "NO_MATCH"
+        | "INPUT_GUARD"
+        | "RATE_LIMIT"
+        | "INACTIVE"
+        | "MFA_REQUIRED";
+    };

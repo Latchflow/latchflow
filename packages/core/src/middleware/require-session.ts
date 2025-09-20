@@ -15,7 +15,10 @@ export async function requireSession(req: RequestLike) {
   if (!token) throw httpError(401, "Missing admin session");
   const db = getDb();
   const now = new Date();
-  const session = await db.session.findUnique({ where: { jti: token }, include: { user: true } });
+  const session = await db.session.findUnique({
+    where: { jti: token },
+    include: { user: { include: { permissionPreset: true } } },
+  });
   if (!session || session.revokedAt || session.expiresAt <= now) {
     throw httpError(401, "Invalid or expired admin session");
   }

@@ -28,9 +28,18 @@ import { registerBundleObjectsAdminRoutes } from "./routes/admin/bundle-objects.
 import { registerPipelineAdminRoutes } from "./routes/admin/pipelines.js";
 import { registerUserAdminRoutes } from "./routes/admin/users.js";
 import { configureAuthzMetrics } from "./observability/setup.js";
+import { configureAuthzFlags } from "./authz/featureFlags.js";
 
 export async function main() {
   const config = loadConfig();
+
+  configureAuthzFlags({
+    enforce: config.AUTHZ_V2,
+    shadow: config.AUTHZ_V2_SHADOW,
+    requireAdmin2fa: config.AUTHZ_REQUIRE_ADMIN_2FA,
+    reauthWindowMin: config.AUTHZ_REAUTH_WINDOW_MIN,
+    systemUserId: config.SYSTEM_USER_ID,
+  });
 
   const metricsHandle = await configureAuthzMetrics(config);
   if (metricsHandle.shutdown) {

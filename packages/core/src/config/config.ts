@@ -165,6 +165,23 @@ const EnvSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v == null ? undefined : v === "true")),
+  AUTHZ_V2: z
+    .string()
+    .optional()
+    .transform((v) => (v == null ? false : v === "true")),
+  AUTHZ_V2_SHADOW: z
+    .string()
+    .optional()
+    .transform((v) => (v == null ? false : v === "true")),
+  AUTHZ_REQUIRE_ADMIN_2FA: z
+    .string()
+    .optional()
+    .transform((v) => (v == null ? false : v === "true")),
+  AUTHZ_REAUTH_WINDOW_MIN: z
+    .string()
+    .optional()
+    .transform((v) => (v == null || v === "" ? undefined : Number(v)))
+    .pipe(z.number().positive().optional()),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema> & {
@@ -183,6 +200,10 @@ export type AppConfig = z.infer<typeof EnvSchema> & {
   AUTHZ_METRICS_EXPORT_INTERVAL_MS?: number;
   AUTHZ_METRICS_EXPORT_TIMEOUT_MS?: number;
   AUTHZ_METRICS_ENABLE_DIAGNOSTICS?: boolean;
+  AUTHZ_V2: boolean;
+  AUTHZ_V2_SHADOW: boolean;
+  AUTHZ_REQUIRE_ADMIN_2FA: boolean;
+  AUTHZ_REAUTH_WINDOW_MIN?: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -198,6 +219,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cfg.AUTH_COOKIE_SECURE = process.env.NODE_ENV === "development" ? false : true;
   }
   cfg.AUTHZ_METRICS_ENABLED = Boolean(cfg.AUTHZ_METRICS_ENABLED);
+  cfg.AUTHZ_V2 = Boolean(cfg.AUTHZ_V2);
+  cfg.AUTHZ_V2_SHADOW = Boolean(cfg.AUTHZ_V2_SHADOW);
+  cfg.AUTHZ_REQUIRE_ADMIN_2FA = Boolean(cfg.AUTHZ_REQUIRE_ADMIN_2FA);
   return cfg;
 }
 

@@ -90,6 +90,9 @@ vi.mock("./routes/auth/cli.js", () => ({
 vi.mock("./observability/setup.js", () => ({
   configureAuthzMetrics: vi.fn(async () => ({})),
 }));
+vi.mock("./authz/featureFlags.js", () => ({
+  configureAuthzFlags: vi.fn(),
+}));
 
 describe("main bootstrap", () => {
   it("starts server and registers routes", async () => {
