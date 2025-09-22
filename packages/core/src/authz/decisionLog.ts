@@ -1,6 +1,8 @@
 // Minimal structured decision logging helper for AuthZ v1
 // Intentionally framework-agnostic and stdout-only for now.
 
+import { createAuthzLogger } from "../observability/logger.js";
+
 export type DecisionEvent = {
   decision: "ALLOW" | "DENY";
   reason: string;
@@ -16,8 +18,7 @@ export type DecisionEvent = {
 export function logDecision(ev: DecisionEvent) {
   // In v1 keep it lightweight; downstream can pipe stdout to JSON log storage.
   try {
-    // eslint-disable-next-line no-console
-    console.info(JSON.stringify({ ts: new Date().toISOString(), kind: "authz_decision", ...ev }));
+    createAuthzLogger().info({ kind: "authz_decision", ...ev }, "Authorization decision");
   } catch {
     // ignore
   }

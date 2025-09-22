@@ -9,6 +9,7 @@ import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { requireAdmin } from "../../middleware/require-admin.js";
 import { bootstrapGrantAdminIfOnlyUserTx } from "../../auth/bootstrap.js";
+import { createAuthLogger } from "../../observability/logger.js";
 
 export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
@@ -55,7 +56,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     }
 
     if (!user) {
-      console.log(`[auth] Magic link requested for non-existent user: ${email}`);
+      createAuthLogger().info({ email }, "Magic link requested for non-existent user");
       return res.sendStatus(204); // Do not reveal whether the user exists
     }
 
@@ -86,8 +87,10 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
         const from = config.SMTP_FROM ?? "no-reply@latchflow.local";
         const loginPath = `/auth/admin/callback?token=${token}`;
         const html = `<p>Click to sign in:</p><p><a href="${loginPath}">${loginPath}</a></p>`;
-        // eslint-disable-next-line no-console
-        console.log(`[auth] Sending magic link to ${email} via SMTP ${u.hostname}:${u.port || 25}`);
+        createAuthLogger().info(
+          { email, smtpHost: u.hostname, smtpPort: u.port || 25 },
+          "Sending magic link via SMTP",
+        );
         await transporter.sendMail({
           from,
           to: email,
@@ -95,12 +98,10 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
           html,
           text: loginPath,
         });
-        // eslint-disable-next-line no-console
-        console.log(`[auth] SMTP send completed for ${email}`);
+        createAuthLogger().info({ email }, "SMTP send completed");
         return res.sendStatus(204);
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn("[auth] SMTP delivery failed:", (e as Error).message);
+        createAuthLogger().warn({ email, error: (e as Error).message }, "SMTP delivery failed");
         return res.status(500).json({
           status: "error",
           code: "EMAIL_FAILED",
@@ -110,9 +111,9 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     }
 
     // Dev-only: log the callback URL (partial token)
-    // eslint-disable-next-line no-console
-    console.log(
-      `[auth] Magic link for ${email}: /auth/admin/callback?token=${token.substring(0, 4)}… (full token hidden)`,
+    createAuthLogger().info(
+      { email, tokenPrefix: token.substring(0, 4) },
+      "Magic link generated (dev mode)",
     );
 
     return res.sendStatus(204);
@@ -171,7 +172,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     } catch (e) {
       // Do not block login on bootstrap errors
       // eslint-disable-next-line no-console
-      console.warn("[auth] Bootstrap check failed:", (e as Error).message);
+      createAuthLogger().warn({ error: (e as Error).message }, "Bootstrap check failed");
     }
 
     const jti = randomToken(32);

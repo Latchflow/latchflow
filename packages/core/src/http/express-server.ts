@@ -7,6 +7,7 @@ import express, {
 import helmet from "helmet";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import { logger } from "../observability/logger.js";
 import multer from "multer";
 import os from "node:os";
 import type { HttpServer, RequestLike, ResponseLike, HttpHandler } from "./http-server.js";
@@ -26,7 +27,7 @@ export function createExpressServer(): HttpServer {
   });
   app.use(upload.single("file"));
   app.use(express.json());
-  app.use(pinoHttp());
+  app.use(pinoHttp({ logger }));
   // Basic JSON error handler
   // eslint-disable-next-line
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {

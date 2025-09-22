@@ -1,5 +1,6 @@
 import type { AuthorizeDecision, ExecAction, ExecResource } from "../authz/types";
 import type { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { logger } from "./logger.js";
 
 export type AuthzEvaluationMode = "shadow" | "enforce";
 
@@ -207,8 +208,10 @@ export async function initializeAuthzMetrics(
 
     return { shutdown: shutdownAuthzMetrics };
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn(`[authz-metrics] Failed to initialize OpenTelemetry: ${(err as Error).message}`);
+    logger.warn(
+      { error: (err as Error).message },
+      "Failed to initialize OpenTelemetry for authz metrics",
+    );
     state = null;
     return null;
   }
@@ -220,12 +223,10 @@ export async function shutdownAuthzMetrics() {
   state = null;
   await Promise.all([
     metricReader.shutdown().catch((err: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn(`[authz-metrics] Metric reader shutdown failed: ${(err as Error).message}`);
+      logger.warn({ error: (err as Error).message }, "Metric reader shutdown failed");
     }),
     meterProvider.shutdown().catch((err: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn(`[authz-metrics] Meter provider shutdown failed: ${(err as Error).message}`);
+      logger.warn({ error: (err as Error).message }, "Meter provider shutdown failed");
     }),
   ]);
 }
