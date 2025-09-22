@@ -54,16 +54,13 @@ export type PolicyEntry = {
 
 export type CompiledRule = {
   id?: string;
-  source?: string;
+  source?: Permission["source"];
   where?: NonNullable<Permission["where"]>;
   input?: Permission["input"];
   raw: Permission;
 };
 
-export type Compiled = Record<
-  ExecResource | "*",
-  Record<ExecAction | "*", CompiledRule[]>
->;
+export type Compiled = Record<ExecResource | "*", Record<ExecAction | "*", CompiledRule[]>>;
 
 export type AuthorizeDecision =
   | {
