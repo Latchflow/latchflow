@@ -94,6 +94,25 @@ vi.mock("./authz/featureFlags.js", () => ({
   configureAuthzFlags: vi.fn(),
 }));
 
+// Mock all admin route registrations
+vi.mock("./routes/openapi.js", () => ({ registerOpenApiRoute: vi.fn() }));
+vi.mock("./routes/portal.js", () => ({ registerPortalRoutes: vi.fn() }));
+vi.mock("./routes/admin/plugins.js", () => ({ registerPluginRoutes: vi.fn() }));
+vi.mock("./routes/admin/triggers.js", () => ({ registerTriggerAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/actions.js", () => ({ registerActionAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/files.js", () => ({ registerFileAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/bundle-build.js", () => ({ registerBundleBuildAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/assignments.js", () => ({ registerAssignmentAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/bundle-objects.js", () => ({ registerBundleObjectsAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/pipelines.js", () => ({ registerPipelineAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/users.js", () => ({ registerUserAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/permissionPresets.js", () => ({
+  registerPermissionPresetAdminRoutes: vi.fn(),
+}));
+vi.mock("./routes/admin/bundles.js", () => ({ registerBundleAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/recipients.js", () => ({ registerRecipientAdminRoutes: vi.fn() }));
+vi.mock("./bundles/scheduler.js", () => ({ createBundleRebuildScheduler: vi.fn(() => ({})) }));
+
 describe("main bootstrap", () => {
   it("starts server and registers routes", async () => {
     const { main } = await import("./index.js");
