@@ -27,6 +27,7 @@ vi.mock("./config/config.js", () => ({
     DEVICE_CODE_INTERVAL_SEC: 5,
     API_TOKEN_SCOPES_DEFAULT: ["core:read"],
     API_TOKEN_PREFIX: "lfk_",
+    AUTHZ_METRICS_ENABLED: false,
   }),
   ADMIN_SESSION_COOKIE: "lf_admin_sess",
   RECIPIENT_SESSION_COOKIE: "lf_recipient_sess",
@@ -86,6 +87,31 @@ vi.mock("./routes/auth/recipient.js", () => ({
 vi.mock("./routes/auth/cli.js", () => ({
   registerCliAuthRoutes: (...a: any[]) => regCli(...a),
 }));
+vi.mock("./observability/setup.js", () => ({
+  configureAuthzMetrics: vi.fn(async () => ({})),
+}));
+vi.mock("./authz/featureFlags.js", () => ({
+  configureAuthzFlags: vi.fn(),
+}));
+
+// Mock all admin route registrations
+vi.mock("./routes/openapi.js", () => ({ registerOpenApiRoute: vi.fn() }));
+vi.mock("./routes/portal.js", () => ({ registerPortalRoutes: vi.fn() }));
+vi.mock("./routes/admin/plugins.js", () => ({ registerPluginRoutes: vi.fn() }));
+vi.mock("./routes/admin/triggers.js", () => ({ registerTriggerAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/actions.js", () => ({ registerActionAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/files.js", () => ({ registerFileAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/bundle-build.js", () => ({ registerBundleBuildAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/assignments.js", () => ({ registerAssignmentAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/bundle-objects.js", () => ({ registerBundleObjectsAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/pipelines.js", () => ({ registerPipelineAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/users.js", () => ({ registerUserAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/permissionPresets.js", () => ({
+  registerPermissionPresetAdminRoutes: vi.fn(),
+}));
+vi.mock("./routes/admin/bundles.js", () => ({ registerBundleAdminRoutes: vi.fn() }));
+vi.mock("./routes/admin/recipients.js", () => ({ registerRecipientAdminRoutes: vi.fn() }));
+vi.mock("./bundles/scheduler.js", () => ({ createBundleRebuildScheduler: vi.fn(() => ({})) }));
 
 describe("main bootstrap", () => {
   it("starts server and registers routes", async () => {

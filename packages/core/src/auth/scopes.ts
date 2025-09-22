@@ -21,6 +21,8 @@ export const SCOPES = {
   USERS_READ: "users:read",
   USERS_WRITE: "users:write",
   CAPABILITIES_READ: "capabilities:read",
+  PERMISSIONS_READ: "permissions:read",
+  PERMISSIONS_WRITE: "permissions:write",
 } as const;
 
 export type Scope = (typeof SCOPES)[keyof typeof SCOPES];

@@ -1,0 +1,19 @@
+type: object
+properties:
+  userId:
+    type: string
+    format: uuid
+  method:
+    type: string
+    enum: [GET, POST, PUT, PATCH, DELETE]
+  path:
+    type: string
+  body:
+    description: Optional JSON payload to test against input guards.
+  query:
+    type: object
+    additionalProperties: true
+  headers:
+    type: object
+    additionalProperties: { type: string }
+required: [userId, method, path]

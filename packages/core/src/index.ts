@@ -27,11 +27,44 @@ import { registerAssignmentAdminRoutes } from "./routes/admin/assignments.js";
 import { registerBundleObjectsAdminRoutes } from "./routes/admin/bundle-objects.js";
 import { registerPipelineAdminRoutes } from "./routes/admin/pipelines.js";
 import { registerUserAdminRoutes } from "./routes/admin/users.js";
+import { registerPermissionPresetAdminRoutes } from "./routes/admin/permissionPresets.js";
+import { configureAuthzMetrics } from "./observability/setup.js";
+import { configureAuthzFlags } from "./authz/featureFlags.js";
 import { registerBundleAdminRoutes } from "./routes/admin/bundles.js";
 import { registerRecipientAdminRoutes } from "./routes/admin/recipients.js";
 
 export async function main() {
   const config = loadConfig();
+
+  configureAuthzFlags({
+    enforce: config.AUTHZ_V2,
+    shadow: config.AUTHZ_V2_SHADOW,
+    requireAdmin2fa: config.AUTHZ_REQUIRE_ADMIN_2FA,
+    reauthWindowMin: config.AUTHZ_REAUTH_WINDOW_MIN,
+    systemUserId: config.SYSTEM_USER_ID,
+  });
+
+  const metricsHandle = await configureAuthzMetrics(config);
+  if (metricsHandle.shutdown) {
+    const forwardSignal = (signal: NodeJS.Signals) => {
+      process.once(signal, () => {
+        void (async () => {
+          try {
+            await metricsHandle.shutdown?.();
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[core] Failed to flush authz metrics on ${signal}: ${(err as Error).message}`,
+            );
+          } finally {
+            process.kill(process.pid, signal);
+          }
+        })();
+      });
+    };
+    forwardSignal("SIGTERM");
+    forwardSignal("SIGINT");
+  }
 
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
   const runtime = new PluginRuntimeRegistry();
@@ -122,6 +155,7 @@ export async function main() {
   registerActionAdminRoutes(server, { queue, config });
   registerPipelineAdminRoutes(server, { config });
   registerUserAdminRoutes(server, config);
+  registerPermissionPresetAdminRoutes(server, { config });
   registerBundleAdminRoutes(server, { scheduler: rebuilder, config });
   registerRecipientAdminRoutes(server, config);
   registerFileAdminRoutes(server, {

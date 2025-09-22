@@ -11,6 +11,11 @@ describe("config loader", () => {
     expect(cfg.DATABASE_URL).toBeDefined();
     expect(cfg.PORT).toBe(3001);
     expect(cfg.QUEUE_DRIVER).toBe("memory");
+    expect(cfg.AUTHZ_METRICS_ENABLED).toBe(false);
+    expect(cfg.AUTHZ_V2).toBe(false);
+    expect(cfg.AUTHZ_V2_SHADOW).toBe(false);
+    expect(cfg.AUTHZ_REQUIRE_ADMIN_2FA).toBe(false);
+    expect(cfg.AUTHZ_REAUTH_WINDOW_MIN).toBeUndefined();
   });
 
   it("parses QUEUE_CONFIG_JSON when provided", () => {
@@ -37,6 +42,39 @@ describe("config loader", () => {
         API_TOKEN_SCOPES_DEFAULT: "{}",
       } as any),
     ).toThrow(/Invalid API_TOKEN_SCOPES_DEFAULT/);
+  });
+
+  it("parses authz metrics configuration", () => {
+    const cfg = loadConfig({
+      DATABASE_URL: "postgres://user:pass@localhost:5432/db",
+      AUTHZ_METRICS_ENABLED: "true",
+      AUTHZ_METRICS_OTLP_URL: "http://collector:4318/v1/metrics",
+      AUTHZ_METRICS_OTLP_HEADERS: JSON.stringify({ Authorization: "Bearer test" }),
+      AUTHZ_METRICS_EXPORT_INTERVAL_MS: "5000",
+      AUTHZ_METRICS_EXPORT_TIMEOUT_MS: "10000",
+      AUTHZ_METRICS_ENABLE_DIAGNOSTICS: "true",
+      AUTHZ_METRICS_SERVICE_NAME: "latchflow-core-tests",
+      AUTHZ_METRICS_SERVICE_NAMESPACE: "latchflow",
+      AUTHZ_METRICS_SERVICE_INSTANCE_ID: "test-node",
+      AUTHZ_V2: "true",
+      AUTHZ_V2_SHADOW: "true",
+      AUTHZ_REQUIRE_ADMIN_2FA: "true",
+      AUTHZ_REAUTH_WINDOW_MIN: "15",
+    } as unknown as NodeJS.ProcessEnv);
+
+    expect(cfg.AUTHZ_METRICS_ENABLED).toBe(true);
+    expect(cfg.AUTHZ_METRICS_OTLP_URL).toBe("http://collector:4318/v1/metrics");
+    expect(cfg.AUTHZ_METRICS_OTLP_HEADERS).toEqual({ Authorization: "Bearer test" });
+    expect(cfg.AUTHZ_METRICS_EXPORT_INTERVAL_MS).toBe(5000);
+    expect(cfg.AUTHZ_METRICS_EXPORT_TIMEOUT_MS).toBe(10000);
+    expect(cfg.AUTHZ_METRICS_ENABLE_DIAGNOSTICS).toBe(true);
+    expect(cfg.AUTHZ_METRICS_SERVICE_NAME).toBe("latchflow-core-tests");
+    expect(cfg.AUTHZ_METRICS_SERVICE_NAMESPACE).toBe("latchflow");
+    expect(cfg.AUTHZ_METRICS_SERVICE_INSTANCE_ID).toBe("test-node");
+    expect(cfg.AUTHZ_V2).toBe(true);
+    expect(cfg.AUTHZ_V2_SHADOW).toBe(true);
+    expect(cfg.AUTHZ_REQUIRE_ADMIN_2FA).toBe(true);
+    expect(cfg.AUTHZ_REAUTH_WINDOW_MIN).toBe(15);
   });
 
   it("throws when required env missing", () => {

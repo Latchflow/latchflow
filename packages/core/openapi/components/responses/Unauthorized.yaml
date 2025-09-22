@@ -1,5 +1,18 @@
-description: Unauthorized
+description: Unauthorized (missing/invalid auth or MFA challenge required)
 content:
   application/json:
     schema:
       $ref: ../schemas/Error.yaml
+    examples:
+      missingAuth:
+        summary: Missing or invalid credentials
+        value:
+          status: error
+          code: UNAUTHORIZED
+          message: Admin session required
+      mfaRequired:
+        summary: Two-factor challenge required
+        value:
+          status: error
+          code: MFA_REQUIRED
+          message: Two-factor authentication required
