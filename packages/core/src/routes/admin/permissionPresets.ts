@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { HttpServer, RequestLike } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
-import type { Prisma, ChangeKind } from "@latchflow/db";
+import { Prisma, type ChangeKind } from "@latchflow/db";
 import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
 import { SCOPES } from "../../auth/scopes.js";
 import type { RouteSignature } from "../../authz/policy.js";
@@ -83,6 +83,26 @@ export function registerPermissionPresetAdminRoutes(
     updatedBy: preset.updatedBy,
   });
 
+  const actorContextForReq = (req: unknown) => {
+    const user = (req as { user?: { id?: string } }).user;
+    const actorId = user?.id ?? systemUserId;
+    return { actorType: "USER" as const, actorUserId: actorId };
+  };
+
+  const getStringParam = (req: RequestLike, key: string): string | undefined => {
+    const params = req.params;
+    if (!params || typeof params !== "object") return undefined;
+    const value = (params as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : undefined;
+  };
+
+  const getIntParam = (req: RequestLike, key: string): number | undefined => {
+    const value = getStringParam(req, key);
+    if (value === undefined) return undefined;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  };
+
   // GET /admin/permissions/presets — list presets
   server.get(
     "/admin/permissions/presets",
@@ -150,19 +170,14 @@ export function registerPermissionPresetAdminRoutes(
 
       await appendChangeLog(
         db,
-        "USER",
-        preset.id,
-        "PermissionPreset",
-        {
-          name: preset.name,
-          rules: validRules,
-        },
         historyCfg,
+        "PERMISSION_PRESET",
+        preset.id,
+        actorContextForReq(req),
         {
           changeNote: `Created permission preset: ${preset.name}`,
           changeKind: "ADD_CHILD",
           changedPath: null,
-          actorUserId: userId,
         },
       );
 
@@ -177,8 +192,13 @@ export function registerPermissionPresetAdminRoutes(
       policySignature: "GET /admin/permissions/presets/:id" as RouteSignature,
       scopes: [SCOPES.PERMISSIONS_READ],
     })(async (req, res) => {
+      const presetId = getStringParam(req, "id");
+      if (!presetId) {
+        res.status(400).json({ error: "Invalid preset id" });
+        return;
+      }
       const preset = await db.permissionPreset.findUnique({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
       if (!preset) {
@@ -201,16 +221,21 @@ export function registerPermissionPresetAdminRoutes(
       });
       const body = Body.parse(req.body);
       const userId = req.user?.id ?? systemUserId;
+      const presetId = getStringParam(req, "id");
+      if (!presetId) {
+        res.status(400).json({ error: "Invalid preset id" });
+        return;
+      }
 
       const existing = await db.permissionPreset.findUnique({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
       if (!existing) {
         return res.status(404).json({ error: "Permission preset not found" });
       }
 
-      const updateData: Prisma.PermissionPresetUpdateInput = {
+      const updateData: Prisma.PermissionPresetUncheckedUpdateInput = {
         updatedBy: userId,
       };
 
@@ -219,25 +244,20 @@ export function registerPermissionPresetAdminRoutes(
       }
 
       const preset = await db.permissionPreset.update({
-        where: { id: req.params.id },
+        where: { id: presetId },
         data: updateData,
       });
 
       await appendChangeLog(
         db,
-        "USER",
-        preset.id,
-        "PermissionPreset",
-        {
-          name: preset.name,
-          rules: preset.rules,
-        },
         historyCfg,
+        "PERMISSION_PRESET",
+        preset.id,
+        actorContextForReq(req),
         {
           changeNote: `Updated permission preset: ${preset.name}`,
           changeKind: "UPDATE_PARENT",
           changedPath: null,
-          actorUserId: userId,
         },
       );
 
@@ -261,9 +281,14 @@ export function registerPermissionPresetAdminRoutes(
       });
       const body = Body.parse(req.body);
       const userId = req.user?.id ?? systemUserId;
+      const presetId = getStringParam(req, "id");
+      if (!presetId) {
+        res.status(400).json({ error: "Invalid preset id" });
+        return;
+      }
 
       const existing = await db.permissionPreset.findUnique({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
       if (!existing) {
@@ -274,7 +299,7 @@ export function registerPermissionPresetAdminRoutes(
       const validRules = body.rules.filter(isValidPermissionRule);
 
       const preset = await db.permissionPreset.update({
-        where: { id: req.params.id },
+        where: { id: presetId },
         data: {
           rules: validRules,
           version: { increment: 1 },
@@ -284,19 +309,14 @@ export function registerPermissionPresetAdminRoutes(
 
       await appendChangeLog(
         db,
-        "USER",
-        preset.id,
-        "PermissionPreset",
-        {
-          name: preset.name,
-          rules: validRules,
-        },
         historyCfg,
+        "PERMISSION_PRESET",
+        preset.id,
+        actorContextForReq(req),
         {
           changeNote: body.changeNote ?? `Updated rules for permission preset: ${preset.name}`,
           changeKind: "UPDATE_CHILD",
           changedPath: "rules",
-          actorUserId: userId,
         },
       );
 
@@ -314,8 +334,13 @@ export function registerPermissionPresetAdminRoutes(
       policySignature: "GET /admin/permissions/presets/:id/versions" as RouteSignature,
       scopes: [SCOPES.PERMISSIONS_READ],
     })(async (req, res) => {
+      const presetId = getStringParam(req, "id");
+      if (!presetId) {
+        res.status(400).json({ error: "Invalid preset id" });
+        return;
+      }
       const preset = await db.permissionPreset.findUnique({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
       if (!preset) {
@@ -332,8 +357,8 @@ export function registerPermissionPresetAdminRoutes(
       const take = query.limit ?? 20;
       const rows = await db.changeLog.findMany({
         where: {
-          aggregateType: "PermissionPreset",
-          aggregateId: preset.id,
+          entityType: "PERMISSION_PRESET",
+          entityId: preset.id,
         },
         orderBy: { version: "desc" },
         take: take + 1,
@@ -375,29 +400,40 @@ export function registerPermissionPresetAdminRoutes(
       policySignature: "GET /admin/permissions/presets/:id/versions/:version" as RouteSignature,
       scopes: [SCOPES.PERMISSIONS_READ],
     })(async (req, res) => {
+      const presetId = getStringParam(req, "id");
+      if (!presetId) {
+        res.status(400).json({ error: "Invalid preset id" });
+        return;
+      }
       const preset = await db.permissionPreset.findUnique({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
       if (!preset) {
         return res.status(404).json({ error: "Permission preset not found" });
       }
 
-      const version = parseInt(req.params.version, 10);
-      if (isNaN(version)) {
+      const version = getIntParam(req, "version");
+      if (version === undefined) {
         return res.status(400).json({ error: "Invalid version number" });
       }
 
       try {
-        const historical = await materializeVersion(db, "PermissionPreset", preset.id, version);
+        const historical = await materializeVersion(db, "PERMISSION_PRESET", preset.id, version);
+        if (!historical) {
+          res.status(404).json({ error: "Version not found" });
+          return;
+        }
+        const historicalRecord = historical as Record<string, unknown>;
+        const nameValue = historicalRecord.name;
+        const rulesValue = (historicalRecord.rules ?? []) as unknown;
+        const rulesArray = Array.isArray(rulesValue) ? (rulesValue as Permission[]) : [];
         res.json({
           id: preset.id,
-          name: historical.name,
+          name: typeof nameValue === "string" ? nameValue : preset.name,
           version,
-          rules: historical.rules || [],
-          rulesHash: Array.isArray(historical.rules)
-            ? computeRulesHash(historical.rules as Permission[])
-            : "",
+          rules: rulesValue,
+          rulesHash: rulesArray.length ? computeRulesHash(rulesArray) : "",
         });
       } catch (error) {
         res.status(404).json({ error: "Version not found" });
@@ -414,26 +450,40 @@ export function registerPermissionPresetAdminRoutes(
       scopes: [SCOPES.PERMISSIONS_WRITE],
     })(async (req, res) => {
       const userId = req.user?.id ?? systemUserId;
+      const presetId = getStringParam(req, "id");
+      if (!presetId) {
+        res.status(400).json({ error: "Invalid preset id" });
+        return;
+      }
       const preset = await db.permissionPreset.findUnique({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
       if (!preset) {
         return res.status(404).json({ error: "Permission preset not found" });
       }
 
-      const version = parseInt(req.params.version, 10);
-      if (isNaN(version)) {
+      const version = getIntParam(req, "version");
+      if (version === undefined) {
         return res.status(400).json({ error: "Invalid version number" });
       }
 
       try {
-        const historical = await materializeVersion(db, "PermissionPreset", preset.id, version);
+        const historical = await materializeVersion(db, "PERMISSION_PRESET", preset.id, version);
+        if (!historical) {
+          res.status(404).json({ error: "Version not found" });
+          return;
+        }
+        const historicalRecord = historical as Record<string, unknown>;
+        const newRules =
+          historicalRecord.rules === undefined
+            ? Prisma.JsonNull
+            : (historicalRecord.rules as Prisma.InputJsonValue);
 
         const updatedPreset = await db.permissionPreset.update({
-          where: { id: req.params.id },
+          where: { id: presetId },
           data: {
-            rules: historical.rules,
+            rules: newRules,
             version: { increment: 1 },
             updatedBy: userId,
           },
@@ -441,19 +491,14 @@ export function registerPermissionPresetAdminRoutes(
 
         await appendChangeLog(
           db,
-          "USER",
-          updatedPreset.id,
-          "PermissionPreset",
-          {
-            name: updatedPreset.name,
-            rules: historical.rules,
-          },
           historyCfg,
+          "PERMISSION_PRESET",
+          updatedPreset.id,
+          actorContextForReq(req),
           {
             changeNote: `Rolled back to version ${version}`,
             changeKind: "UPDATE_PARENT",
             changedPath: "rules",
-            actorUserId: userId,
           },
         );
 
@@ -474,11 +519,15 @@ export function registerPermissionPresetAdminRoutes(
       policySignature: "DELETE /admin/permissions/presets/:id" as RouteSignature,
       scopes: [SCOPES.PERMISSIONS_WRITE],
     })(async (req, res) => {
-      const userId = req.user?.id ?? systemUserId;
+      const presetId = getStringParam(req, "id");
+      if (!presetId) {
+        res.status(400).json({ error: "Invalid preset id" });
+        return;
+      }
 
       // Check if preset is in use
       const usersWithPreset = await db.user.count({
-        where: { permissionPresetId: req.params.id },
+        where: { permissionPresetId: presetId },
       });
 
       if (usersWithPreset > 0) {
@@ -489,7 +538,7 @@ export function registerPermissionPresetAdminRoutes(
       }
 
       const preset = await db.permissionPreset.findUnique({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
       if (!preset) {
@@ -497,17 +546,23 @@ export function registerPermissionPresetAdminRoutes(
       }
 
       await db.permissionPreset.delete({
-        where: { id: req.params.id },
+        where: { id: presetId },
       });
 
-      await appendChangeLog(db, "USER", preset.id, "PermissionPreset", null, historyCfg, {
-        changeNote: `Deleted permission preset: ${preset.name}`,
-        changeKind: "REMOVE_CHILD",
-        changedPath: null,
-        actorUserId: userId,
-      });
+      await appendChangeLog(
+        db,
+        historyCfg,
+        "PERMISSION_PRESET",
+        preset.id,
+        actorContextForReq(req),
+        {
+          changeNote: `Deleted permission preset: ${preset.name}`,
+          changeKind: "REMOVE_CHILD",
+          changedPath: null,
+        },
+      );
 
-      res.status(204).send();
+      res.sendStatus(204);
     }),
   );
 
@@ -604,13 +659,15 @@ export function registerPermissionPresetAdminRoutes(
 
       const decision = authzResult.decision.ok ? "ALLOW" : "DENY";
       const reason = authzResult.decision.reason;
+      const policyOutcome = authzResult.decision.ok ? "allow" : "deny";
+      const simulationRole = user.role === "ADMIN" ? "ADMIN" : "EXECUTOR";
 
       // Record simulation metrics
       recordAuthzSimulation({
         evaluationMode: "shadow",
-        policyOutcome: decision,
-        effectiveDecision: decision,
-        userRole: user.role,
+        policyOutcome,
+        effectiveDecision: policyOutcome,
+        userRole: simulationRole,
         userId: user.id,
         presetId: authzResult.presetId,
         ruleId: authzResult.matchedRule?.id,

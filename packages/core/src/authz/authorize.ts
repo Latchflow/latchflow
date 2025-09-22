@@ -3,7 +3,14 @@ import type { AuthzEvaluationMode } from "../observability/metrics.js";
 import type { AuthzContext } from "./context.js";
 import { evaluateInputGuards } from "./inputGuards.js";
 import { getOrCompilePermissions } from "./cache.js";
-import type { AuthorizeDecision, CompiledRule, Permission, PolicyEntry } from "./types.js";
+import type {
+  AuthorizeDecision,
+  CompiledRule,
+  ExecAction,
+  ExecResource,
+  Permission,
+  PolicyEntry,
+} from "./types.js";
 
 export type AuthorizeParams = {
   entry?: PolicyEntry;
@@ -87,13 +94,15 @@ export function authorizeRequest(params: AuthorizeParams): AuthorizationResult {
         ok: true,
         reason: "RULE_MATCH",
         matchedRule: rule,
-        presetId: rule.source === "preset" ? user.permissionPreset?.id ?? undefined : undefined,
-        presetVersion: rule.source === "preset" ? user.permissionPreset?.version ?? undefined : undefined,
+        presetId: rule.source === "preset" ? (user.permissionPreset?.id ?? undefined) : undefined,
+        presetVersion:
+          rule.source === "preset" ? (user.permissionPreset?.version ?? undefined) : undefined,
       },
       rulesHash: compiled.rulesHash,
       matchedRule: rule,
-      presetId: rule.source === "preset" ? user.permissionPreset?.id ?? undefined : undefined,
-      presetVersion: rule.source === "preset" ? user.permissionPreset?.version ?? undefined : undefined,
+      presetId: rule.source === "preset" ? (user.permissionPreset?.id ?? undefined) : undefined,
+      presetVersion:
+        rule.source === "preset" ? (user.permissionPreset?.version ?? undefined) : undefined,
     };
   }
 
@@ -116,8 +125,8 @@ function normalizeRules(rules: unknown, source: Permission["source"]): Permissio
 
 function gatherBuckets(
   compiled: ReturnType<typeof getOrCompilePermissions>["compiled"],
-  resource: string,
-  action: string,
+  resource: ExecResource,
+  action: ExecAction,
 ): CompiledRule[] {
   const buckets: CompiledRule[] = [];
   const specific = compiled[resource]?.[action];
@@ -135,28 +144,65 @@ function matchesWhere(
   now: Date,
 ): boolean {
   if (!where) return true;
-  if (where.bundleIds && !listIncludes(where.bundleIds, collectIds(context.ids.bundleId, req, ["bundleId", "bundle.id"]))) {
+  if (
+    where.bundleIds &&
+    !listIncludes(where.bundleIds, collectIds(context.ids.bundleId, req, ["bundleId", "bundle.id"]))
+  ) {
     return false;
   }
-  if (where.pipelineIds && !listIncludes(where.pipelineIds, collectIds(context.ids.pipelineId, req, ["pipelineId", "pipeline.id"]))) {
+  if (
+    where.pipelineIds &&
+    !listIncludes(
+      where.pipelineIds,
+      collectIds(context.ids.pipelineId, req, ["pipelineId", "pipeline.id"]),
+    )
+  ) {
     return false;
   }
-  if (where.triggerKinds && !listIncludes(where.triggerKinds, collectValues(req, ["body.kind", "body.trigger.kind"]))) {
+  if (
+    where.triggerKinds &&
+    !listIncludes(where.triggerKinds, collectValues(req, ["body.kind", "body.trigger.kind"]))
+  ) {
     return false;
   }
-  if (where.actionKinds && !listIncludes(where.actionKinds, collectValues(req, ["body.kind", "body.action.kind"]))) {
+  if (
+    where.actionKinds &&
+    !listIncludes(where.actionKinds, collectValues(req, ["body.kind", "body.action.kind"]))
+  ) {
     return false;
   }
-  if (where.recipientTagsAny && !arraysIntersect(where.recipientTagsAny, collectArrayValues(req, ["body.tags", "body.recipient.tags"]))) {
+  if (
+    where.recipientTagsAny &&
+    !arraysIntersect(
+      where.recipientTagsAny,
+      collectArrayValues(req, ["body.tags", "body.recipient.tags"]),
+    )
+  ) {
     return false;
   }
-  if (where.environments && !listIncludes(where.environments, collectValues(req, ["query.environment", "body.environment", "headers.x-latchflow-environment"]))) {
+  if (
+    where.environments &&
+    !listIncludes(
+      where.environments,
+      collectValues(req, [
+        "query.environment",
+        "body.environment",
+        "headers.x-latchflow-environment",
+      ]),
+    )
+  ) {
     return false;
   }
   if (where.systemOnly && context.userId !== systemUserId) {
     return false;
   }
-  if (where.ownerIsSelf && !listIncludes([context.userId], collectIds(null, req, ["params.userId", "body.userId", "body.ownerId", "query.userId"]))) {
+  if (
+    where.ownerIsSelf &&
+    !listIncludes(
+      [context.userId],
+      collectIds(undefined, req, ["params.userId", "body.userId", "body.ownerId", "query.userId"]),
+    )
+  ) {
     return false;
   }
   if (where.timeWindow) {

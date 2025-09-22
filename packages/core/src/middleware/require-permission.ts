@@ -155,6 +155,7 @@ function applyPostDecisionControls(params: PostDecisionParams): AuthorizeDecisio
   const httpMethod = signature ? signature.split(" ")[0] : "";
   const policyOutcome = authzDecision.ok ? "allow" : "deny";
   const effectiveDecision = mode === "enforce" ? (finalDecision.ok ? "allow" : "deny") : "allow";
+  const metricsRole = ctx.role === "ADMIN" ? "ADMIN" : "EXECUTOR";
 
   recordAuthzDecision({
     routeId,
@@ -165,7 +166,7 @@ function applyPostDecisionControls(params: PostDecisionParams): AuthorizeDecisio
     reason: finalDecision.reason,
     resource: entry.resource,
     action: entry.action,
-    userRole: ctx.role,
+    userRole: metricsRole,
     userId: ctx.userId,
     presetId,
     rulesHash,
@@ -178,7 +179,7 @@ function applyPostDecisionControls(params: PostDecisionParams): AuthorizeDecisio
       event: twoFactorResult.event,
       routeId,
       httpMethod,
-      userRole: ctx.role,
+      userRole: metricsRole,
       userId: ctx.userId,
       reason: twoFactorResult.reason,
     });
@@ -223,7 +224,8 @@ function evaluateTwoFactorRequirement(params: {
     reauthenticatedAt?: Date | string | null;
     mfaVerifiedAt?: Date | string | null;
   };
-  const lastAuthSource = sessionLike.reauthenticatedAt ?? sessionLike.mfaVerifiedAt ?? sessionLike.createdAt;
+  const lastAuthSource =
+    sessionLike.reauthenticatedAt ?? sessionLike.mfaVerifiedAt ?? sessionLike.createdAt;
   const lastAuthTs = lastAuthSource ? new Date(lastAuthSource).getTime() : NaN;
   const now = Date.now();
 
