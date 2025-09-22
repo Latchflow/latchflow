@@ -18,6 +18,10 @@ function makeServer() {
       handlers.set(`POST ${p}`, h);
       return undefined as any;
     },
+    patch: (p, h) => {
+      handlers.set(`PATCH ${p}`, h);
+      return undefined as any;
+    },
     put: (p, h) => {
       handlers.set(`PUT ${p}`, h);
       return undefined as any;
@@ -94,7 +98,7 @@ describe("E2E: bundle objects + build + portal download", () => {
     const config = loadConfig(process.env);
     registerAdminAuthRoutes(server, config);
     registerPortalRoutes(server, { storage: storageSvc, scheduler });
-    registerBundleObjectsAdminRoutes(server, { scheduler });
+    registerBundleObjectsAdminRoutes(server, { scheduler, config });
 
     // Seed DB and files
     const { prisma } = await import("@latchflow/db");
@@ -387,7 +391,7 @@ describe("E2E: bundle objects + build + portal download", () => {
     const first = bos[0];
     if (!first) throw new Error("Expected at least one bundle object to toggle");
     const disableId = first.id;
-    const hPatch = handlers.get("POST /bundles/:bundleId/objects/:id")!;
+    const hPatch = handlers.get("PATCH /bundles/:bundleId/objects/:id")!;
     const rcPatch = createResponseCapture();
     await hPatch(
       {

@@ -30,6 +30,8 @@ import { registerUserAdminRoutes } from "./routes/admin/users.js";
 import { registerPermissionPresetAdminRoutes } from "./routes/admin/permissionPresets.js";
 import { configureAuthzMetrics } from "./observability/setup.js";
 import { configureAuthzFlags } from "./authz/featureFlags.js";
+import { registerBundleAdminRoutes } from "./routes/admin/bundles.js";
+import { registerRecipientAdminRoutes } from "./routes/admin/recipients.js";
 
 export async function main() {
   const config = loadConfig();
@@ -154,13 +156,15 @@ export async function main() {
   registerPipelineAdminRoutes(server, { config });
   registerUserAdminRoutes(server, config);
   registerPermissionPresetAdminRoutes(server, { config });
+  registerBundleAdminRoutes(server, { scheduler: rebuilder, config });
+  registerRecipientAdminRoutes(server, config);
   registerFileAdminRoutes(server, {
     storage: _storageService,
     onFilesChanged: async (fileIds) => {
       await rebuilder.scheduleForFiles(fileIds);
     },
   });
-  registerBundleObjectsAdminRoutes(server, { scheduler: rebuilder });
+  registerBundleObjectsAdminRoutes(server, { scheduler: rebuilder, config });
   registerBundleBuildAdminRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerAssignmentAdminRoutes(server);
   registerOpenApiRoute(server);

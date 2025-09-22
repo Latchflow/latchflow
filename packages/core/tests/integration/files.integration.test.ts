@@ -30,6 +30,7 @@ async function makeServer() {
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+    patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
   const { registerFileAdminRoutes } = await import("../../src/routes/admin/files.js");
@@ -42,6 +43,7 @@ async function makeServerWithHook(onFilesChanged: (ids: string[]) => Promise<voi
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+    patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
   const { registerFileAdminRoutes } = await import("../../src/routes/admin/files.js");

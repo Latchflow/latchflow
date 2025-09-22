@@ -6,9 +6,11 @@ const mkModel = () => ({
   findFirst: vi.fn(),
   findMany: vi.fn(),
   create: vi.fn(),
+  createMany: vi.fn(),
   update: vi.fn(),
   count: vi.fn(),
   delete: vi.fn(),
+  deleteMany: vi.fn(),
 });
 
 export const prisma = {

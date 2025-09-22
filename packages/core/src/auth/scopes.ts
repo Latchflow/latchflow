@@ -8,6 +8,8 @@ export const SCOPES = {
   FILES_WRITE: "files:write",
   BUNDLES_READ: "bundles:read",
   BUNDLES_WRITE: "bundles:write",
+  RECIPIENTS_READ: "recipients:read",
+  RECIPIENTS_WRITE: "recipients:write",
   PLUGINS_READ: "plugins:read",
   PLUGINS_MANAGE: "plugins:manage",
   TRIGGERS_READ: "triggers:read",
