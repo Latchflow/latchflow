@@ -96,6 +96,9 @@ Notes:
 - `pnpm core:test`: Runs Core tests with Vitest. Use `core:test:coverage` for coverage.
 - `pnpm -r lint` / `pnpm -r test`: Lint or test across workspaces.
 - `pnpm oas:preview`: Preview OpenAPI docs; `oas:bundle`/`oas:bundle:yaml` to bundle; `oas:validate` to validate.
+- `pnpm telemetry:start`: Start local telemetry stack (Prometheus, Grafana, Jaeger, OTel Collector).
+- `pnpm telemetry:stop`: Stop telemetry stack.
+- `pnpm telemetry:logs`: View telemetry stack logs.
 
 ## Testkit (Shared Mocks)
 - Shared unit/integration testing kit for all apps using MSW-based handlers, fixtures, and scenarios.
@@ -119,6 +122,47 @@ TriggerDefinition ──▶ PipelineStep ──▶ ActionDefinition
 - Dynamic plugin registry: No hard-coded trigger/action types.
 - Separation of concerns: Plugins handle business logic; core orchestrates and audits.
 - Pluggable: Storage, triggers, and actions are swappable/extensible via plugins.
+
+## Observability & Telemetry
+
+Latchflow Core uses structured logging with Pino and provides an optional local telemetry stack for development.
+
+### Structured Logging
+- **Logger**: All core components use structured JSON logging via Pino
+- **Context**: Child loggers provide component-specific context (auth, authz, storage, plugin, runtime, database)
+- **Correlation**: OpenTelemetry trace IDs automatically included when available
+- **Environment Variables**:
+  - `LOG_LEVEL`: Control log verbosity (debug, info, warn, error) - defaults to `info`
+  - `LOG_PRETTY`: Enable pretty printing for local development - defaults to `true`
+
+### Local Telemetry Stack
+Optional Docker Compose stack for comprehensive observability during development:
+
+**Start the telemetry stack:**
+```bash
+pnpm telemetry:start
+```
+
+**Access dashboards:**
+- **Prometheus**: http://localhost:9090 (metrics storage and queries)
+- **Grafana**: http://localhost:3000 (dashboards - admin/admin)
+- **Jaeger**: http://localhost:16686 (distributed tracing)
+
+**Stop the telemetry stack:**
+```bash
+pnpm telemetry:stop
+```
+
+**Components:**
+- **OpenTelemetry Collector**: Receives metrics/traces/logs from core, exports to Prometheus/Jaeger
+- **Prometheus**: Metrics storage and alerting
+- **Jaeger**: Distributed tracing for request flows
+- **Grafana**: Unified dashboards with pre-configured datasources
+
+**Configuration:**
+- Authorization v2 metrics are enabled by default (`AUTHZ_V2=true`, `AUTHZ_METRICS_ENABLED=true`)
+- Metrics include authorization decisions, cache events, compilation results, and 2FA challenges
+- All telemetry configuration is in `.env.defaults` under the OpenTelemetry section
 
 ### Build Artifacts & Auto‑Rebuilds
 - Bundles are stored as zipped archives in object storage. ETag preference:
