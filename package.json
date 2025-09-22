@@ -29,7 +29,10 @@
     "oas:validate": "swagger-cli validate packages/core/openapi/openapi.yaml",
     "oas:types": "pnpm -F @latchflow/api-types run generate",
     "docker:start": "pnpm env:load docker compose up",
-    "docker:stop": "docker compose down"
+    "docker:stop": "docker compose down",
+    "telemetry:start": "docker compose -f docker-compose.telemetry.yml up -d",
+    "telemetry:stop": "docker compose -f docker-compose.telemetry.yml down",
+    "telemetry:logs": "docker compose -f docker-compose.telemetry.yml logs -f"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",
