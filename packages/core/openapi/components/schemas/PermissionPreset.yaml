@@ -1,0 +1,32 @@
+type: object
+properties:
+  id:
+    type: string
+    format: uuid
+  name:
+    type: string
+  version:
+    type: integer
+    minimum: 1
+  rules:
+    type: array
+    items: { $ref: ./PermissionRule.yaml }
+  rulesHash:
+    type: string
+    description: Deterministic SHA-256 hash of the compiled rules bundle.
+    pattern: '^[A-Fa-f0-9]{64}$'
+  createdAt:
+    type: string
+    format: date-time
+  updatedAt:
+    type: string
+    format: date-time
+  createdBy:
+    type: string
+    format: uuid
+  updatedBy:
+    oneOf:
+      - { type: string, format: uuid }
+      - { type: 'null' }
+required: [id, name, version, rules, rulesHash, createdAt, updatedAt, createdBy]
+description: Named bundle of authorization rules assignable to executor accounts.

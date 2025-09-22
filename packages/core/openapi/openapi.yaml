@@ -53,6 +53,8 @@ tags:
     description: Admins and executors management
   - name: Users
     description: Admin API for managing executor/admin accounts
+  - name: Permissions
+    description: Permission presets, rule simulation, and AuthZ v2 controls
   - name: Portal
     description: Recipient portal data and downloads
   - name: Audit
@@ -118,6 +120,19 @@ paths:
     $ref: ./paths/files.yaml#/files_move
   /files/{id}/metadata:
     $ref: ./paths/files.yaml#/files_metadata
+
+  /admin/permissions/presets:
+    $ref: ./paths/admin-permissions.yaml#/permission_presets_collection
+  /admin/permissions/presets/{id}:
+    $ref: ./paths/admin-permissions.yaml#/permission_preset_item
+  /admin/permissions/presets/{id}/versions:
+    $ref: ./paths/admin-permissions.yaml#/permission_preset_versions_collection
+  /admin/permissions/presets/{id}/versions/{version}:
+    $ref: ./paths/admin-permissions.yaml#/permission_preset_versions_item
+  /admin/permissions/presets/{id}/versions/{version}/activate:
+    $ref: ./paths/admin-permissions.yaml#/permission_preset_versions_activate
+  /admin/permissions/simulate:
+    $ref: ./paths/admin-permissions.yaml#/permissions_simulator
   /files/batch/delete:
     $ref: ./paths/files.yaml#/files_batch_delete
   /files/batch/move:
@@ -230,13 +245,6 @@ paths:
     $ref: ./paths/users.yaml#/users_item
   /users/{id}/sessions:
     $ref: ./paths/users.yaml#/users_sessions
-  /users/{id}/revoke:
-    $ref: ./paths/users.yaml#/users_revoke
-
-  /users:
-    $ref: ./paths/users.yaml#/users_collection
-  /users/invite:
-    $ref: ./paths/users.yaml#/users_invite
   /users/{id}/revoke:
     $ref: ./paths/users.yaml#/users_revoke
 

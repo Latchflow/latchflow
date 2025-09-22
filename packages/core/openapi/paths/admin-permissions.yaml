@@ -1,0 +1,292 @@
+permission_presets_collection:
+  get:
+    summary: List permission presets
+    operationId: listPermissionPresets
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+      - in: query
+        name: q
+        schema: { type: string }
+        description: Case-insensitive search over preset name.
+      - in: query
+        name: updatedSince
+        schema: { type: string, format: date-time }
+    responses:
+      '200':
+        description: Permission presets
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/PermissionPreset.yaml }
+                nextCursor:
+                  oneOf:
+                    - { type: string }
+                    - { type: 'null' }
+                hasMore: { type: boolean }
+              required: [items, hasMore]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+  post:
+    summary: Create permission preset
+    operationId: createPermissionPreset
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              rules:
+                type: array
+                items: { $ref: ../components/schemas/PermissionRule.yaml }
+            required: [name]
+    responses:
+      '201':
+        description: Created
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PermissionPreset.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
+
+permission_preset_item:
+  get:
+    summary: Get permission preset
+    operationId: getPermissionPreset
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Permission preset
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PermissionPreset.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  patch:
+    summary: Update permission preset metadata
+    operationId: updatePermissionPreset
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+    responses:
+      '200':
+        description: Updated preset
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PermissionPreset.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  delete:
+    summary: Delete permission preset
+    operationId: deletePermissionPreset
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '204': { description: Deleted }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
+
+permission_preset_versions_collection:
+  get:
+    summary: List permission preset versions
+    operationId: listPermissionPresetVersions
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Version history
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items: { $ref: ../components/schemas/ChangeLogVersion.yaml }
+                nextCursor:
+                  oneOf:
+                    - { type: string }
+                    - { type: 'null' }
+                hasMore: { type: boolean }
+              required: [items, hasMore]
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  post:
+    summary: Create new permission preset version
+    operationId: createPermissionPresetVersion
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              rules:
+                type: array
+                items: { $ref: ../components/schemas/PermissionRule.yaml }
+              changeNote: { type: string }
+            required: [rules]
+    responses:
+      '200':
+        description: Updated preset with incremented version
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PermissionPreset.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+permission_preset_versions_item:
+  get:
+    summary: Get historical version of a permission preset
+    operationId: getPermissionPresetVersion
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: version
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '200':
+        description: Historical preset snapshot
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: ../components/schemas/PermissionPreset.yaml
+                - type: object
+                  properties:
+                    version: { type: integer, minimum: 1 }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+permission_preset_versions_activate:
+  post:
+    summary: Activate historical version of a permission preset
+    operationId: activatePermissionPresetVersion
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: version
+        required: true
+        schema: { type: integer, minimum: 1 }
+    responses:
+      '200':
+        description: Updated preset after rollback
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PermissionPreset.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+permissions_simulator:
+  post:
+    summary: Simulate an authorization decision
+    operationId: simulatePermissionDecision
+    tags: [Permissions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/schemas/PermissionSimulationRequest.yaml }
+    responses:
+      '200':
+        description: Simulation result
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PermissionSimulationResult.yaml }
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }

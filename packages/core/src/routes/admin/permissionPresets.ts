@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { HttpServer } from "../../http/http-server.js";
+import type { HttpServer, RequestLike } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import type { Prisma, ChangeKind } from "@latchflow/db";
 import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
@@ -19,6 +19,14 @@ interface PermissionPresetDeps {
   config?: AppConfig;
 }
 
+function isValidPermissionRule(rule: unknown): rule is Permission {
+  if (typeof rule !== "object" || rule === null) {
+    return false;
+  }
+  const candidate = rule as Partial<Permission>;
+  return typeof candidate.action === "string" && typeof candidate.resource === "string";
+}
+
 type ChangeLogRow = {
   version: number;
   isSnapshot: boolean;
@@ -34,7 +42,10 @@ type ChangeLogRow = {
   onBehalfOfUserId: string | null;
 };
 
-export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: PermissionPresetDeps) {
+export function registerPermissionPresetAdminRoutes(
+  server: HttpServer,
+  deps?: PermissionPresetDeps,
+) {
   const db = getDb();
   const defaultHistoryCfg: Pick<
     AppConfig,
@@ -127,14 +138,7 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
       const userId = req.user?.id ?? systemUserId;
 
       // Validate rules format
-      const validRules = body.rules.filter((rule): rule is Permission => {
-        return (
-          typeof rule === "object" &&
-          rule !== null &&
-          typeof (rule as any).action === "string" &&
-          typeof (rule as any).resource === "string"
-        );
-      });
+      const validRules = body.rules.filter(isValidPermissionRule);
 
       const preset = await db.permissionPreset.create({
         data: {
@@ -267,14 +271,7 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
       }
 
       // Validate rules format
-      const validRules = body.rules.filter((rule): rule is Permission => {
-        return (
-          typeof rule === "object" &&
-          rule !== null &&
-          typeof (rule as any).action === "string" &&
-          typeof (rule as any).resource === "string"
-        );
-      });
+      const validRules = body.rules.filter(isValidPermissionRule);
 
       const preset = await db.permissionPreset.update({
         where: { id: req.params.id },
@@ -350,12 +347,17 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
 
       const versions = items.map((row: ChangeLogRow) => ({
         version: row.version,
+        isSnapshot: row.isSnapshot,
         hash: row.hash,
         changeNote: row.changeNote,
         changedPath: row.changedPath,
         changeKind: row.changeKind,
         createdAt: row.createdAt.toISOString(),
+        actorType: row.actorType,
         actorUserId: row.actorUserId,
+        actorInvocationId: row.actorInvocationId,
+        actorActionDefinitionId: row.actorActionDefinitionId,
+        onBehalfOfUserId: row.onBehalfOfUserId,
       }));
 
       res.json({
@@ -393,7 +395,9 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
           name: historical.name,
           version,
           rules: historical.rules || [],
-          rulesHash: Array.isArray(historical.rules) ? computeRulesHash(historical.rules as Permission[]) : "",
+          rulesHash: Array.isArray(historical.rules)
+            ? computeRulesHash(historical.rules as Permission[])
+            : "",
         });
       } catch (error) {
         res.status(404).json({ error: "Version not found" });
@@ -405,7 +409,8 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
   server.post(
     "/admin/permissions/presets/:id/versions/:version/activate",
     requireAdminOrApiToken({
-      policySignature: "POST /admin/permissions/presets/:id/versions/:version/activate" as RouteSignature,
+      policySignature:
+        "POST /admin/permissions/presets/:id/versions/:version/activate" as RouteSignature,
       scopes: [SCOPES.PERMISSIONS_WRITE],
     })(async (req, res) => {
       const userId = req.user?.id ?? systemUserId;
@@ -495,20 +500,12 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
         where: { id: req.params.id },
       });
 
-      await appendChangeLog(
-        db,
-        "USER",
-        preset.id,
-        "PermissionPreset",
-        null,
-        historyCfg,
-        {
-          changeNote: `Deleted permission preset: ${preset.name}`,
-          changeKind: "REMOVE_CHILD",
-          changedPath: null,
-          actorUserId: userId,
-        },
-      );
+      await appendChangeLog(db, "USER", preset.id, "PermissionPreset", null, historyCfg, {
+        changeNote: `Deleted permission preset: ${preset.name}`,
+        changeKind: "REMOVE_CHILD",
+        changedPath: null,
+        actorUserId: userId,
+      });
 
       res.status(204).send();
     }),
@@ -559,12 +556,12 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
       }
 
       // Simulate the request
-      const simulatedReq = {
+      const simulatedReq: RequestLike & { method: string; path: string } = {
         method: body.method,
         path: body.path,
         body: body.body,
-        query: body.query || {},
-        headers: body.headers || {},
+        query: body.query ?? {},
+        headers: body.headers ?? {},
         params: {},
       };
 
@@ -590,7 +587,7 @@ export function registerPermissionPresetAdminRoutes(server: HttpServer, deps?: P
       const authzResult = authorizeRequest({
         entry: policyEntry,
         signature: routeSignature,
-        req: simulatedReq as any,
+        req: simulatedReq,
         context,
         user: {
           id: user.id,

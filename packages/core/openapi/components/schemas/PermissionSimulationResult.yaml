@@ -1,0 +1,46 @@
+type: object
+properties:
+  decision:
+    type: string
+    enum: [ALLOW, DENY]
+  reason:
+    type: string
+    enum:
+      - ADMIN
+      - RULE_MATCH
+      - NO_POLICY
+      - WHERE_MISS
+      - INPUT_GUARD
+      - RATE_LIMIT
+      - INACTIVE
+      - MFA_REQUIRED
+      - NO_MATCH
+  routeSignature:
+    type: string
+  userId:
+    type: string
+    format: uuid
+  userRole:
+    type: string
+    enum: [ADMIN, EXECUTOR]
+  rulesHash:
+    type: string
+  presetId:
+    type: string
+    format: uuid
+  presetVersion:
+    type: integer
+  matchedRule:
+    type: object
+    properties:
+      id: { type: string }
+      source:
+        type: string
+        enum: [preset, direct, system]
+      where:
+        $ref: ./PermissionRule.yaml#/properties/where
+      input:
+        $ref: ./PermissionRule.yaml#/properties/input
+  message:
+    type: string
+required: [decision, reason, routeSignature, userId, userRole, rulesHash]

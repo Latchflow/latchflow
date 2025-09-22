@@ -72,6 +72,58 @@ This document explains the runtime shape and key flows with an emphasis on the p
 - Triggers and actions are declared by installed plugins and registered at startup.
 - The core runtime orchestrates trigger → action pipelines; no hard‑coded types.
 
+## Admin Authorization (AuthZ v2)
+
+Latchflow’s admin/executor API now enforces compiled, rule‑based authorization instead of coarse role checks.
+
+### Data model
+- `PermissionPreset` stores the canonical rule list (`Permission[]`) and maintains a monotonically increasing `version`.
+- Every user stores `permissionPresetId`, optional `directPermissions`, and a deterministic `permissionsHash` (SHA‑256) over the effective rule bundle. Presets or direct edits must recompute this hash so caches stay coherent.
+
+### Evaluation pipeline
+1. The HTTP layer resolves a route signature to a policy entry (see `packages/core/src/authz/policy.ts`).
+2. Rules are compiled via `compilePermissions` into per-resource/action buckets and cached per `rulesHash`.
+3. Each candidate rule evaluates its `where` constraints (bundle IDs, pipeline IDs, trigger/action kinds, tags, environments, `ownerIsSelf`, and optional time windows).
+4. Matched rules apply input guards before side effects (`allowParams`, `denyParams`, `schemaRefs`, `valueRules`, `rateLimit`, `dryRunOnly`). Rate-limit violations immediately return `429`.
+5. Successful matches emit OpenTelemetry metrics (`authz_decision_total`, cache/compilation counters, 2FA events) with provenance (`rulesHash`, `presetId`, `ruleId`).
+
+### Cache behaviour
+- Compiled bundles live in an in-memory cache keyed by `rulesHash`.
+- Invalidation triggers include preset edits, activations/rollbacks, direct rule updates, and feature-flag flips (`AUTHZ_V2`, `AUTHZ_V2_SHADOW`).
+
+### 2FA & re-auth enforcement
+- When `AUTHZ_REQUIRE_ADMIN_2FA=1`, all admin routes require an MFA-enrolled account plus a recent challenge within `AUTHZ_REAUTH_WINDOW_MIN` minutes.
+- Failures return `401` with `{ "status": "error", "code": "MFA_REQUIRED" }`. Sessions past the re-auth window surface `code: "MFA_REQUIRED"` and `reason: "stale_reauth"` in metrics.
+
+### Simulator endpoint
+- `POST /admin/permissions/simulate` evaluates a hypothetical request in shadow mode without executing side effects.
+- Request body:
+  ```json
+  {
+    "userId": "usr_123",
+    "method": "POST",
+    "path": "/actions",
+    "body": { "name": "My Action", "capabilityId": "cap_webhook" }
+  }
+  ```
+- Response fields include `decision` (`ALLOW|DENY`), `reason`, `rulesHash`, matched rule metadata, and preset provenance.
+- Simulations emit `authz_simulation_total` metrics for observability.
+
+### Permission preset API surface
+- `GET /admin/permissions/presets` — list presets (cursor pagination, search via `q` or `updatedSince`).
+- `POST /admin/permissions/presets` — create preset with rules.
+- `GET /admin/permissions/presets/{id}` — fetch current version (includes `rulesHash`).
+- `PATCH /admin/permissions/presets/{id}` — rename or update rules in place.
+- `DELETE /admin/permissions/presets/{id}` — returns `409` when assigned; prefer toggling `isEnabled` when added.
+- Versioning endpoints (`/versions`, `/versions/{version}`, `/versions/{version}/activate`) are backed by ChangeLog snapshots.
+
+### Rollout playbook
+1. Ship with `AUTHZ_V2_SHADOW=1`, `AUTHZ_V2=0` to record would-deny metrics without blocking traffic.
+2. Monitor `authz_decision_total{effectiveDecision="deny", evaluationMode="shadow"}` to find gaps.
+3. Populate presets/direct rules, recompute `permissionsHash`, and replay simulator scenarios for high-risk routes.
+4. Flip `AUTHZ_V2=1` once denial metrics converge to the expected baseline; retain shadow logging for at least one release.
+5. Enforce administrator MFA (`AUTHZ_REQUIRE_ADMIN_2FA=1`) before enabling enforce mode in production.
+
 ## History & ChangeLog Strategy
 
 Latchflow records configuration changes using a parent‑aggregate ChangeLog. Aggregate roots (Pipeline, Bundle, Recipient, TriggerDefinition, ActionDefinition, User) receive history rows; child mutations are captured by serialising the full parent state.

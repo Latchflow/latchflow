@@ -1,0 +1,98 @@
+type: object
+description: Rule evaluated by the AuthZ v2 engine.
+properties:
+  id:
+    type: string
+    description: Stable identifier when provided by the author; auto-filled when omitted.
+  description:
+    type: string
+  source:
+    type: string
+    enum: [preset, direct, system]
+    description: Provenance of the rule when compiled.
+  action:
+    type: string
+    enum: [read, create, update, delete, execute, manage]
+  resource:
+    type: string
+    enum:
+      - file
+      - bundle
+      - recipient
+      - user
+      - pipeline
+      - trigger_def
+      - action_def
+      - manual_run
+      - plugin
+      - capability
+      - '*'
+  where:
+    type: object
+    additionalProperties: false
+    properties:
+      bundleIds:
+        type: array
+        items: { type: string, format: uuid }
+      pipelineIds:
+        type: array
+        items: { type: string, format: uuid }
+      triggerKinds:
+        type: array
+        items: { type: string }
+      actionKinds:
+        type: array
+        items: { type: string }
+      recipientTagsAny:
+        type: array
+        items: { type: string }
+      environments:
+        type: array
+        items:
+          type: string
+          enum: [dev, staging, prod]
+      systemOnly:
+        type: boolean
+      ownerIsSelf:
+        type: boolean
+      timeWindow:
+        type: object
+        additionalProperties: false
+        properties:
+          since: { type: string, format: date-time }
+          until: { type: string, format: date-time }
+  input:
+    type: object
+    additionalProperties: false
+    properties:
+      allowParams:
+        type: array
+        items: { type: string }
+      denyParams:
+        type: array
+        items: { type: string }
+      schemaRefs:
+        type: array
+        items: { type: string }
+      valueRules:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          properties:
+            path: { type: string }
+            oneOf:
+              type: array
+              items: { type: string }
+            matches: { type: string }
+            maxLen: { type: integer, minimum: 0 }
+          required: [path]
+      rateLimit:
+        type: object
+        additionalProperties: false
+        properties:
+          perMin: { type: integer, minimum: 1 }
+          perHour: { type: integer, minimum: 1 }
+          burst: { type: integer, minimum: 1 }
+      dryRunOnly: { type: boolean }
+required: [action, resource]
