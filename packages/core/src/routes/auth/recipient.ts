@@ -4,6 +4,7 @@ import { getDb } from "../../db/db.js";
 import { genOtp, randomToken, sha256Hex } from "../../auth/tokens.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
 import { RECIPIENT_SESSION_COOKIE, type AppConfig } from "../../config/config.js";
+import { createAuthLogger } from "../../observability/logger.js";
 
 export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
@@ -63,7 +64,7 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
 
     // Dev-only: log the OTP
     // eslint-disable-next-line no-console
-    console.log(`[auth] OTP for recipient ${recipientId}: ${otp}`);
+    createAuthLogger().info({ recipientId, otp }, "OTP generated for recipient (dev mode)");
     res.status(204).json({});
   });
 
@@ -205,7 +206,7 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
     await db.recipientOtp.deleteMany({ where: { recipientId } });
     await db.recipientOtp.create({ data: { recipientId, codeHash, expiresAt } });
     // eslint-disable-next-line no-console
-    console.log(`[auth] OTP (resend) for recipient ${recipientId}: ${otp}`);
+    createAuthLogger().info({ recipientId, otp }, "OTP resent for recipient (dev mode)");
     res.status(204).json({});
   });
 }

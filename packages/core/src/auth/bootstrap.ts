@@ -1,4 +1,6 @@
 import type { Prisma } from "@latchflow/db";
+import { createAuthLogger } from "../observability/logger.js";
+
 type BootstrapUserRecord = { id: string; email: string; role: string | null };
 
 /**
@@ -24,7 +26,9 @@ export async function bootstrapGrantAdminIfOnlyUserTx(
   if (u.role === "ADMIN") return false;
 
   await tx.user.update({ where: { id: u.id }, data: { role: "ADMIN" } });
-  // eslint-disable-next-line no-console
-  console.log(`[auth] Bootstrap: granted ADMIN to ${u.email}`);
+  createAuthLogger().info(
+    { userId: u.id, email: u.email },
+    "Bootstrap: granted ADMIN role to user",
+  );
   return true;
 }

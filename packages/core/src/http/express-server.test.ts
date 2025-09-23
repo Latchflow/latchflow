@@ -31,6 +31,9 @@ vi.mock("express", () => {
 vi.mock("helmet", () => ({ default: () => (_req: any, _res: any, _next: any) => _next?.() }));
 vi.mock("cors", () => ({ default: () => (_req: any, _res: any, _next: any) => _next?.() }));
 vi.mock("pino-http", () => ({ default: () => (_req: any, _res: any, _next: any) => _next?.() }));
+vi.mock("../observability/logger.js", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 describe("express adapter", () => {
   it("creates a server with routing methods", async () => {

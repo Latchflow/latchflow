@@ -135,6 +135,101 @@ Latchflow records configuration changes using a parent‑aggregate ChangeLog. Ag
 - **Materialisation** — Historical reads use `materializeVersion`, which walks the ChangeLog entries for an aggregate, applies the latest snapshot, then replays diffs to build the requested version.
 
 This strategy keeps history compact while ensuring we can time‑travel entire aggregates without redundant per‑child logs. When adding new admin endpoints (e.g., pipelines/steps), ensure mutations flow through the same helper APIs so provenance and ChangeLog state remain consistent.
+
+## Observability & Telemetry Architecture
+
+Latchflow Core implements comprehensive observability using structured logging, OpenTelemetry metrics, and an optional local telemetry stack for development.
+
+### Structured Logging
+
+**Implementation**: Centralized Pino logger factory (`packages/core/src/observability/logger.ts`)
+
+**Features**:
+- JSON structured logs with consistent schema (`time`, `level`, `msg`)
+- OpenTelemetry trace correlation (automatic `traceId`/`spanId` inclusion)
+- Context-specific child loggers for components (auth, authz, storage, plugin, runtime, database)
+- Environment-driven configuration (`LOG_LEVEL`, `LOG_PRETTY`)
+- Redaction of sensitive fields (passwords, secrets)
+
+**Usage Pattern**:
+```typescript
+import { createAuthLogger } from './observability/logger.js';
+const logger = createAuthLogger();
+logger.info({ userId: "usr_123", action: "login" }, "User authenticated");
+```
+
+### OpenTelemetry Metrics
+
+**Authorization Metrics**: When `AUTHZ_V2=true` and `AUTHZ_METRICS_ENABLED=true`, the system collects:
+
+1. **Authorization Decisions** (`authz_decision_total`, `authz_decision_duration_ms`)
+   - Labels: `route_id`, `http_method`, `evaluation_mode`, `policy_outcome`, `effective_decision`, `reason`, `resource`, `action`, `user_role`
+   - Recorded for every permission check via `recordAuthzDecision()`
+
+2. **Rules Cache Events** (`authz_rules_cache_events_total`)
+   - Labels: `operation` (hit/miss/invalidate), `rules_hash`, `reason`
+   - Tracks authorization cache efficiency
+
+3. **Rule Compilation** (`authz_compilation_total`, `authz_compilation_duration_ms`)
+   - Labels: `result` (success/failure), `rules_hash`, `preset_id`
+   - Monitors policy compilation performance
+
+4. **2FA Events** (`authz_two_factor_events_total`)
+   - Labels: `event`, `route_id`, `user_role`, `reason`
+   - Tracks multi-factor authentication flows
+
+5. **Simulation Metrics** (`authz_simulation_total`)
+   - Labels: Same as authorization decisions
+   - Recorded for simulator endpoint usage
+
+**Export Configuration**:
+- OTLP HTTP endpoint: `AUTHZ_METRICS_OTLP_URL` (default: `http://host.docker.internal:4318/v1/metrics`)
+- Export interval: `AUTHZ_METRICS_EXPORT_INTERVAL_MS` (default: 15s)
+- Service name: `AUTHZ_METRICS_SERVICE_NAME` (default: "latchflow-core")
+
+### Local Telemetry Stack
+
+**Components** (`docker-compose.telemetry.yml`):
+- **OpenTelemetry Collector**: Receives OTLP metrics/traces/logs, exports to storage backends
+- **Prometheus**: Metrics storage, scrapes from OTel Collector on port 8889
+- **Jaeger**: Distributed tracing storage (infrastructure ready, core app doesn't send traces yet)
+- **Grafana**: Unified dashboards with pre-configured datasources
+
+**Network Architecture**:
+```
+Core App ──OTLP HTTP──▶ OTel Collector ──┬──▶ Prometheus (metrics)
+                                         ├──▶ Jaeger (traces)
+                                         └──▶ Stdout (logs)
+
+Grafana ──queries──▶ Prometheus + Jaeger
+```
+
+**Management Commands**:
+- `pnpm telemetry:start` - Start all services
+- `pnpm telemetry:stop` - Stop stack
+- `pnpm telemetry:logs` - View logs
+
+**Access Points**:
+- Grafana: http://localhost:3000 (admin/admin)
+- Prometheus: http://localhost:9090
+- Jaeger: http://localhost:16686
+
+### Development Workflow
+
+1. **Start Stack**: `pnpm telemetry:start`
+2. **Enable Metrics**: Ensure `AUTHZ_V2=true` (default in `.env.defaults`)
+3. **Generate Data**: Make API requests to trigger authorization decisions
+4. **View Metrics**: Check Prometheus/Grafana after ~15s export interval
+5. **Debug**: Use OpenTelemetry diagnostics (`AUTHZ_METRICS_ENABLE_DIAGNOSTICS=true`)
+
+### Production Considerations
+
+The local telemetry stack is **development-only**. For production:
+- Point `AUTHZ_METRICS_OTLP_URL` to external collector
+- Disable diagnostics (`AUTHZ_METRICS_ENABLE_DIAGNOSTICS=false`)
+- Use managed Prometheus/Grafana services
+- Implement proper access controls
+
 ## Admin Bundle Objects
 
 - Endpoints to manage attachments within a bundle:

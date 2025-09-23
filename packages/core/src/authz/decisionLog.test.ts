@@ -1,9 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
+
+// Mock the logger before importing anything that uses it
+const mockLogger = {
+  info: vi.fn(),
+};
+
+vi.mock("../observability/logger.js", () => ({
+  createAuthzLogger: () => mockLogger,
+}));
+
 import { logDecision } from "./decisionLog.js";
 
 describe("authz/decisionLog", () => {
   it("emits a JSON line with expected fields", () => {
-    const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+    mockLogger.info.mockClear();
+
     logDecision({
       decision: "ALLOW",
       reason: "ADMIN",
@@ -11,13 +22,15 @@ describe("authz/decisionLog", () => {
       action: "read",
       resource: "plugin",
     });
-    expect(spy).toHaveBeenCalledOnce();
-    const arg = (spy.mock.calls[0]?.[0] as string) ?? "{}";
-    const obj = JSON.parse(arg);
-    expect(obj.kind).toBe("authz_decision");
-    expect(obj.decision).toBe("ALLOW");
-    expect(obj.reason).toBe("ADMIN");
-    expect(obj.userId).toBe("u1");
-    spy.mockRestore();
+
+    expect(mockLogger.info).toHaveBeenCalledOnce();
+    const call = mockLogger.info.mock.calls[0];
+    const logData = call[0];
+    const logMessage = call[1];
+    expect(logData.kind).toBe("authz_decision");
+    expect(logData.decision).toBe("ALLOW");
+    expect(logData.reason).toBe("ADMIN");
+    expect(logData.userId).toBe("u1");
+    expect(logMessage).toBe("Authorization decision");
   });
 });

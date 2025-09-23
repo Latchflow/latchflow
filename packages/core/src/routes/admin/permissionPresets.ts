@@ -14,6 +14,7 @@ import { authorizeRequest } from "../../authz/authorize.js";
 import { buildContext } from "../../authz/context.js";
 import { POLICY } from "../../authz/policy.js";
 import { recordAuthzSimulation } from "../../observability/metrics.js";
+import { createAuthzLogger } from "../../observability/logger.js";
 
 interface PermissionPresetDeps {
   config?: AppConfig;
@@ -715,7 +716,7 @@ export function registerPermissionPresetAdminRoutes(
       }
     } catch (error) {
       // Log error but don't fail the request
-      console.warn("Failed to invalidate preset cache:", error);
+      createAuthzLogger().warn({ error }, "Failed to invalidate preset cache");
     }
   }
 

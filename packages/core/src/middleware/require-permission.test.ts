@@ -28,6 +28,10 @@ vi.mock("./require-session.js", () => ({
   })),
 }));
 
+vi.mock("../authz/decisionLog.js", () => ({
+  logDecision: vi.fn(),
+}));
+
 const mkRes = () => createResponseCapture();
 
 describe("requirePermission (v1)", () => {
@@ -64,7 +68,9 @@ describe("requirePermission (v1)", () => {
 
   it("denies EXECUTOR unless v1AllowExecutor is true", async () => {
     const { requireSession } = await import("./require-session.js");
-    vi.mocked(requireSession).mockResolvedValueOnce({ user: { id: "e1", role: "EXECUTOR" } } as any);
+    vi.mocked(requireSession).mockResolvedValueOnce({
+      user: { id: "e1", role: "EXECUTOR" },
+    } as any);
     const { getAuthzMode } = await import("../authz/featureFlags.js");
     vi.mocked(getAuthzMode).mockReturnValueOnce("off");
     const { requirePermission } = await import("./require-permission.js");
@@ -78,7 +84,9 @@ describe("requirePermission (v1)", () => {
 
   it("allows EXECUTOR when v1AllowExecutor=true (e.g., read)", async () => {
     const { requireSession } = await import("./require-session.js");
-    vi.mocked(requireSession).mockResolvedValueOnce({ user: { id: "e1", role: "EXECUTOR" } } as any);
+    vi.mocked(requireSession).mockResolvedValueOnce({
+      user: { id: "e1", role: "EXECUTOR" },
+    } as any);
     const { getAuthzMode } = await import("../authz/featureFlags.js");
     vi.mocked(getAuthzMode).mockReturnValueOnce("off");
     const { requirePermission } = await import("./require-permission.js");
@@ -101,7 +109,7 @@ describe("requirePermission (v1)", () => {
     vi.mocked(requireSession).mockResolvedValueOnce({ user: { id: "a1", role: "ADMIN" } } as any);
     const { getAuthzMode } = await import("../authz/featureFlags.js");
     vi.mocked(getAuthzMode).mockReturnValueOnce("off");
-    const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const { logDecision } = await import("../authz/decisionLog.js");
     const { requirePermission } = await import("./require-permission.js");
     const handler: HttpHandler = async (_req, res) => {
       res.status(200).json({ ok: true });
@@ -110,11 +118,10 @@ describe("requirePermission (v1)", () => {
     const r = mkRes();
     await wrapped({ headers: {} } as any, r.res);
     expect(r.status).toBe(200);
-    const arg = (spy.mock.calls[0]?.[0] as string) ?? "{}";
-    const obj = JSON.parse(arg);
-    expect(obj.kind).toBe("authz_decision");
-    expect(obj.signature).toBe("GET /plugins");
-    spy.mockRestore();
+    expect(logDecision).toHaveBeenCalledOnce();
+    const call = vi.mocked(logDecision).mock.calls[0];
+    const logData = call[0];
+    expect(logData.signature).toBe("GET /plugins");
   });
 
   it("enforces new authz in enforce mode", async () => {
@@ -148,7 +155,11 @@ describe("requirePermission (v1)", () => {
     const handler: HttpHandler = async (_req, res) => {
       res.status(200).json({ ok: true });
     };
-    const wrapped = requirePermission({ action: "read", resource: "bundle", v1AllowExecutor: true })(handler);
+    const wrapped = requirePermission({
+      action: "read",
+      resource: "bundle",
+      v1AllowExecutor: true,
+    })(handler);
     const r = mkRes();
     await wrapped({ headers: {} } as any, r.res);
     expect(recordSpy).toHaveBeenCalled();

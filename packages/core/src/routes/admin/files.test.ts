@@ -27,6 +27,30 @@ const db = {
 };
 vi.mock("../../db/db.js", () => ({ getDb: () => db }));
 
+// Mock authorization modules
+vi.mock("../../authz/authorize.js", () => ({
+  authorizeRequest: vi.fn(() => ({
+    decision: { ok: true, reason: "RULE_MATCH" },
+    rulesHash: "hash",
+  })),
+}));
+
+vi.mock("../../authz/featureFlags.js", () => ({
+  getAuthzMode: vi.fn(() => "off"),
+  getSystemUserId: vi.fn(() => "system"),
+  isAdmin2faRequired: vi.fn(() => false),
+  getReauthWindowMs: vi.fn(() => 15 * 60 * 1000),
+}));
+
+vi.mock("../../authz/decisionLog.js", () => ({
+  logDecision: vi.fn(),
+}));
+
+vi.mock("../../observability/metrics.js", () => ({
+  recordAuthzDecision: vi.fn(),
+  recordAuthzTwoFactor: vi.fn(),
+}));
+
 // Provide a storage service instance via instance getter
 let storageSvc: ReturnType<typeof createStorageService>;
 

@@ -1,5 +1,6 @@
 import type { AppConfig } from "../config/config.js";
 import { initializeAuthzMetrics, type AuthzMetricsHandle } from "./metrics.js";
+import { logger } from "./logger.js";
 
 export type ConfiguredAuthzMetrics = {
   shutdown?: () => Promise<void>;
@@ -20,8 +21,7 @@ export async function configureAuthzMetrics(config: AppConfig): Promise<Configur
     exportTimeoutMillis: config.AUTHZ_METRICS_EXPORT_TIMEOUT_MS,
     enableDiagnostics: config.AUTHZ_METRICS_ENABLE_DIAGNOSTICS,
   }).catch((err: unknown) => {
-    // eslint-disable-next-line no-console
-    console.warn(`[core] Authz metrics initialization failed: ${(err as Error).message}`);
+    logger.warn({ error: (err as Error).message }, "Authz metrics initialization failed");
     return null;
   });
 

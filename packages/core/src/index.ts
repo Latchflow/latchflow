@@ -1,5 +1,6 @@
 import { loadConfig } from "./config/config.js";
 import { getDb } from "./db/db.js";
+import { logger, createPluginLogger } from "./observability/logger.js";
 import { createExpressServer } from "./http/express-server.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerAdminAuthRoutes } from "./routes/auth/admin.js";
@@ -52,9 +53,9 @@ export async function main() {
           try {
             await metricsHandle.shutdown?.();
           } catch (err) {
-            // eslint-disable-next-line no-console
-            console.warn(
-              `[core] Failed to flush authz metrics on ${signal}: ${(err as Error).message}`,
+            logger.warn(
+              { signal, error: (err as Error).message },
+              "Failed to flush authz metrics on signal",
             );
           } finally {
             process.kill(process.pid, signal);
@@ -72,11 +73,12 @@ export async function main() {
     const db = getDb();
     const loaded = await loadPlugins(config.PLUGINS_PATH);
     await upsertPluginsIntoDb(db, loaded, runtime);
-    // eslint-disable-next-line no-console
-    console.log(`[core] Plugins loaded: ${loaded.length}`);
+    createPluginLogger().info({ count: loaded.length }, "Plugins loaded");
   } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn("[core] Skipping plugin DB upsert (DB unavailable?):", (e as Error).message);
+    createPluginLogger().warn(
+      { error: (e as Error).message },
+      "Skipping plugin DB upsert (DB unavailable?)",
+    );
   }
 
   // Initialize storage
@@ -169,14 +171,13 @@ export async function main() {
   registerAssignmentAdminRoutes(server);
   registerOpenApiRoute(server);
   await server.listen(config.PORT);
-  // eslint-disable-next-line no-console
-  console.log(`[core] HTTP server listening on :${config.PORT}`);
+  logger.info({ port: config.PORT }, "HTTP server listening");
 }
 
 // Only run when executed directly
 if (require.main === module) {
   main().catch((err) => {
-    console.error(err);
+    logger.error({ error: err }, "Failed to start core");
     process.exit(1);
   });
 }

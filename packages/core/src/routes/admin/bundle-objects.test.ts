@@ -44,6 +44,30 @@ vi.mock("../../middleware/require-session.js", () => ({
   requireSession: vi.fn(async () => ({ user: { id: "admin", role: "ADMIN" } })),
 }));
 
+// Mock authorization modules
+vi.mock("../../authz/authorize.js", () => ({
+  authorizeRequest: vi.fn(() => ({
+    decision: { ok: true, reason: "RULE_MATCH" },
+    rulesHash: "hash",
+  })),
+}));
+
+vi.mock("../../authz/featureFlags.js", () => ({
+  getAuthzMode: vi.fn(() => "off"),
+  getSystemUserId: vi.fn(() => "system"),
+  isAdmin2faRequired: vi.fn(() => false),
+  getReauthWindowMs: vi.fn(() => 15 * 60 * 1000),
+}));
+
+vi.mock("../../authz/decisionLog.js", () => ({
+  logDecision: vi.fn(),
+}));
+
+vi.mock("../../observability/metrics.js", () => ({
+  recordAuthzDecision: vi.fn(),
+  recordAuthzTwoFactor: vi.fn(),
+}));
+
 function makeServer(overrides?: { scheduler?: { schedule: ReturnType<typeof vi.fn> } }) {
   const handlers = new Map<string, HttpHandler>();
   const server = {
