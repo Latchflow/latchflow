@@ -120,6 +120,10 @@ model User {
   changeLogsAsActorUser ChangeLog[] @relation("ChangeLogActorUser")
   changeLogsOnBehalfOf  ChangeLog[] @relation("ChangeLogOnBehalfUser")
 
+  // Back-relations for SystemConfig
+  createdSystemConfigs SystemConfig[] @relation("createdSystemConfigs")
+  updatedSystemConfigs SystemConfig[] @relation("updatedSystemConfigs")
+
   @@index([isActive])
   @@index([isActive, role])
   @@index([permissionsHash])
@@ -584,6 +588,32 @@ model RecipientOtp {
   attempts    Int      @default(0)
 
   @@index([recipientId])
+}
+
+///////////////////////////
+// SYSTEM CONFIGURATION
+///////////////////////////
+
+model SystemConfig {
+  id         String    @id @default(uuid())
+  key        String    @unique
+  value      Json? // For non-secret config values
+  encrypted  String? // For secret config values, stored encrypted
+  category   String? // Optional grouping/organization
+  schema     Json? // JSON schema for validation
+  metadata   Json? // Additional config metadata
+  isSecret   Boolean   @default(false)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  createdBy  String?
+  updatedBy  String?
+
+  creator User? @relation("createdSystemConfigs", fields: [createdBy], references: [id])
+  updater User? @relation("updatedSystemConfigs", fields: [updatedBy], references: [id])
+
+  @@index([category])
+  @@index([isActive, category])
 }
 
 ///////////////////////////
