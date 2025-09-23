@@ -1,4 +1,6 @@
 import pino from "pino";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - OpenTelemetry API module resolution issue
 import { trace } from "@opentelemetry/api";
 
 export interface LoggerConfig {

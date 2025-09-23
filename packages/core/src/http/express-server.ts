@@ -27,7 +27,8 @@ export function createExpressServer(): HttpServer {
   });
   app.use(upload.single("file"));
   app.use(express.json());
-  app.use(pinoHttp({ logger }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  app.use(pinoHttp({ logger: logger as any }));
   // Basic JSON error handler
   // eslint-disable-next-line
   const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
