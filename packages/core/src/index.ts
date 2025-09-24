@@ -33,6 +33,10 @@ import { configureAuthzMetrics } from "./observability/setup.js";
 import { configureAuthzFlags } from "./authz/featureFlags.js";
 import { registerBundleAdminRoutes } from "./routes/admin/bundles.js";
 import { registerRecipientAdminRoutes } from "./routes/admin/recipients.js";
+import {
+  getSystemConfigService,
+  seedSystemConfigFromEnvironment,
+} from "./config/system-config-startup.js";
 
 export async function main() {
   const config = loadConfig();
@@ -71,6 +75,11 @@ export async function main() {
   const runtime = new PluginRuntimeRegistry();
   try {
     const db = getDb();
+
+    // Initialize system configuration and seed from environment
+    const systemConfigService = await getSystemConfigService(db, config);
+    await seedSystemConfigFromEnvironment(systemConfigService, config);
+
     const loaded = await loadPlugins(config.PLUGINS_PATH);
     await upsertPluginsIntoDb(db, loaded, runtime);
     createPluginLogger().info({ count: loaded.length }, "Plugins loaded");
