@@ -3,7 +3,7 @@ import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import { Prisma } from "@latchflow/db";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
-import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/config.js";
+import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/env-config.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";

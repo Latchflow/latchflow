@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { DbClient } from "../db/db.js";
 import { encryptValue, decryptValue } from "../crypto/encryption.js";
 import type { Prisma } from "@latchflow/db";
+import type { SystemConfigValue, SystemConfigOptions } from "./types.js";
+import { SystemConfigValidator } from "./system-config-validator.js";
 
 export const SystemConfigSchema = z.object({
   key: z.string().min(1),
@@ -16,25 +18,66 @@ export const SystemConfigSchema = z.object({
 
 export type SystemConfigInput = z.infer<typeof SystemConfigSchema>;
 
-export type SystemConfigValue = {
-  key: string;
-  value: unknown;
-  category?: string | null;
-  schema?: unknown | null;
-  metadata?: unknown | null;
-  isSecret: boolean;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy?: string | null;
-  updatedBy?: string | null;
-};
+// Environment variable mappings
+export const EMAIL_CONFIG_MAPPING = {
+  SMTP_URL: { category: "email", isSecret: true },
+  SMTP_FROM: { category: "email", isSecret: false },
+} as const;
+
+export const CORE_CONFIG_MAPPING = {
+  PORT: { category: "core", isSecret: false },
+  PLUGINS_PATH: { category: "core", isSecret: false },
+  LOG_LEVEL: { category: "core", isSecret: false },
+  LOG_PRETTY: { category: "core", isSecret: false },
+} as const;
+
+export const AUTH_CONFIG_MAPPING = {
+  AUTH_SESSION_TTL_HOURS: { category: "auth", isSecret: false },
+  RECIPIENT_SESSION_TTL_HOURS: { category: "auth", isSecret: false },
+  ADMIN_MAGICLINK_TTL_MIN: { category: "auth", isSecret: false },
+  RECIPIENT_OTP_TTL_MIN: { category: "auth", isSecret: false },
+  RECIPIENT_OTP_LENGTH: { category: "auth", isSecret: false },
+  AUTH_COOKIE_SECURE: { category: "auth", isSecret: false },
+  ADMIN_UI_ORIGIN: { category: "auth", isSecret: false },
+  ALLOW_DEV_AUTH: { category: "auth", isSecret: false },
+} as const;
+
+export const STORAGE_CONFIG_MAPPING = {
+  STORAGE_DRIVER: { category: "storage", isSecret: false },
+  STORAGE_BASE_PATH: { category: "storage", isSecret: false },
+  STORAGE_BUCKET: { category: "storage", isSecret: false },
+  STORAGE_KEY_PREFIX: { category: "storage", isSecret: false },
+  STORAGE_CONFIG_JSON: { category: "storage", isSecret: true },
+} as const;
+
+export const QUEUE_CONFIG_MAPPING = {
+  QUEUE_DRIVER: { category: "queue", isSecret: false },
+  QUEUE_CONFIG_JSON: { category: "queue", isSecret: true },
+} as const;
+
+export const ENCRYPTION_CONFIG_MAPPING = {
+  ENCRYPTION_MODE: { category: "encryption", isSecret: false },
+  ENCRYPTION_MASTER_KEY_B64: { category: "encryption", isSecret: true },
+} as const;
+
+export const ALL_CONFIG_MAPPING = {
+  ...EMAIL_CONFIG_MAPPING,
+  ...CORE_CONFIG_MAPPING,
+  ...AUTH_CONFIG_MAPPING,
+  ...STORAGE_CONFIG_MAPPING,
+  ...QUEUE_CONFIG_MAPPING,
+  ...ENCRYPTION_CONFIG_MAPPING,
+} as const;
 
 export class SystemConfigService {
+  protected validator: SystemConfigValidator;
+
   constructor(
-    private db: DbClient,
-    private masterKey?: Buffer,
-  ) {}
+    protected db: DbClient,
+    protected masterKey?: Buffer,
+  ) {
+    this.validator = new SystemConfigValidator();
+  }
 
   private getEnvValue(key: string): string | undefined {
     return process.env[key];
@@ -148,13 +191,7 @@ export class SystemConfigService {
   async set(
     key: string,
     value: unknown,
-    options: {
-      category?: string;
-      schema?: unknown;
-      metadata?: unknown;
-      isSecret?: boolean;
-      userId?: string;
-    } = {},
+    options: SystemConfigOptions = {},
   ): Promise<SystemConfigValue> {
     const { category, schema, metadata, isSecret = false, userId } = options;
 
@@ -252,84 +289,6 @@ export class SystemConfigService {
     value: unknown,
   ): Promise<{ valid: boolean; errors?: string[] }> {
     const config = await this.get(key);
-    if (!config?.schema) {
-      return { valid: true };
-    }
-
-    try {
-      // Basic validation for common types
-      const schema = config.schema as Record<string, unknown>;
-
-      if (schema.type) {
-        const valueType = typeof value;
-
-        if (schema.type === "string" && valueType !== "string") {
-          return { valid: false, errors: [`Expected string, got ${valueType}`] };
-        }
-
-        if (schema.type === "number" && valueType !== "number") {
-          return { valid: false, errors: [`Expected number, got ${valueType}`] };
-        }
-
-        if (schema.type === "boolean" && valueType !== "boolean") {
-          return { valid: false, errors: [`Expected boolean, got ${valueType}`] };
-        }
-
-        if (
-          schema.type === "object" &&
-          (valueType !== "object" || value === null || Array.isArray(value))
-        ) {
-          return { valid: false, errors: [`Expected object, got ${valueType}`] };
-        }
-
-        if (schema.type === "array" && !Array.isArray(value)) {
-          return { valid: false, errors: [`Expected array, got ${valueType}`] };
-        }
-      }
-
-      // String validation
-      if (schema.type === "string" && typeof value === "string") {
-        if (schema.minLength && value.length < schema.minLength) {
-          return {
-            valid: false,
-            errors: [`String too short, minimum length is ${schema.minLength}`],
-          };
-        }
-
-        if (schema.maxLength && value.length > schema.maxLength) {
-          return {
-            valid: false,
-            errors: [`String too long, maximum length is ${schema.maxLength}`],
-          };
-        }
-
-        if (schema.pattern && !new RegExp(schema.pattern).test(value)) {
-          return { valid: false, errors: [`String does not match pattern: ${schema.pattern}`] };
-        }
-      }
-
-      // Number validation
-      if (schema.type === "number" && typeof value === "number") {
-        if (schema.minimum && value < schema.minimum) {
-          return { valid: false, errors: [`Number too small, minimum is ${schema.minimum}`] };
-        }
-
-        if (schema.maximum && value > schema.maximum) {
-          return { valid: false, errors: [`Number too large, maximum is ${schema.maximum}`] };
-        }
-      }
-
-      // Enum validation
-      if (schema.enum && !schema.enum.includes(value)) {
-        return { valid: false, errors: [`Value must be one of: ${schema.enum.join(", ")}`] };
-      }
-
-      return { valid: true };
-    } catch (error) {
-      return {
-        valid: false,
-        errors: [(error as Error).message],
-      };
-    }
+    return this.validator.validateSchema(config, value);
   }
 }

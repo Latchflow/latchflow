@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 // Mock config to a minimal, valid configuration
-vi.mock("./config/config.js", () => ({
+vi.mock("./config/env-config.js", () => ({
   loadConfig: () => ({
     DATABASE_URL: "postgres://x",
     PORT: 3456,

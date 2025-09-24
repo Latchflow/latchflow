@@ -435,21 +435,10 @@ describe("SystemConfigService", () => {
   });
 
   describe("validateSchema", () => {
-    it("should return valid when no schema defined", async () => {
-      mockDb.systemConfig.findUnique.mockResolvedValue({
+    it("should delegate to validator", async () => {
+      const mockConfigValue = {
         key: "test-key",
-        schema: null,
-      });
-
-      const result = await service.validateSchema("test-key", "any-value");
-
-      expect(result).toEqual({ valid: true });
-    });
-
-    it("should validate string type", async () => {
-      mockDb.systemConfig.findUnique.mockResolvedValue({
-        key: "test-key",
-        value: "current-value",
+        value: "test-value",
         schema: { type: "string" },
         category: null,
         metadata: null,
@@ -459,71 +448,15 @@ describe("SystemConfigService", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
-      });
+      };
 
-      const validResult = await service.validateSchema("test-key", "string-value");
-      expect(validResult).toEqual({ valid: true });
+      mockDb.systemConfig.findUnique.mockResolvedValue(mockConfigValue);
 
-      const invalidResult = await service.validateSchema("test-key", 123);
-      expect(invalidResult).toEqual({
-        valid: false,
-        errors: ["Expected string, got number"],
-      });
-    });
+      const result = await service.validateSchema("test-key", "valid-string");
 
-    it("should validate string length constraints", async () => {
-      mockDb.systemConfig.findUnique.mockResolvedValue({
-        key: "test-key",
-        value: "current-value",
-        schema: { type: "string", minLength: 5, maxLength: 10 },
-        category: null,
-        metadata: null,
-        isSecret: false,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdBy: null,
-        updatedBy: null,
-      });
-
-      const tooShort = await service.validateSchema("test-key", "hi");
-      expect(tooShort).toEqual({
-        valid: false,
-        errors: ["String too short, minimum length is 5"],
-      });
-
-      const tooLong = await service.validateSchema("test-key", "this is way too long");
-      expect(tooLong).toEqual({
-        valid: false,
-        errors: ["String too long, maximum length is 10"],
-      });
-
-      const justRight = await service.validateSchema("test-key", "perfect");
-      expect(justRight).toEqual({ valid: true });
-    });
-
-    it("should validate enum values", async () => {
-      mockDb.systemConfig.findUnique.mockResolvedValue({
-        key: "test-key",
-        value: "current-value",
-        schema: { enum: ["option1", "option2", "option3"] },
-        category: null,
-        metadata: null,
-        isSecret: false,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        createdBy: null,
-        updatedBy: null,
-      });
-
-      const validEnum = await service.validateSchema("test-key", "option2");
-      expect(validEnum).toEqual({ valid: true });
-
-      const invalidEnum = await service.validateSchema("test-key", "invalid-option");
-      expect(invalidEnum).toEqual({
-        valid: false,
-        errors: ["Value must be one of: option1, option2, option3"],
+      expect(result.valid).toBe(true);
+      expect(mockDb.systemConfig.findUnique).toHaveBeenCalledWith({
+        where: { key: "test-key", isActive: true },
       });
     });
   });

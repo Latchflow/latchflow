@@ -7,7 +7,7 @@ import { SCOPES } from "../../auth/scopes.js";
 import type { RouteSignature } from "../../authz/policy.js";
 import type { BundleRebuildScheduler } from "../../bundles/scheduler.js";
 import { appendChangeLog, materializeVersion } from "../../history/changelog.js";
-import type { AppConfig } from "../../config/config.js";
+import type { AppConfig } from "../../config/env-config.js";
 import type { Prisma, ChangeKind } from "@latchflow/db";
 
 type ChangeLogRow = {

@@ -6,7 +6,7 @@ import type { ChangeKind } from "@latchflow/db";
 import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
 import { SCOPES } from "../../auth/scopes.js";
 import type { RouteSignature } from "../../authz/policy.js";
-import type { AppConfig } from "../../config/config.js";
+import type { AppConfig } from "../../config/env-config.js";
 import { appendChangeLog } from "../../history/changelog.js";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
 import nodemailer from "nodemailer";

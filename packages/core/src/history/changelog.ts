@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import type { DbClient } from "../db/db.js";
-import type { AppConfig } from "../config/config.js";
+import type { AppConfig } from "../config/env-config.js";
 import type { ActorContext } from "./actor.js";
 import { toPrismaActorFields } from "./actor.js";
 import { serializeAggregate, canonicalStringify, type EntityType } from "./canonical.js";

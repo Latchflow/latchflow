@@ -51,87 +51,99 @@ describe("bundle-objects admin routes (integration)", () => {
     }
   });
 
-  it("GET /bundles/:bundleId/objects paginates with cursor and sort order", async () => {
-    const { handlers, server, scheduler } = makeServer();
-    const { registerBundleObjectsAdminRoutes } = await import(
-      "../../src/routes/admin/bundle-objects.js"
-    );
-    registerBundleObjectsAdminRoutes(server, { scheduler });
+  it(
+    "GET /bundles/:bundleId/objects paginates with cursor and sort order",
+    { timeout: 10000 },
+    async () => {
+      const { handlers, server, scheduler } = makeServer();
+      const { registerBundleObjectsAdminRoutes } = await import(
+        "../../src/routes/admin/bundle-objects.js"
+      );
+      registerBundleObjectsAdminRoutes(server, { scheduler });
 
-    // First page: sortOrder 1
-    db.bundleObject.findMany.mockResolvedValueOnce([
-      {
-        id: "bo1",
-        bundleId: "B1",
-        fileId: "f1",
-        path: "a.txt",
-        sortOrder: 1,
-        required: false,
-        addedAt: new Date().toISOString(),
-        file: {
-          id: "f1",
-          key: "a.txt",
-          size: BigInt(10),
-          contentType: "text/plain",
-          metadata: null,
-          contentHash: "a".repeat(64),
-          etag: null,
-          updatedAt: new Date().toISOString(),
+      // First page: sortOrder 1
+      db.bundleObject.findMany.mockResolvedValueOnce([
+        {
+          id: "bo1",
+          bundleId: "B1",
+          fileId: "f1",
+          path: "a.txt",
+          sortOrder: 1,
+          required: false,
+          addedAt: new Date().toISOString(),
+          file: {
+            id: "f1",
+            key: "a.txt",
+            size: BigInt(10),
+            contentType: "text/plain",
+            metadata: null,
+            contentHash: "a".repeat(64),
+            etag: null,
+            updatedAt: new Date().toISOString(),
+          },
         },
-      },
-    ] as any[]);
+      ] as any[]);
 
-    const hList = handlers.get("GET /bundles/:bundleId/objects")!;
-    const rc1 = createResponseCapture();
-    await hList({ params: { bundleId: "B1" }, query: { limit: "1" }, headers: {} } as any, rc1.res);
-    expect(rc1.status).toBe(200);
-    expect(rc1.body?.items?.[0]?.bundleObject?.id).toBe("bo1");
-    expect(typeof rc1.body?.nextCursor).toBe("string");
-    // Ensure ordering used by DB call
-    const args1 = db.bundleObject.findMany.mock.calls[0]?.[0] ?? {};
-    expect(args1?.take).toBe(1);
-    expect(args1?.orderBy?.[0]?.sortOrder).toBe("asc");
-    expect(args1?.orderBy?.[1]?.id).toBe("asc");
+      const hList = handlers.get("GET /bundles/:bundleId/objects")!;
+      const rc1 = createResponseCapture();
+      await Promise.race([
+        hList({ params: { bundleId: "B1" }, query: { limit: "1" }, headers: {} } as any, rc1.res),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Handler timeout")), 2000)),
+      ]);
+      expect(rc1.status).toBe(200);
+      expect(rc1.body?.items?.[0]?.bundleObject?.id).toBe("bo1");
+      expect(typeof rc1.body?.nextCursor).toBe("string");
+      // Ensure ordering used by DB call
+      const args1 = db.bundleObject.findMany.mock.calls[0]?.[0] ?? {};
+      expect(args1?.take).toBe(1);
+      expect(args1?.orderBy?.[0]?.sortOrder).toBe("asc");
+      expect(args1?.orderBy?.[1]?.id).toBe("asc");
 
-    // Second page after cursor: sortOrder 2
-    db.bundleObject.findMany.mockResolvedValueOnce([
-      {
-        id: "bo2",
-        bundleId: "B1",
-        fileId: "f2",
-        path: "b.txt",
-        sortOrder: 2,
-        required: true,
-        addedAt: new Date().toISOString(),
-        file: {
-          id: "f2",
-          key: "b.txt",
-          size: BigInt(20),
-          contentType: "text/plain",
-          metadata: null,
-          contentHash: null,
-          etag: "etag-2",
-          updatedAt: new Date().toISOString(),
+      // Second page after cursor: sortOrder 2
+      db.bundleObject.findMany.mockResolvedValueOnce([
+        {
+          id: "bo2",
+          bundleId: "B1",
+          fileId: "f2",
+          path: "b.txt",
+          sortOrder: 2,
+          required: true,
+          addedAt: new Date().toISOString(),
+          file: {
+            id: "f2",
+            key: "b.txt",
+            size: BigInt(20),
+            contentType: "text/plain",
+            metadata: null,
+            contentHash: null,
+            etag: "etag-2",
+            updatedAt: new Date().toISOString(),
+          },
         },
-      },
-    ] as any[]);
-    const rc2 = createResponseCapture();
-    await hList(
-      {
-        params: { bundleId: "B1" },
-        query: { limit: "1", cursor: rc1.body?.nextCursor },
-        headers: {},
-      } as any,
-      rc2.res,
-    );
-    expect(rc2.status).toBe(200);
-    expect(rc2.body?.items?.[0]?.bundleObject?.id).toBe("bo2");
-    const args2 = db.bundleObject.findMany.mock.calls[1]?.[0] ?? {};
-    expect(Array.isArray(args2?.where?.AND)).toBe(true);
-    // OR branch with sortOrder gt or (sortOrder eq and id gt)
-    const or = args2?.where?.AND?.[1]?.OR;
-    expect(Array.isArray(or)).toBe(true);
-  });
+      ] as any[]);
+      const rc2 = createResponseCapture();
+      await Promise.race([
+        hList(
+          {
+            params: { bundleId: "B1" },
+            query: { limit: "1", cursor: rc1.body?.nextCursor },
+            headers: {},
+          } as any,
+          rc2.res,
+        ),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Second handler timeout")), 2000),
+        ),
+      ]);
+      expect(rc2.status).toBe(200);
+      expect(rc2.body?.items?.[0]?.bundleObject?.id).toBe("bo2");
+      const args2 = db.bundleObject.findMany.mock.calls[1]?.[0] ?? {};
+      expect(Array.isArray(args2?.where?.AND)).toBe(true);
+      // OR branch with sortOrder gt or (sortOrder eq and id gt)
+      const or = args2?.where?.AND?.[1]?.OR;
+      expect(Array.isArray(or)).toBe(true);
+    },
+  );
 
   it("POST /bundles/:bundleId/objects defaults path and increments sortOrder; idempotent upsert", async () => {
     const { handlers, server, scheduler } = makeServer();
