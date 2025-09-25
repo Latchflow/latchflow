@@ -39,5 +39,12 @@ export async function getSystemConfigService(
     }
   }
 
-  return new SystemConfigBulkService(db, masterKey);
+  return new SystemConfigBulkService(db, {
+    masterKey,
+    history: {
+      HISTORY_SNAPSHOT_INTERVAL: config.HISTORY_SNAPSHOT_INTERVAL,
+      HISTORY_MAX_CHAIN_DEPTH: config.HISTORY_MAX_CHAIN_DEPTH,
+    },
+    systemUserId: config.SYSTEM_USER_ID ?? "system",
+  });
 }

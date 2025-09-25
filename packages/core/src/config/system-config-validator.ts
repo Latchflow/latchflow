@@ -4,77 +4,98 @@ export class SystemConfigValidator {
   async validateSchema(
     configValue: SystemConfigValue | null,
     value: unknown,
+    schemaOverride?: unknown,
   ): Promise<{ valid: boolean; errors?: string[] }> {
-    if (!configValue?.schema) {
+    const schema = schemaOverride ?? configValue?.schema ?? null;
+    return this.validateWithSchema(schema, value);
+  }
+
+  async validateWithSchema(
+    schema: unknown,
+    value: unknown,
+  ): Promise<{ valid: boolean; errors?: string[] }> {
+    if (schema == null) {
       return { valid: true };
     }
 
-    try {
-      // Basic validation for common types
-      const schema = configValue.schema as Record<string, unknown>;
+    if (typeof schema !== "object" || Array.isArray(schema)) {
+      return {
+        valid: false,
+        errors: ["Invalid schema definition"],
+      };
+    }
 
-      if (schema.type) {
+    try {
+      const schemaRecord = schema as Record<string, unknown>;
+
+      if (schemaRecord.type) {
         const valueType = typeof value;
 
-        if (schema.type === "string" && valueType !== "string") {
+        if (schemaRecord.type === "string" && valueType !== "string") {
           return { valid: false, errors: [`Expected string, got ${valueType}`] };
         }
 
-        if (schema.type === "number" && valueType !== "number") {
+        if (schemaRecord.type === "number" && valueType !== "number") {
           return { valid: false, errors: [`Expected number, got ${valueType}`] };
         }
 
-        if (schema.type === "boolean" && valueType !== "boolean") {
+        if (schemaRecord.type === "boolean" && valueType !== "boolean") {
           return { valid: false, errors: [`Expected boolean, got ${valueType}`] };
         }
 
         if (
-          schema.type === "object" &&
+          schemaRecord.type === "object" &&
           (valueType !== "object" || value === null || Array.isArray(value))
         ) {
           return { valid: false, errors: [`Expected object, got ${valueType}`] };
         }
 
-        if (schema.type === "array" && !Array.isArray(value)) {
+        if (schemaRecord.type === "array" && !Array.isArray(value)) {
           return { valid: false, errors: [`Expected array, got ${valueType}`] };
         }
       }
 
-      // String validation
-      if (schema.type === "string" && typeof value === "string") {
-        if (typeof schema.minLength === "number" && value.length < schema.minLength) {
+      if (schemaRecord.type === "string" && typeof value === "string") {
+        if (typeof schemaRecord.minLength === "number" && value.length < schemaRecord.minLength) {
           return {
             valid: false,
-            errors: [`String too short, minimum length is ${schema.minLength}`],
+            errors: [`String too short, minimum length is ${schemaRecord.minLength}`],
           };
         }
 
-        if (typeof schema.maxLength === "number" && value.length > schema.maxLength) {
+        if (typeof schemaRecord.maxLength === "number" && value.length > schemaRecord.maxLength) {
           return {
             valid: false,
-            errors: [`String too long, maximum length is ${schema.maxLength}`],
+            errors: [`String too long, maximum length is ${schemaRecord.maxLength}`],
           };
         }
 
-        if (typeof schema.pattern === "string" && !new RegExp(schema.pattern).test(value)) {
-          return { valid: false, errors: [`String does not match pattern: ${schema.pattern}`] };
+        if (
+          typeof schemaRecord.pattern === "string" &&
+          !new RegExp(schemaRecord.pattern).test(value)
+        ) {
+          return {
+            valid: false,
+            errors: [`String does not match pattern: ${schemaRecord.pattern}`],
+          };
         }
       }
 
-      // Number validation
-      if (schema.type === "number" && typeof value === "number") {
-        if (typeof schema.minimum === "number" && value < schema.minimum) {
-          return { valid: false, errors: [`Number too small, minimum is ${schema.minimum}`] };
+      if (schemaRecord.type === "number" && typeof value === "number") {
+        if (typeof schemaRecord.minimum === "number" && value < schemaRecord.minimum) {
+          return { valid: false, errors: [`Number too small, minimum is ${schemaRecord.minimum}`] };
         }
 
-        if (typeof schema.maximum === "number" && value > schema.maximum) {
-          return { valid: false, errors: [`Number too large, maximum is ${schema.maximum}`] };
+        if (typeof schemaRecord.maximum === "number" && value > schemaRecord.maximum) {
+          return { valid: false, errors: [`Number too large, maximum is ${schemaRecord.maximum}`] };
         }
       }
 
-      // Enum validation
-      if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
-        return { valid: false, errors: [`Value must be one of: ${schema.enum.join(", ")}`] };
+      if (Array.isArray(schemaRecord.enum) && !schemaRecord.enum.includes(value)) {
+        return {
+          valid: false,
+          errors: [`Value must be one of: ${schemaRecord.enum.join(", ")}`],
+        };
       }
 
       return { valid: true };

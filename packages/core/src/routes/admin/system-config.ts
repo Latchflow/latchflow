@@ -1,11 +1,13 @@
 import { z } from "zod";
-import type { HttpServer } from "../../http/http-server.js";
-import { requireAdmin } from "../../middleware/require-admin.js";
+import type { HttpServer, ResponseLike } from "../../http/http-server.js";
 import { getSystemConfigService } from "../../config/system-config-startup.js";
 import { getDb } from "../../db/db.js";
 import type { AppConfig } from "../../config/env-config.js";
-import type { BulkConfigInput } from "../../config/types.js";
+import type { BulkConfigInput, SystemConfigValue } from "../../config/types.js";
 import { SystemConfigValidator } from "../../config/system-config-validator.js";
+import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
+import { SCOPES } from "../../auth/scopes.js";
+import type { RouteSignature } from "../../authz/policy.js";
 
 const BulkConfigInputSchema = z.object({
   key: z.string().min(1),
@@ -41,302 +43,353 @@ const TestConfigSchema = z.object({
   configs: z.array(BulkConfigInputSchema).min(1),
 });
 
+const IndividualGetQuerySchema = z.object({
+  includeSecret: z.coerce.boolean().optional(),
+});
+
+const maskConfigValue = (value: SystemConfigValue, includeSecret: boolean): SystemConfigValue => {
+  if (!value.isSecret || includeSecret) {
+    return value;
+  }
+  return {
+    ...value,
+    value: "[REDACTED]",
+  };
+};
+
+const respondWithError = (res: ResponseLike, error: unknown) => {
+  const err = error as Error & { status?: number; code?: string };
+  const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 500;
+  const code = err.code ?? (status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST");
+  res.status(status).json({
+    status: "error",
+    code,
+    message: err.message ?? "Unexpected error",
+  });
+};
+
+const parseKeysParam = (keys?: string) =>
+  keys
+    ?.split(",")
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+
 export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
+  const servicePromise = getSystemConfigService(db, config);
 
   // GET /system/config - Bulk read with filtering
-  server.get("/system/config", async (req, res) => {
-    try {
-      await requireAdmin(req);
+  server.get(
+    "/system/config",
+    requireAdminOrApiToken({
+      policySignature: "GET /system/config" as RouteSignature,
+      scopes: [SCOPES.SYSTEM_CONFIG_READ],
+    })(async (req, res) => {
       const query = GetConfigQuerySchema.safeParse(req.query);
-
       if (!query.success) {
-        return res.status(400).json({
+        res.status(400).json({
           status: "error",
           code: "BAD_REQUEST",
           message: "Invalid query parameters",
           errors: query.error.errors,
         });
+        return;
       }
 
       const { keys, category, includeSecrets = false, offset = 0, limit = 100 } = query.data;
 
-      const systemConfigService = await getSystemConfigService(db, config);
-
-      const configs = await systemConfigService.getFiltered({
-        keys: keys ? keys.split(",").map((k) => k.trim()) : undefined,
-        category,
-        includeSecrets,
-        offset,
-        limit,
-      });
-
-      return res.status(200).json({
-        status: "success",
-        data: {
-          configs,
-          pagination: {
-            offset,
-            limit,
-            total: configs.length,
+      try {
+        const systemConfigService = await servicePromise;
+        const configs = await systemConfigService.getFiltered({
+          keys: parseKeysParam(keys),
+          category,
+          includeSecrets,
+          offset,
+          limit,
+        });
+        const sanitized = configs.map((configValue) =>
+          maskConfigValue(configValue, includeSecrets),
+        );
+        res.status(200).json({
+          status: "success",
+          data: {
+            configs: sanitized,
+            pagination: {
+              offset,
+              limit,
+              total: sanitized.length,
+            },
           },
-        },
-      });
-    } catch (error) {
-      return res.status(500).json({
-        status: "error",
-        code: "INTERNAL_ERROR",
-        message: (error as Error).message,
-      });
-    }
-  });
+        });
+      } catch (error) {
+        respondWithError(res, error);
+      }
+    }),
+  );
 
   // PUT /system/config - Bulk transactional update
-  server.put("/system/config", async (req, res) => {
-    try {
-      const { user } = await requireAdmin(req);
+  server.put(
+    "/system/config",
+    requireAdminOrApiToken({
+      policySignature: "PUT /system/config" as RouteSignature,
+      scopes: [SCOPES.SYSTEM_CONFIG_WRITE],
+    })(async (req, res) => {
       const body = BulkUpdateSchema.safeParse(req.body);
-
       if (!body.success) {
-        return res.status(400).json({
+        res.status(400).json({
           status: "error",
           code: "BAD_REQUEST",
           message: "Invalid request body",
           errors: body.error.errors,
         });
+        return;
       }
 
-      const systemConfigService = await getSystemConfigService(db, config);
+      const userId = req.user?.id;
 
-      const result = await systemConfigService.setBulk(
-        body.data.configs as BulkConfigInput[],
-        user.id,
-      );
+      try {
+        const systemConfigService = await servicePromise;
+        const result = await systemConfigService.setBulk(
+          body.data.configs as BulkConfigInput[],
+          userId,
+        );
 
-      if (result.errors.length > 0) {
-        return res.status(400).json({
-          status: "error",
-          code: "BULK_UPDATE_FAILED",
-          message: "Some configurations failed to update",
-          data: result,
+        if (result.errors.length > 0) {
+          res.status(400).json({
+            status: "error",
+            code: "BULK_UPDATE_FAILED",
+            message: "Some configurations failed to update",
+            data: {
+              errors: result.errors,
+              success: result.success.map((configValue) => maskConfigValue(configValue, false)),
+            },
+          });
+          return;
+        }
+
+        const updated = result.success.map((configValue) => maskConfigValue(configValue, false));
+        res.status(200).json({
+          status: "success",
+          data: {
+            updated,
+            count: updated.length,
+          },
         });
+      } catch (error) {
+        respondWithError(res, error);
       }
-
-      return res.status(200).json({
-        status: "success",
-        data: {
-          updated: result.success,
-          count: result.success.length,
-        },
-      });
-    } catch (error) {
-      return res.status(500).json({
-        status: "error",
-        code: "INTERNAL_ERROR",
-        message: (error as Error).message,
-      });
-    }
-  });
+    }),
+  );
 
   // GET /system/config/:key - Individual read (convenience wrapper)
-  server.get("/system/config/:key", async (req, res) => {
-    try {
-      await requireAdmin(req);
-      const key = req.params.key as string;
-
+  server.get(
+    "/system/config/:key",
+    requireAdminOrApiToken({
+      policySignature: "GET /system/config/:key" as RouteSignature,
+      scopes: [SCOPES.SYSTEM_CONFIG_READ],
+    })(async (req, res) => {
+      const key = req.params.key as string | undefined;
       if (!key) {
-        return res.status(400).json({
+        res.status(400).json({
           status: "error",
           code: "BAD_REQUEST",
           message: "Missing configuration key",
         });
+        return;
       }
 
-      const systemConfigService = await getSystemConfigService(db, config);
-      const configValue = await systemConfigService.get(key);
+      const includeSecretResult = IndividualGetQuerySchema.safeParse(req.query ?? {});
+      const includeSecret = includeSecretResult.success
+        ? Boolean(includeSecretResult.data.includeSecret)
+        : false;
 
-      if (!configValue) {
-        return res.status(404).json({
-          status: "error",
-          code: "NOT_FOUND",
-          message: `Configuration key '${key}' not found`,
+      try {
+        const systemConfigService = await servicePromise;
+        const configValue = await systemConfigService.get(key);
+
+        if (!configValue) {
+          res.status(404).json({
+            status: "error",
+            code: "NOT_FOUND",
+            message: `Configuration key '${key}' not found`,
+          });
+          return;
+        }
+
+        res.status(200).json({
+          status: "success",
+          data: maskConfigValue(configValue, includeSecret),
         });
+      } catch (error) {
+        respondWithError(res, error);
       }
-
-      // Don't expose secret values in individual reads unless explicitly requested
-      if (configValue.isSecret && req.query.includeSecret !== "true") {
-        configValue.value = "[REDACTED]";
-      }
-
-      return res.status(200).json({
-        status: "success",
-        data: configValue,
-      });
-    } catch (error) {
-      return res.status(500).json({
-        status: "error",
-        code: "INTERNAL_ERROR",
-        message: (error as Error).message,
-      });
-    }
-  });
+    }),
+  );
 
   // PUT /system/config/:key - Individual update (convenience wrapper)
-  server.put("/system/config/:key", async (req, res) => {
-    try {
-      const { user } = await requireAdmin(req);
-      const key = req.params.key as string;
-
+  server.put(
+    "/system/config/:key",
+    requireAdminOrApiToken({
+      policySignature: "PUT /system/config/:key" as RouteSignature,
+      scopes: [SCOPES.SYSTEM_CONFIG_WRITE],
+    })(async (req, res) => {
+      const key = req.params.key as string | undefined;
       if (!key) {
-        return res.status(400).json({
+        res.status(400).json({
           status: "error",
           code: "BAD_REQUEST",
           message: "Missing configuration key",
         });
+        return;
       }
 
       const body = IndividualConfigSchema.safeParse(req.body);
-
       if (!body.success) {
-        return res.status(400).json({
+        res.status(400).json({
           status: "error",
           code: "BAD_REQUEST",
           message: "Invalid request body",
           errors: body.error.errors,
         });
+        return;
       }
 
-      const systemConfigService = await getSystemConfigService(db, config);
+      const userId = req.user?.id;
 
-      const result = await systemConfigService.set(key, body.data.value, {
-        category: body.data.category,
-        schema: body.data.schema,
-        metadata: body.data.metadata,
-        isSecret: body.data.isSecret,
-        userId: user.id,
-      });
+      try {
+        const systemConfigService = await servicePromise;
+        const result = await systemConfigService.set(key, body.data.value, {
+          category: body.data.category,
+          schema: body.data.schema,
+          metadata: body.data.metadata,
+          isSecret: body.data.isSecret,
+          userId,
+        });
 
-      return res.status(200).json({
-        status: "success",
-        data: result,
-      });
-    } catch (error) {
-      return res.status(500).json({
-        status: "error",
-        code: "INTERNAL_ERROR",
-        message: (error as Error).message,
-      });
-    }
-  });
+        res.status(200).json({
+          status: "success",
+          data: maskConfigValue(result, false),
+        });
+      } catch (error) {
+        respondWithError(res, error);
+      }
+    }),
+  );
 
   // DELETE /system/config/:key - Individual delete (convenience wrapper)
-  server.delete("/system/config/:key", async (req, res) => {
-    try {
-      const { user } = await requireAdmin(req);
-      const key = req.params.key as string;
-
+  server.delete(
+    "/system/config/:key",
+    requireAdminOrApiToken({
+      policySignature: "DELETE /system/config/:key" as RouteSignature,
+      scopes: [SCOPES.SYSTEM_CONFIG_WRITE],
+    })(async (req, res) => {
+      const key = req.params.key as string | undefined;
       if (!key) {
-        return res.status(400).json({
+        res.status(400).json({
           status: "error",
           code: "BAD_REQUEST",
           message: "Missing configuration key",
         });
+        return;
       }
 
-      const systemConfigService = await getSystemConfigService(db, config);
-      const deleted = await systemConfigService.delete(key, user.id);
+      const userId = req.user?.id;
 
-      if (!deleted) {
-        return res.status(404).json({
-          status: "error",
-          code: "NOT_FOUND",
-          message: `Configuration key '${key}' not found`,
+      try {
+        const systemConfigService = await servicePromise;
+        const deleted = await systemConfigService.delete(key, userId);
+
+        if (!deleted) {
+          res.status(404).json({
+            status: "error",
+            code: "NOT_FOUND",
+            message: `Configuration key '${key}' not found`,
+          });
+          return;
+        }
+
+        res.status(200).json({
+          status: "success",
+          message: `Configuration '${key}' deleted successfully`,
         });
+      } catch (error) {
+        respondWithError(res, error);
       }
-
-      return res.status(200).json({
-        status: "success",
-        message: `Configuration '${key}' deleted successfully`,
-      });
-    } catch (error) {
-      return res.status(500).json({
-        status: "error",
-        code: "INTERNAL_ERROR",
-        message: (error as Error).message,
-      });
-    }
-  });
+    }),
+  );
 
   // POST /system/config/test - Test configuration without saving
-  server.post("/system/config/test", async (req, res) => {
-    try {
-      await requireAdmin(req);
+  server.post(
+    "/system/config/test",
+    requireAdminOrApiToken({
+      policySignature: "POST /system/config/test" as RouteSignature,
+      scopes: [SCOPES.SYSTEM_CONFIG_WRITE],
+    })(async (req, res) => {
       const body = TestConfigSchema.safeParse(req.body);
-
       if (!body.success) {
-        return res.status(400).json({
+        res.status(400).json({
           status: "error",
           code: "BAD_REQUEST",
           message: "Invalid request body",
           errors: body.error.errors,
         });
+        return;
       }
 
       const { category, configs } = body.data;
-      const systemConfigService = await getSystemConfigService(db, config);
 
-      // Test configuration-specific validation
-      const results = await Promise.all(
-        configs.map(async (config) => {
-          try {
-            // Validate schema
-            const validation = await systemConfigService.validateSchema(config.key, config.value);
+      try {
+        const systemConfigService = await servicePromise;
+        const results = await Promise.all(
+          configs.map(async (configItem) => {
+            try {
+              const validation = await systemConfigService.validateSchema(
+                configItem.key,
+                configItem.value,
+                configItem.schema,
+              );
 
-            if (!validation.valid) {
+              if (!validation.valid) {
+                return {
+                  key: configItem.key,
+                  valid: false,
+                  errors: validation.errors,
+                };
+              }
+
+              if (category === "email") {
+                return await testEmailConfiguration(configItem);
+              }
+
               return {
-                key: config.key,
+                key: configItem.key,
+                valid: true,
+              };
+            } catch (error) {
+              return {
+                key: configItem.key,
                 valid: false,
-                errors: validation.errors,
+                errors: [(error as Error).message],
               };
             }
+          }),
+        );
 
-            // Category-specific testing
-            if (category === "email") {
-              return await testEmailConfiguration(config);
-            }
+        const allValid = results.every((result) => result.valid);
 
-            return {
-              key: config.key,
-              valid: true,
-            };
-          } catch (error) {
-            return {
-              key: config.key,
-              valid: false,
-              errors: [(error as Error).message],
-            };
-          }
-        }),
-      );
-
-      const allValid = results.every((r) => r.valid);
-
-      return res.status(200).json({
-        status: "success",
-        data: {
-          category,
-          valid: allValid,
-          results,
-        },
-      });
-    } catch (error) {
-      return res.status(500).json({
-        status: "error",
-        code: "INTERNAL_ERROR",
-        message: (error as Error).message,
-      });
-    }
-  });
+        res.status(200).json({
+          status: "success",
+          data: {
+            category,
+            valid: allValid,
+            results,
+          },
+        });
+      } catch (error) {
+        respondWithError(res, error);
+      }
+    }),
+  );
 }
 
 // Helper function for testing email configurations

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DbClient } from "../db/db.js";
 import { encryptValue, decryptValue } from "../crypto/encryption.js";
+import { appendChangeLog } from "../history/changelog.js";
 import type { Prisma } from "@latchflow/db";
 import type { SystemConfigValue, SystemConfigOptions } from "./types.js";
 import { SystemConfigValidator } from "./system-config-validator.js";
@@ -69,13 +70,30 @@ export const ALL_CONFIG_MAPPING = {
   ...ENCRYPTION_CONFIG_MAPPING,
 } as const;
 
+type HistoryConfig = {
+  HISTORY_SNAPSHOT_INTERVAL: number;
+  HISTORY_MAX_CHAIN_DEPTH: number;
+};
+
+type ServiceOptions = {
+  masterKey?: Buffer;
+  history?: HistoryConfig;
+  systemUserId?: string;
+};
+
 export class SystemConfigService {
   protected validator: SystemConfigValidator;
+  protected masterKey?: Buffer;
+  protected historyCfg?: HistoryConfig;
+  protected systemUserId: string;
 
   constructor(
     protected db: DbClient,
-    protected masterKey?: Buffer,
+    opts: ServiceOptions = {},
   ) {
+    this.masterKey = opts.masterKey;
+    this.historyCfg = opts.history;
+    this.systemUserId = opts.systemUserId ?? "system";
     this.validator = new SystemConfigValidator();
   }
 
@@ -83,55 +101,63 @@ export class SystemConfigService {
     return process.env[key];
   }
 
+  private getMappingForKey(key: string) {
+    return (ALL_CONFIG_MAPPING as Record<string, { category?: string; isSecret?: boolean }>)[key];
+  }
+
+  protected badRequest(message: string, code: string): Error & { status: number; code: string } {
+    const error = new Error(message) as Error & { status: number; code: string };
+    error.status = 400;
+    error.code = code;
+    return error;
+  }
+
+  private requireMasterKey(action: "encrypt" | "decrypt", key: string): Buffer {
+    if (!this.masterKey) {
+      const verb = action === "encrypt" ? "encrypting" : "decrypting";
+      throw this.badRequest(
+        `Master key required for ${verb} secret values (key ${key})`,
+        "MASTER_KEY_REQUIRED",
+      );
+    }
+    return this.masterKey;
+  }
+
   async get(key: string): Promise<SystemConfigValue | null> {
-    // First check database
     const config = await this.db.systemConfig.findUnique({
       where: { key, isActive: true },
     });
 
     if (config) {
-      let value: unknown;
+      let rawValue: unknown;
 
       if (config.isSecret && config.encrypted) {
-        if (!this.masterKey) {
-          throw new Error("Master key required for decrypting secret values");
-        }
+        const masterKey = this.requireMasterKey("decrypt", key);
         try {
-          value = decryptValue(config.encrypted, this.masterKey);
+          rawValue = decryptValue(config.encrypted, masterKey);
         } catch (error) {
-          throw new Error(
+          throw this.badRequest(
             `Failed to decrypt secret value for key ${key}: ${(error as Error).message}`,
+            "DECRYPT_FAILED",
           );
         }
       } else {
-        value = config.value;
+        rawValue = config.value;
       }
 
-      return {
-        key: config.key,
-        value,
-        category: config.category,
-        schema: config.schema,
-        metadata: config.metadata,
-        isSecret: config.isSecret,
-        isActive: config.isActive,
-        createdAt: config.createdAt,
-        updatedAt: config.updatedAt,
-        createdBy: config.createdBy,
-        updatedBy: config.updatedBy,
-      };
+      return this.toSystemConfigValue(config, rawValue);
     }
 
-    // Fallback to environment variable
     const envValue = this.getEnvValue(key);
     if (envValue !== undefined) {
+      const mapping = this.getMappingForKey(key) ?? {};
       return {
         key,
         value: envValue,
-        category: null,
+        category: mapping.category ?? null,
         schema: null,
         metadata: { source: "environment" },
-        isSecret: false,
+        isSecret: Boolean(mapping.isSecret),
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -155,36 +181,20 @@ export class SystemConfigService {
     });
 
     return configs.map((config) => {
-      let value: unknown;
-
       if (config.isSecret && config.encrypted) {
-        if (!this.masterKey) {
-          throw new Error("Master key required for decrypting secret values");
-        }
+        const masterKey = this.requireMasterKey("decrypt", config.key);
         try {
-          value = decryptValue(config.encrypted, this.masterKey);
+          const decrypted = decryptValue(config.encrypted, masterKey);
+          return this.toSystemConfigValue(config, decrypted);
         } catch (error) {
-          throw new Error(
+          throw this.badRequest(
             `Failed to decrypt secret value for key ${config.key}: ${(error as Error).message}`,
+            "DECRYPT_FAILED",
           );
         }
-      } else {
-        value = config.value;
       }
 
-      return {
-        key: config.key,
-        value,
-        category: config.category,
-        schema: config.schema,
-        metadata: config.metadata,
-        isSecret: config.isSecret,
-        isActive: config.isActive,
-        createdAt: config.createdAt,
-        updatedAt: config.updatedAt,
-        createdBy: config.createdBy,
-        updatedBy: config.updatedBy,
-      };
+      return this.toSystemConfigValue(config, config.value);
     });
   }
 
@@ -193,49 +203,155 @@ export class SystemConfigService {
     value: unknown,
     options: SystemConfigOptions = {},
   ): Promise<SystemConfigValue> {
-    const { category, schema, metadata, isSecret = false, userId } = options;
-
-    let encrypted: string | undefined;
-    let jsonValue: Prisma.InputJsonValue | undefined;
-
-    if (isSecret) {
-      if (!this.masterKey) {
-        throw new Error("Master key required for encrypting secret values");
-      }
-      if (typeof value !== "string") {
-        throw new Error("Secret values must be strings");
-      }
-      encrypted = encryptValue(value, this.masterKey);
-    } else {
-      jsonValue = value as Prisma.InputJsonValue;
+    if (value === undefined) {
+      throw this.badRequest("Value is required", "VALUE_REQUIRED");
     }
 
-    const config = await this.db.systemConfig.upsert({
+    await this.ensureValuePassesSchema(key, value, options.schema);
+
+    const actorUserId = options.userId ?? this.systemUserId;
+
+    const result = await this.db.$transaction(async (tx) =>
+      this.upsertConfig(tx, key, value, options, actorUserId),
+    );
+
+    return this.toSystemConfigValue(result.record, result.rawValue);
+  }
+
+  async delete(key: string, userId?: string): Promise<boolean> {
+    const actorUserId = userId ?? this.systemUserId;
+
+    return this.db.$transaction(async (tx) => {
+      const existing = await tx.systemConfig.findUnique({ where: { key } });
+      if (!existing) {
+        return false;
+      }
+
+      const updated = await tx.systemConfig.update({
+        where: { key },
+        data: {
+          isActive: false,
+          updatedBy: userId,
+        },
+      });
+
+      await this.appendAudit(tx, updated.id, actorUserId);
+      return true;
+    });
+  }
+
+  async seedFromEnvironment(
+    envVars: Record<string, { category?: string; isSecret?: boolean }>,
+    userId?: string,
+  ): Promise<void> {
+    for (const [envKey, mapping] of Object.entries(envVars)) {
+      const envValue = this.getEnvValue(envKey);
+      if (envValue === undefined) continue;
+
+      const existing = await this.db.systemConfig.findUnique({ where: { key: envKey } });
+      if (existing) continue;
+
+      await this.set(envKey, envValue, {
+        category: mapping.category ?? "environment",
+        isSecret: Boolean(mapping.isSecret),
+        userId,
+        metadata: { source: "environment_seed" },
+      });
+    }
+  }
+
+  async validateSchema(
+    key: string,
+    value: unknown,
+    schemaOverride?: unknown,
+  ): Promise<{ valid: boolean; errors?: string[] }> {
+    const existing = await this.db.systemConfig.findUnique({
+      where: { key },
+      select: { schema: true },
+    });
+    const schemaToUse = schemaOverride ?? existing?.schema ?? null;
+    return this.validator.validateWithSchema(schemaToUse, value);
+  }
+
+  protected async upsertConfig(
+    tx: DbClient | Prisma.TransactionClient,
+    key: string,
+    value: unknown,
+    options: SystemConfigOptions,
+    actorUserId: string,
+  ): Promise<{ record: Prisma.SystemConfig; rawValue: unknown }> {
+    const existing = await tx.systemConfig.findUnique({ where: { key } });
+    const targetIsSecret = options.isSecret ?? existing?.isSecret ?? false;
+
+    const { encrypted, jsonValue } = this.prepareStoredValues(value, targetIsSecret, key);
+
+    const record = await tx.systemConfig.upsert({
       where: { key },
       create: {
         key,
         value: jsonValue,
         encrypted,
-        category,
-        schema: schema as Prisma.InputJsonValue,
-        metadata: metadata as Prisma.InputJsonValue,
-        isSecret,
-        createdBy: userId,
+        category: options.category,
+        schema: options.schema as Prisma.InputJsonValue,
+        metadata: options.metadata as Prisma.InputJsonValue,
+        isSecret: targetIsSecret,
+        createdBy: actorUserId,
       },
       update: {
         value: jsonValue,
         encrypted,
-        category,
-        schema: schema as Prisma.InputJsonValue,
-        metadata: metadata as Prisma.InputJsonValue,
-        isSecret,
-        updatedBy: userId,
+        category: options.category,
+        schema: options.schema as Prisma.InputJsonValue,
+        metadata: options.metadata as Prisma.InputJsonValue,
+        isSecret: targetIsSecret,
+        updatedBy: actorUserId,
       },
     });
 
+    await this.appendAudit(tx, record.id, actorUserId);
+
+    return { record, rawValue: value };
+  }
+
+  protected prepareStoredValues(
+    value: unknown,
+    isSecret: boolean,
+    key: string,
+  ): { encrypted?: string; jsonValue?: Prisma.InputJsonValue } {
+    if (isSecret) {
+      if (typeof value !== "string") {
+        throw this.badRequest("Secret values must be strings", "INVALID_SECRET_VALUE");
+      }
+      const masterKey = this.requireMasterKey("encrypt", key);
+      return {
+        encrypted: encryptValue(value, masterKey),
+      };
+    }
+
+    return {
+      jsonValue: value as Prisma.InputJsonValue,
+    };
+  }
+
+  protected async appendAudit(
+    tx: DbClient | Prisma.TransactionClient,
+    configId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    if (!this.historyCfg) {
+      return;
+    }
+
+    await appendChangeLog(tx, this.historyCfg, "SYSTEM_CONFIG", configId, {
+      actorType: "USER",
+      actorUserId,
+    });
+  }
+
+  protected toSystemConfigValue(config: Prisma.SystemConfig, rawValue: unknown): SystemConfigValue {
     return {
       key: config.key,
-      value: isSecret ? value : config.value,
+      value: config.isSecret ? rawValue : (config.value as unknown),
       category: config.category,
       schema: config.schema,
       metadata: config.metadata,
@@ -248,47 +364,15 @@ export class SystemConfigService {
     };
   }
 
-  async delete(key: string, userId?: string): Promise<boolean> {
-    const result = await this.db.systemConfig.updateMany({
-      where: { key },
-      data: {
-        isActive: false,
-        updatedBy: userId,
-      },
-    });
-
-    return result.count > 0;
-  }
-
-  async seedFromEnvironment(
-    envVars: Record<string, { category?: string; isSecret?: boolean }>,
-    userId?: string,
-  ): Promise<void> {
-    for (const [envKey, config] of Object.entries(envVars)) {
-      const envValue = this.getEnvValue(envKey);
-      if (envValue === undefined) continue;
-
-      // Only seed if not already in database
-      const existing = await this.db.systemConfig.findUnique({
-        where: { key: envKey },
-      });
-
-      if (!existing) {
-        await this.set(envKey, envValue, {
-          category: config.category || "environment",
-          isSecret: config.isSecret || false,
-          userId,
-          metadata: { source: "environment_seed" },
-        });
-      }
-    }
-  }
-
-  async validateSchema(
+  private async ensureValuePassesSchema(
     key: string,
     value: unknown,
-  ): Promise<{ valid: boolean; errors?: string[] }> {
-    const config = await this.get(key);
-    return this.validator.validateSchema(config, value);
+    schemaOverride?: unknown,
+  ): Promise<void> {
+    const validation = await this.validateSchema(key, value, schemaOverride);
+    if (!validation.valid) {
+      const details = validation.errors?.join(", ") ?? "Unknown validation error";
+      throw this.badRequest(`Validation failed: ${details}`, "VALIDATION_FAILED");
+    }
   }
 }

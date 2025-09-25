@@ -8,6 +8,7 @@ export type ExecResource =
   | "pipeline"
   | "trigger_def"
   | "action_def"
+  | "system_config"
   | "manual_run"
   // v1 convenience: include plugin admin routes as a first-class resource
   | "plugin"
