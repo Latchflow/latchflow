@@ -5,6 +5,9 @@ import { getDb } from "../../db/db.js";
 import type { AppConfig } from "../../config/env-config.js";
 import type { BulkConfigInput, SystemConfigValue } from "../../config/types.js";
 import { SystemConfigValidator } from "../../config/system-config-validator.js";
+import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import type { SystemConfigBulkService } from "../../config/system-config-bulk.js";
 import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
 import { SCOPES } from "../../auth/scopes.js";
 import type { RouteSignature } from "../../authz/policy.js";
@@ -340,6 +343,11 @@ export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppC
 
       try {
         const systemConfigService = await servicePromise;
+        const overrides = new Map<string, unknown>();
+        for (const config of configs) {
+          overrides.set(config.key, config.value);
+        }
+
         const results = await Promise.all(
           configs.map(async (configItem) => {
             try {
@@ -358,7 +366,14 @@ export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppC
               }
 
               if (category === "email") {
-                return await testEmailConfiguration(configItem);
+                const emailValidation = validateEmailConfigurationValue(configItem);
+                if (!emailValidation.valid) {
+                  return {
+                    key: configItem.key,
+                    valid: false,
+                    errors: emailValidation.errors,
+                  };
+                }
               }
 
               return {
@@ -375,14 +390,32 @@ export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppC
           }),
         );
 
-        const allValid = results.every((result) => result.valid);
+        let emailConnectivity: { key: string; valid: boolean; errors?: string[] } | null = null;
+        if (category === "email") {
+          const smtpUrlResult = results.find((item) => item.key === "SMTP_URL");
+          if (!smtpUrlResult || !smtpUrlResult.valid) {
+            emailConnectivity = {
+              key: "SMTP_CONNECTION",
+              valid: false,
+              errors: ["SMTP_URL must be valid before testing connectivity"],
+            };
+          } else {
+            emailConnectivity = {
+              key: "SMTP_CONNECTION",
+              ...(await testEmailConnectivity(systemConfigService, overrides)),
+            };
+          }
+        }
+
+        const finalResults = emailConnectivity ? [...results, emailConnectivity] : results;
+        const allValid = finalResults.every((result) => result.valid);
 
         res.status(200).json({
           status: "success",
           data: {
             category,
             valid: allValid,
-            results,
+            results: finalResults,
           },
         });
       } catch (error) {
@@ -392,15 +425,93 @@ export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppC
   );
 }
 
-// Helper function for testing email configurations
-async function testEmailConfiguration(config: BulkConfigInput): Promise<{
+function validateEmailConfigurationValue(config: BulkConfigInput): {
   key: string;
   valid: boolean;
   errors?: string[];
-}> {
-  const result = SystemConfigValidator.validateEmailConfiguration(config.key, config.value);
+} {
   return {
     key: config.key,
-    ...result,
+    ...SystemConfigValidator.validateEmailConfiguration(config.key, config.value),
   };
+}
+
+async function testEmailConnectivity(
+  service: SystemConfigBulkService,
+  overrides: Map<string, unknown>,
+): Promise<{ valid: boolean; errors?: string[] }> {
+  const smtpUrlValue = await resolveEffectiveConfigValue(service, overrides, "SMTP_URL");
+
+  if (typeof smtpUrlValue !== "string" || smtpUrlValue.trim().length === 0) {
+    return {
+      valid: false,
+      errors: ["SMTP_URL is required to test email connectivity"],
+    };
+  }
+
+  try {
+    await verifySmtpConnection(smtpUrlValue);
+    return { valid: true };
+  } catch (error) {
+    return {
+      valid: false,
+      errors: [(error as Error).message],
+    };
+  }
+}
+
+async function resolveEffectiveConfigValue(
+  service: SystemConfigBulkService,
+  overrides: Map<string, unknown>,
+  key: string,
+): Promise<unknown> {
+  if (overrides.has(key)) {
+    return overrides.get(key);
+  }
+  const existing = await service.get(key);
+  return existing?.value;
+}
+
+async function verifySmtpConnection(smtpUrl: string): Promise<void> {
+  let transporter: nodemailer.Transporter<SMTPTransport.SentMessageInfo> | null = null;
+  try {
+    const options = buildTransportOptions(smtpUrl);
+    transporter = nodemailer.createTransport(options);
+    await transporter.verify();
+  } catch (error) {
+    throw new Error(
+      `Failed to verify SMTP connection: ${(error as Error).message ?? String(error)}`,
+    );
+  } finally {
+    transporter?.close();
+  }
+}
+
+function buildTransportOptions(smtpUrl: string): SMTPTransport.Options {
+  const url = new URL(smtpUrl);
+  const secure = url.protocol === "smtps:";
+  const port = url.port ? Number(url.port) : secure ? 465 : 587;
+  const ignoreTLS = url.searchParams.get("ignoreTLS") === "true";
+  const rejectUnauthorizedParam = url.searchParams.get("rejectUnauthorized");
+  const tlsOptions =
+    rejectUnauthorizedParam !== null
+      ? { rejectUnauthorized: rejectUnauthorizedParam !== "false" }
+      : undefined;
+
+  const username = url.username ? decodeURIComponent(url.username) : undefined;
+  const password = url.password ? decodeURIComponent(url.password) : undefined;
+
+  const auth = username || password ? { user: username ?? "", pass: password ?? "" } : undefined;
+
+  return {
+    host: url.hostname,
+    port,
+    secure,
+    auth,
+    ignoreTLS,
+    connectionTimeout: 5_000,
+    greetingTimeout: 5_000,
+    socketTimeout: 5_000,
+    ...(tlsOptions ? { tls: tlsOptions } : {}),
+  } satisfies SMTPTransport.Options;
 }

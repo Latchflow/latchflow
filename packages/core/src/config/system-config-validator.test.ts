@@ -23,6 +23,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const result = await validator.validateSchema(config, "any-value");
@@ -42,6 +43,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const validResult = await validator.validateSchema(config, "string-value");
@@ -67,6 +69,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const tooShort = await validator.validateSchema(config, "hi");
@@ -98,6 +101,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const validPattern = await validator.validateSchema(config, "lowercase");
@@ -123,6 +127,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const validNumber = await validator.validateSchema(config, 5);
@@ -160,6 +165,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const validBoolean = await validator.validateSchema(config, false);
@@ -185,6 +191,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const validObject = await validator.validateSchema(config, { key: "value" });
@@ -216,6 +223,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const validArray = await validator.validateSchema(config, [1, 2, 3]);
@@ -241,6 +249,7 @@ describe("SystemConfigValidator", () => {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "database",
       };
 
       const validEnum = await validator.validateSchema(config, "option2");

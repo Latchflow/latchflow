@@ -25,6 +25,20 @@ export const EMAIL_CONFIG_MAPPING = {
   SMTP_FROM: { category: "email", isSecret: false },
 } as const;
 
+const SYSTEM_CONFIG_SCHEMAS: Record<string, Record<string, unknown>> = {
+  SMTP_URL: {
+    type: "string",
+    pattern: "^(smtps?:\\/\\/)[^\\s]+$",
+    minLength: 10,
+    description: "SMTP connection string (smtp:// or smtps://)",
+  },
+  SMTP_FROM: {
+    type: "string",
+    pattern: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+    description: "Default From email address",
+  },
+} as const;
+
 export const CORE_CONFIG_MAPPING = {
   PORT: { category: "core", isSecret: false },
   PLUGINS_PATH: { category: "core", isSecret: false },
@@ -101,6 +115,10 @@ export class SystemConfigService {
     return process.env[key];
   }
 
+  protected getDefaultSchema(key: string): Record<string, unknown> | undefined {
+    return SYSTEM_CONFIG_SCHEMAS[key];
+  }
+
   private getMappingForKey(key: string) {
     return (ALL_CONFIG_MAPPING as Record<string, { category?: string; isSecret?: boolean }>)[key];
   }
@@ -155,7 +173,7 @@ export class SystemConfigService {
         key,
         value: envValue,
         category: mapping.category ?? null,
-        schema: null,
+        schema: this.getDefaultSchema(key) ?? null,
         metadata: { source: "environment" },
         isSecret: Boolean(mapping.isSecret),
         isActive: true,
@@ -163,6 +181,7 @@ export class SystemConfigService {
         updatedAt: new Date(),
         createdBy: null,
         updatedBy: null,
+        source: "environment",
       };
     }
 
@@ -207,12 +226,23 @@ export class SystemConfigService {
       throw this.badRequest("Value is required", "VALUE_REQUIRED");
     }
 
-    await this.ensureValuePassesSchema(key, value, options.schema);
+    const schema = options.schema ?? this.getDefaultSchema(key);
+
+    await this.ensureValuePassesSchema(key, value, schema);
 
     const actorUserId = options.userId ?? this.systemUserId;
 
     const result = await this.db.$transaction(async (tx) =>
-      this.upsertConfig(tx, key, value, options, actorUserId),
+      this.upsertConfig(
+        tx,
+        key,
+        value,
+        {
+          ...options,
+          schema,
+        },
+        actorUserId,
+      ),
     );
 
     return this.toSystemConfigValue(result.record, result.rawValue);
@@ -256,6 +286,7 @@ export class SystemConfigService {
         isSecret: Boolean(mapping.isSecret),
         userId,
         metadata: { source: "environment_seed" },
+        schema: this.getDefaultSchema(envKey),
       });
     }
   }
@@ -284,6 +315,17 @@ export class SystemConfigService {
     const targetIsSecret = options.isSecret ?? existing?.isSecret ?? false;
 
     const { encrypted, jsonValue } = this.prepareStoredValues(value, targetIsSecret, key);
+    const schema = options.schema ?? this.getDefaultSchema(key);
+    const existingMetadata = (existing?.metadata as Record<string, unknown> | null) ?? undefined;
+    const providedMetadata = (options.metadata as Record<string, unknown> | null) ?? undefined;
+    const mergedMetadata = existingMetadata
+      ? providedMetadata
+        ? { ...existingMetadata, ...providedMetadata }
+        : existingMetadata
+      : providedMetadata ?? undefined;
+
+    const schemaInput = schema as Prisma.InputJsonValue | undefined;
+    const metadataInput = mergedMetadata as Prisma.InputJsonValue | undefined;
 
     const record = await tx.systemConfig.upsert({
       where: { key },
@@ -292,8 +334,8 @@ export class SystemConfigService {
         value: jsonValue,
         encrypted,
         category: options.category,
-        schema: options.schema as Prisma.InputJsonValue,
-        metadata: options.metadata as Prisma.InputJsonValue,
+        ...(schemaInput !== undefined ? { schema: schemaInput } : {}),
+        ...(metadataInput !== undefined ? { metadata: metadataInput } : {}),
         isSecret: targetIsSecret,
         createdBy: actorUserId,
       },
@@ -301,8 +343,8 @@ export class SystemConfigService {
         value: jsonValue,
         encrypted,
         category: options.category,
-        schema: options.schema as Prisma.InputJsonValue,
-        metadata: options.metadata as Prisma.InputJsonValue,
+        ...(schemaInput !== undefined ? { schema: schemaInput } : {}),
+        ...(metadataInput !== undefined ? { metadata: metadataInput } : {}),
         isSecret: targetIsSecret,
         updatedBy: actorUserId,
       },
@@ -349,6 +391,11 @@ export class SystemConfigService {
   }
 
   protected toSystemConfigValue(config: Prisma.SystemConfig, rawValue: unknown): SystemConfigValue {
+    const metadata = config.metadata as Record<string, unknown> | null | undefined;
+    const source: SystemConfigValue["source"] = metadata?.source === "environment_seed"
+      ? "database_seeded"
+      : "database";
+
     return {
       key: config.key,
       value: config.isSecret ? rawValue : (config.value as unknown),
@@ -361,6 +408,7 @@ export class SystemConfigService {
       updatedAt: config.updatedAt,
       createdBy: config.createdBy,
       updatedBy: config.updatedBy,
+      source,
     };
   }
 

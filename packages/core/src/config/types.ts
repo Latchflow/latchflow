@@ -10,6 +10,7 @@ export type SystemConfigValue = {
   updatedAt: Date;
   createdBy?: string | null;
   updatedBy?: string | null;
+  source: "database" | "database_seeded" | "environment";
 };
 
 export type BulkConfigInput = {

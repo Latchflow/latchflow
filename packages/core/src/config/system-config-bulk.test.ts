@@ -101,10 +101,18 @@ describe("SystemConfigBulkService", () => {
       expect(result.success[0]).toMatchObject({
         key: "SMTP_URL",
         value: "smtp://test.server.com:587",
+        source: "database",
       });
-      expect(result.success[1]).toMatchObject({ key: "SMTP_FROM", value: "test@example.com" });
+      expect(result.success[1]).toMatchObject({
+        key: "SMTP_FROM",
+        value: "test@example.com",
+        source: "database",
+      });
       expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
       expect(mockEncryptValue).toHaveBeenCalledWith("smtp://test.server.com:587", masterKey);
+
+      const firstUpsert = mockDb.systemConfig.upsert.mock.calls[0][0];
+      expect(firstUpsert.create.schema).toBeDefined();
     });
 
     it("returns validation failures without mutating data", async () => {
@@ -174,7 +182,7 @@ describe("SystemConfigBulkService", () => {
 
       const result = await service.getFiltered({ includeSecrets: false });
 
-      expect(result[0]).toMatchObject({ key: "SMTP_URL", value: "[REDACTED]" });
+      expect(result[0]).toMatchObject({ key: "SMTP_URL", value: "[REDACTED]", source: "database" });
     });
 
     it("decrypts secrets when includeSecrets is true", async () => {
@@ -200,7 +208,11 @@ describe("SystemConfigBulkService", () => {
 
       const result = await service.getFiltered({ includeSecrets: true });
 
-      expect(result[0]).toMatchObject({ key: "SMTP_URL", value: "decrypted-secret" });
+      expect(result[0]).toMatchObject({
+        key: "SMTP_URL",
+        value: "decrypted-secret",
+        source: "database",
+      });
       expect(mockDecryptValue).toHaveBeenCalledWith("encrypted:value", masterKey);
     });
 

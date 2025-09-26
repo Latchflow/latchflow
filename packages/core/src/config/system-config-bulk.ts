@@ -33,8 +33,9 @@ export class SystemConfigBulkService extends SystemConfigService {
 
       const existing = await this.db.systemConfig.findUnique({ where: { key: config.key } });
       const targetIsSecret = config.isSecret ?? existing?.isSecret ?? false;
+      const schema = config.schema ?? this.getDefaultSchema(config.key);
 
-      const validation = await this.validateSchema(config.key, config.value, config.schema);
+      const validation = await this.validateSchema(config.key, config.value, schema);
       if (!validation.valid) {
         errors.push({
           key: config.key,
@@ -63,7 +64,7 @@ export class SystemConfigBulkService extends SystemConfigService {
         key: config.key,
         value: config.value,
         category: config.category,
-        schema: config.schema,
+        schema,
         metadata: config.metadata,
         requestedIsSecret: config.isSecret,
         targetIsSecret,
@@ -82,7 +83,7 @@ export class SystemConfigBulkService extends SystemConfigService {
           config.value,
           {
             category: config.category,
-            schema: config.schema,
+            schema: config.schema ?? this.getDefaultSchema(config.key),
             metadata: config.metadata,
             isSecret: config.requestedIsSecret,
             userId,
@@ -120,19 +121,8 @@ export class SystemConfigBulkService extends SystemConfigService {
     return configs.map((config) => {
       if (config.isSecret) {
         if (!includeSecrets) {
-          return {
-            key: config.key,
-            value: "[REDACTED]",
-            category: config.category,
-            schema: config.schema,
-            metadata: config.metadata,
-            isSecret: config.isSecret,
-            isActive: config.isActive,
-            createdAt: config.createdAt,
-            updatedAt: config.updatedAt,
-            createdBy: config.createdBy,
-            updatedBy: config.updatedBy,
-          };
+          const base = this.toSystemConfigValue(config, config.value);
+          return { ...base, value: "[REDACTED]" };
         }
 
         if (config.encrypted) {

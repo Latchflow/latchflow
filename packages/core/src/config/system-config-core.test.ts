@@ -71,7 +71,7 @@ describe("SystemConfigService", () => {
 
       const result = await service.get("test-key");
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         key: "test-key",
         value: { some: "value" },
         category: "test",
@@ -83,6 +83,7 @@ describe("SystemConfigService", () => {
         updatedAt: mockConfig.updatedAt,
         createdBy: "user1",
         updatedBy: null,
+        source: "database",
       });
     });
 
@@ -115,6 +116,7 @@ describe("SystemConfigService", () => {
       const result = await service.get("secret-key");
 
       expect(result?.value).toBe("secret-value");
+      expect(result?.source).toBe("database");
       expect(mockDecryptValue).toHaveBeenCalledWith("encrypted:secret:value", masterKey);
     });
 
@@ -122,7 +124,7 @@ describe("SystemConfigService", () => {
       process.env.TEST_VAR = "env-value";
       const result = await service.get("TEST_VAR");
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         key: "TEST_VAR",
         value: "env-value",
         category: null,
@@ -134,6 +136,7 @@ describe("SystemConfigService", () => {
         updatedAt: expect.any(Date),
         createdBy: null,
         updatedBy: null,
+        source: "environment",
       });
 
       delete process.env.TEST_VAR;
@@ -211,8 +214,8 @@ describe("SystemConfigService", () => {
       const result = await service.getAll();
 
       expect(result).toHaveLength(2);
-      expect(result[0].value).toBe("value1");
-      expect(result[1].value).toBe("decrypted-secret");
+      expect(result[0]).toMatchObject({ value: "value1", source: "database" });
+      expect(result[1]).toMatchObject({ value: "decrypted-secret", source: "database" });
     });
   });
 
@@ -243,29 +246,26 @@ describe("SystemConfigService", () => {
       });
 
       expect(result.value).toBe("test-value");
+      expect(result.source).toBe("database");
       expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockDb.systemConfig.upsert).toHaveBeenCalledWith({
-        where: { key: "test-key" },
-        create: {
-          key: "test-key",
-          value: "test-value",
-          encrypted: undefined,
-          category: "test",
-          schema: undefined,
-          metadata: { description: "test config" },
-          isSecret: false,
-          createdBy: "user1",
-        },
-        update: {
-          value: "test-value",
-          encrypted: undefined,
-          category: "test",
-          schema: undefined,
-          metadata: { description: "test config" },
-          isSecret: false,
-          updatedBy: "user1",
-        },
-      });
+      expect(mockDb.systemConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { key: "test-key" },
+          create: expect.objectContaining({
+            key: "test-key",
+            value: "test-value",
+            category: "test",
+            isSecret: false,
+            createdBy: "user1",
+          }),
+          update: expect.objectContaining({
+            value: "test-value",
+            category: "test",
+            isSecret: false,
+            updatedBy: "user1",
+          }),
+        }),
+      );
     });
 
     it("encrypts secret values", async () => {
@@ -294,6 +294,7 @@ describe("SystemConfigService", () => {
       });
 
       expect(result.value).toBe("secret-value");
+      expect(result.source).toBe("database");
       expect(mockEncryptValue).toHaveBeenCalledWith("secret-value", masterKey);
     });
 
@@ -381,6 +382,10 @@ describe("SystemConfigService", () => {
       );
 
       expect(mockDb.systemConfig.upsert).toHaveBeenCalledTimes(2);
+
+      const firstCall = mockDb.systemConfig.upsert.mock.calls[0][0];
+      expect(firstCall.create.schema).toBeDefined();
+      expect(firstCall.create.metadata).toMatchObject({ source: "environment_seed" });
 
       delete process.env.SMTP_URL;
       delete process.env.SMTP_FROM;
