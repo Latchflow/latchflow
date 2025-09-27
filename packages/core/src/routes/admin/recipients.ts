@@ -5,7 +5,7 @@ import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-to
 import { SCOPES } from "../../auth/scopes.js";
 import type { RouteSignature } from "../../authz/policy.js";
 import type { Prisma, ChangeKind } from "@latchflow/db";
-import type { AppConfig } from "../../config/config.js";
+import type { AppConfig } from "../../config/env-config.js";
 import { appendChangeLog, materializeVersion } from "../../history/changelog.js";
 
 type ChangeLogRow = {

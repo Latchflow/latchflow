@@ -1,4 +1,4 @@
-import type { AppConfig } from "../config/config.js";
+import type { AppConfig } from "../config/env-config.js";
 import { initializeAuthzMetrics, type AuthzMetricsHandle } from "./metrics.js";
 import { logger } from "./logger.js";
 

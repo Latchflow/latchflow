@@ -11,7 +11,8 @@ export type EntityType =
   | "TRIGGER_DEFINITION"
   | "ACTION_DEFINITION"
   | "USER"
-  | "PERMISSION_PRESET";
+  | "PERMISSION_PRESET"
+  | "SYSTEM_CONFIG";
 
 export type Canonical = Record<string, unknown>;
 
@@ -191,6 +192,23 @@ export async function serializeAggregate(
       createdBy: pp.createdBy,
       updatedBy: pp.updatedBy ?? null,
     };
+  }
+  if (entityType === "SYSTEM_CONFIG") {
+    const c = await db.systemConfig.findUnique({ where: { id } });
+    if (!c) return null;
+    return {
+      id: c.id,
+      key: c.key,
+      category: c.category ?? null,
+      isSecret: c.isSecret,
+      isActive: c.isActive,
+      schema: c.schema ?? null,
+      metadata: c.metadata ?? null,
+      value: c.isSecret ? null : c.value,
+      hasSecretValue: c.isSecret && Boolean(c.encrypted),
+      createdBy: c.createdBy ?? null,
+      updatedBy: c.updatedBy ?? null,
+    } as Canonical;
   }
   return null;
 }

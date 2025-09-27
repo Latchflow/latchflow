@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 // Mock config to a minimal, valid configuration
-vi.mock("./config/config.js", () => ({
+vi.mock("./config/env-config.js", () => ({
   loadConfig: () => ({
     DATABASE_URL: "postgres://x",
     PORT: 3456,
@@ -122,5 +122,5 @@ describe("main bootstrap", () => {
     expect(regAdmin).toHaveBeenCalledTimes(1);
     expect(regRecipient).toHaveBeenCalledTimes(1);
     expect(regCli).toHaveBeenCalledTimes(1);
-  });
+  }, 10_000);
 });

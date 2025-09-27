@@ -18,6 +18,8 @@ export const SCOPES = {
   ACTIONS_WRITE: "actions:write",
   PIPELINES_READ: "pipelines:read",
   PIPELINES_WRITE: "pipelines:write",
+  SYSTEM_CONFIG_READ: "system-config:read",
+  SYSTEM_CONFIG_WRITE: "system-config:write",
   USERS_READ: "users:read",
   USERS_WRITE: "users:write",
   CAPABILITIES_READ: "capabilities:read",

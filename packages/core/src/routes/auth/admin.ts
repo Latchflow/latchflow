@@ -3,16 +3,41 @@ import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import { Prisma } from "@latchflow/db";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
-import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/config.js";
+import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/env-config.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { requireAdmin } from "../../middleware/require-admin.js";
 import { bootstrapGrantAdminIfOnlyUserTx } from "../../auth/bootstrap.js";
 import { createAuthLogger } from "../../observability/logger.js";
+import { getSystemConfigService } from "../../config/system-config-startup.js";
 
 export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
+  const systemConfigServicePromise = getSystemConfigService(db, config);
+  const authLogger = createAuthLogger();
+
+  async function resolveEmailConfig(key: "SMTP_URL" | "SMTP_FROM"): Promise<string | null> {
+    try {
+      const service = await systemConfigServicePromise;
+      const record = await service.get(key);
+      if (typeof record?.value === "string" && record.value.trim().length > 0) {
+        return record.value;
+      }
+    } catch (error) {
+      authLogger.warn({ key, error: (error as Error).message }, "Failed to resolve email config");
+    }
+
+    if (key === "SMTP_URL") {
+      const fallback = config.SMTP_URL?.trim();
+      return fallback && fallback.length > 0 ? fallback : null;
+    }
+    if (key === "SMTP_FROM") {
+      const fallback = config.SMTP_FROM?.trim();
+      return fallback && fallback.length > 0 ? fallback : null;
+    }
+    return null;
+  }
 
   // POST /auth/admin/start
   server.post("/auth/admin/start", async (req, res) => {
@@ -56,7 +81,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     }
 
     if (!user) {
-      createAuthLogger().info({ email }, "Magic link requested for non-existent user");
+      authLogger.info({ email }, "Magic link requested for non-existent user");
       return res.sendStatus(204); // Do not reveal whether the user exists
     }
 
@@ -70,9 +95,10 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
       return res.status(200).json({ login_url: `/auth/admin/callback?token=${token}` });
     }
     // Attempt email delivery via SMTP when configured
-    if (config.SMTP_URL) {
+    const smtpUrlValue = await resolveEmailConfig("SMTP_URL");
+    if (smtpUrlValue) {
       try {
-        const u = new URL(config.SMTP_URL);
+        const u = new URL(smtpUrlValue);
         const transporter = nodemailer.createTransport({
           host: u.hostname,
           port: Number(u.port || 25),
@@ -84,10 +110,10 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
               : undefined,
           tls: { rejectUnauthorized: false },
         } satisfies SMTPTransport.Options);
-        const from = config.SMTP_FROM ?? "no-reply@latchflow.local";
+        const from = (await resolveEmailConfig("SMTP_FROM")) ?? "no-reply@latchflow.local";
         const loginPath = `/auth/admin/callback?token=${token}`;
         const html = `<p>Click to sign in:</p><p><a href="${loginPath}">${loginPath}</a></p>`;
-        createAuthLogger().info(
+        authLogger.info(
           { email, smtpHost: u.hostname, smtpPort: u.port || 25 },
           "Sending magic link via SMTP",
         );
@@ -98,10 +124,10 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
           html,
           text: loginPath,
         });
-        createAuthLogger().info({ email }, "SMTP send completed");
+        authLogger.info({ email }, "SMTP send completed");
         return res.sendStatus(204);
       } catch (e) {
-        createAuthLogger().warn({ email, error: (e as Error).message }, "SMTP delivery failed");
+        authLogger.warn({ email, error: (e as Error).message }, "SMTP delivery failed");
         return res.status(500).json({
           status: "error",
           code: "EMAIL_FAILED",
@@ -111,7 +137,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     }
 
     // Dev-only: log the callback URL (partial token)
-    createAuthLogger().info(
+    authLogger.info(
       { email, tokenPrefix: token.substring(0, 4) },
       "Magic link generated (dev mode)",
     );
@@ -172,7 +198,7 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     } catch (e) {
       // Do not block login on bootstrap errors
       // eslint-disable-next-line no-console
-      createAuthLogger().warn({ error: (e as Error).message }, "Bootstrap check failed");
+      authLogger.warn({ error: (e as Error).message }, "Bootstrap check failed");
     }
 
     const jti = randomToken(32);

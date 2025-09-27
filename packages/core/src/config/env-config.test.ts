@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { loadConfig } from "./config.js";
+import { loadConfig } from "./env-config.js";
 
 describe("config loader", () => {
   it("parses required and defaults", () => {

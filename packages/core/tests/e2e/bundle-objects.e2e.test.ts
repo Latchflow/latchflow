@@ -4,7 +4,7 @@ import { loadStorage } from "../../src/storage/loader.js";
 import { createStorageService } from "../../src/storage/service.js";
 import { getEnv } from "@tests/helpers/containers";
 import { createBundleRebuildScheduler } from "../../src/bundles/scheduler.js";
-import { loadConfig } from "../../src/config/config.js";
+import { loadConfig } from "../../src/config/env-config.js";
 import { createResponseCapture } from "@tests/helpers/response";
 
 function makeServer() {

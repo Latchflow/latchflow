@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import type { HttpHandler, HttpServer, RequestLike } from "../../src/http/http-server.js";
-import { loadConfig } from "../../src/config/config.js";
+import { loadConfig } from "../../src/config/env-config.js";
 import { getEnv } from "@tests/helpers/containers";
 import { waitForMessage, extractMagicLinkPath } from "@tests/helpers/mailhog";
 import { createResponseCapture } from "@tests/helpers/response";

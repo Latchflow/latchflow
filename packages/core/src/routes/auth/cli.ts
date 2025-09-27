@@ -8,7 +8,7 @@ import {
   randomTokenBase64Url,
   sha256Hex,
 } from "../../auth/tokens.js";
-import { type AppConfig } from "../../config/config.js";
+import { type AppConfig } from "../../config/env-config.js";
 import { requireAdmin } from "../../middleware/require-admin.js";
 
 export function registerCliAuthRoutes(server: HttpServer, config: AppConfig) {

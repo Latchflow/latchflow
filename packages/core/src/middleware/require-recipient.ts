@@ -1,6 +1,6 @@
 import type { RequestLike } from "../http/http-server.js";
 import { parseCookies } from "../auth/cookies.js";
-import { RECIPIENT_SESSION_COOKIE } from "../config/config.js";
+import { RECIPIENT_SESSION_COOKIE } from "../config/env-config.js";
 import { getDb } from "../db/db.js";
 
 function httpError(status: number, message: string) {
