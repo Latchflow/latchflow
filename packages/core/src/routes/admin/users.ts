@@ -11,11 +11,13 @@ import { appendChangeLog } from "../../history/changelog.js";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import { getSystemConfigService } from "../../config/system-config-startup.js";
 
 const ROLES = ["ADMIN", "EXECUTOR"] as const;
 
 export function registerUserAdminRoutes(server: HttpServer, config: AppConfig) {
   const db = getDb();
+  const systemConfigServicePromise = getSystemConfigService(db, config);
   const historyCfg: Pick<AppConfig, "HISTORY_SNAPSHOT_INTERVAL" | "HISTORY_MAX_CHAIN_DEPTH"> = {
     HISTORY_SNAPSHOT_INTERVAL: config.HISTORY_SNAPSHOT_INTERVAL,
     HISTORY_MAX_CHAIN_DEPTH: config.HISTORY_MAX_CHAIN_DEPTH,
@@ -58,12 +60,45 @@ export function registerUserAdminRoutes(server: HttpServer, config: AppConfig) {
     );
   };
 
+  async function resolveEmailConfig(key: "SMTP_URL" | "SMTP_FROM"): Promise<string | null> {
+    try {
+      const service = await systemConfigServicePromise;
+      const record = await service.get(key);
+      if (typeof record?.value === "string" && record.value.trim().length > 0) {
+        return record.value;
+      }
+    } catch {
+      // Ignore resolution errors and fall back to environment-derived config
+    }
+
+    if (key === "SMTP_URL") {
+      const fallback = config.SMTP_URL?.trim();
+      return fallback && fallback.length > 0 ? fallback : null;
+    }
+    if (key === "SMTP_FROM") {
+      const fallback = config.SMTP_FROM?.trim();
+      return fallback && fallback.length > 0 ? fallback : null;
+    }
+    return null;
+  }
+
   async function sendMagicLinkEmail(email: string, token: string) {
     if (config.ALLOW_DEV_AUTH) {
       return { loginUrl: `/auth/admin/callback?token=${token}` } as const;
     }
-    if (!config.SMTP_URL) return null;
-    const smtpUrl = new URL(config.SMTP_URL);
+    const smtpUrlValue = await resolveEmailConfig("SMTP_URL");
+    if (!smtpUrlValue) {
+      return null;
+    }
+
+    const smtpFromValue = (await resolveEmailConfig("SMTP_FROM")) ?? "no-reply@latchflow.local";
+
+    let smtpUrl: URL;
+    try {
+      smtpUrl = new URL(smtpUrlValue);
+    } catch {
+      return null;
+    }
     const transporter = nodemailer.createTransport({
       host: smtpUrl.hostname,
       port: Number(smtpUrl.port || 25),
@@ -78,7 +113,7 @@ export function registerUserAdminRoutes(server: HttpServer, config: AppConfig) {
           : undefined,
       tls: { rejectUnauthorized: false },
     } satisfies SMTPTransport.Options);
-    const from = config.SMTP_FROM ?? "no-reply@latchflow.local";
+    const from = smtpFromValue;
     const loginPath = `/auth/admin/callback?token=${token}`;
     await transporter.sendMail({
       from,

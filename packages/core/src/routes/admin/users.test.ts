@@ -82,6 +82,19 @@ vi.mock("../../auth/tokens.js", () => ({
   sha256Hex: (input: string) => `hash-${input}`,
 }));
 
+const { systemConfigGetMock, getSystemConfigServiceMock } = vi.hoisted(() => {
+  const systemConfigGetMock = vi.fn();
+  const service = { get: systemConfigGetMock };
+  return {
+    systemConfigGetMock,
+    getSystemConfigServiceMock: vi.fn(async () => service),
+  };
+});
+
+vi.mock("../../config/system-config-startup.js", () => ({
+  getSystemConfigService: getSystemConfigServiceMock,
+}));
+
 vi.mock("nodemailer", () => {
   const createTransport = vi.fn(() => ({ sendMail: vi.fn(async () => ({})) }));
   return {
@@ -142,6 +155,10 @@ function resetMocks() {
     onBehalfOfUserId: null,
   });
   primeUserMocks();
+  systemConfigGetMock.mockReset();
+  systemConfigGetMock.mockResolvedValue(null);
+  getSystemConfigServiceMock.mockReset();
+  getSystemConfigServiceMock.mockResolvedValue({ get: systemConfigGetMock });
 }
 
 describe("users routes", () => {
@@ -206,6 +223,60 @@ describe("users routes", () => {
     expect(rc.status).toBe(202);
     expect(rc.body.loginUrl).toContain("/auth/admin/callback?token=");
     expect(db.magicLink.create).toHaveBeenCalled();
+  });
+
+  it("POST /users/invite sends SMTP email when configured in system config", async () => {
+    const now = new Date("2024-01-01T00:00:00Z");
+    systemConfigGetMock.mockImplementation(async (key: string) => {
+      if (key === "SMTP_URL") {
+        return {
+          key,
+          value: "smtp://localhost:1025",
+          category: "email",
+          schema: null,
+          metadata: null,
+          isSecret: true,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: null,
+          updatedBy: null,
+          source: "database",
+        };
+      }
+      if (key === "SMTP_FROM") {
+        return {
+          key,
+          value: "mailer@example.com",
+          category: "email",
+          schema: null,
+          metadata: null,
+          isSecret: false,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: null,
+          updatedBy: null,
+          source: "database",
+        };
+      }
+      return null;
+    });
+
+    const mailer = await vi.importMock<typeof import("nodemailer")>("nodemailer");
+    const sendMail = vi.fn(async () => ({}));
+    (mailer.createTransport as any).mockReturnValueOnce({ sendMail });
+
+    const { handlers } = await makeServer({ ALLOW_DEV_AUTH: false });
+    const h = handlers.get("POST /users/invite")!;
+    const rc = createResponseCapture();
+    await h({ body: { email: "invitee@example.com" } } as any, rc.res);
+
+    expect(rc.status).toBe(202);
+    expect(rc.body).toBeUndefined();
+    expect(sendMail).toHaveBeenCalled();
+    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_URL");
+    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_FROM");
   });
 
   it("GET /users/:id returns user", async () => {

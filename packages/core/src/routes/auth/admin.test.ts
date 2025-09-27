@@ -32,6 +32,30 @@ const db = {
 
 vi.mock("../../db/db.js", () => ({ getDb: () => db }));
 
+const { createTransportMock } = vi.hoisted(() => {
+  const makeTransport = () => ({ sendMail: vi.fn(async () => ({})) });
+  const createTransportMock = vi.fn(makeTransport);
+  return { createTransportMock };
+});
+
+vi.mock("nodemailer", () => ({
+  default: { createTransport: createTransportMock },
+  createTransport: createTransportMock,
+}));
+
+const { systemConfigGetMock, getSystemConfigServiceMock } = vi.hoisted(() => {
+  const systemConfigGetMock = vi.fn();
+  const service = { get: systemConfigGetMock };
+  return {
+    systemConfigGetMock,
+    getSystemConfigServiceMock: vi.fn(async () => service),
+  };
+});
+
+vi.mock("../../config/system-config-startup.js", () => ({
+  getSystemConfigService: getSystemConfigServiceMock,
+}));
+
 beforeEach(() => {
   // Reset and restore default implementations to avoid cross-test leakage
   db.$transaction.mockReset().mockImplementation(async (fn: any) => await fn(db));
@@ -55,6 +79,16 @@ beforeEach(() => {
   db.session.findUnique.mockReset().mockResolvedValue(null as any);
   db.session.findMany.mockReset().mockResolvedValue([] as any[]);
   db.session.updateMany.mockReset().mockResolvedValue({} as any);
+
+  createTransportMock.mockReset();
+  createTransportMock.mockImplementation(() => ({
+    sendMail: vi.fn(async () => ({})),
+  }));
+
+  systemConfigGetMock.mockReset();
+  systemConfigGetMock.mockResolvedValue(null);
+  getSystemConfigServiceMock.mockReset();
+  getSystemConfigServiceMock.mockResolvedValue({ get: systemConfigGetMock });
 });
 
 function makeServer() {
@@ -174,6 +208,86 @@ describe("admin auth routes", () => {
     expect(code).toBe(200);
     expect(typeof body?.login_url).toBe("string");
     expect(body.login_url.includes("/auth/admin/callback?token=")).toBe(true);
+  });
+
+  it("/auth/admin/start sends email when SMTP config present", async () => {
+    const { server, handlers } = makeServer();
+    const config = {
+      ADMIN_MAGICLINK_TTL_MIN: 15,
+      AUTH_SESSION_TTL_HOURS: 12,
+      AUTH_COOKIE_SECURE: false,
+    } as any;
+
+    const now = new Date("2024-01-01T00:00:00Z");
+    systemConfigGetMock.mockImplementation(async (key: string) => {
+      if (key === "SMTP_URL") {
+        return {
+          key,
+          value: "smtp://localhost:2525",
+          category: "email",
+          schema: null,
+          metadata: null,
+          isSecret: true,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: null,
+          updatedBy: null,
+          source: "database",
+        };
+      }
+      if (key === "SMTP_FROM") {
+        return {
+          key,
+          value: "auth@example.com",
+          category: "email",
+          schema: null,
+          metadata: null,
+          isSecret: false,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: null,
+          updatedBy: null,
+          source: "database",
+        };
+      }
+      return null;
+    });
+
+    const sendMail = vi.fn(async () => ({}));
+    createTransportMock.mockReturnValueOnce({ sendMail });
+
+    db.user.findUnique.mockResolvedValueOnce({
+      id: "u1",
+      email: "auth@example.com",
+      role: "EXECUTOR",
+    } as any);
+
+    registerAdminAuthRoutes(server, config);
+    const handler = handlers.get("POST /auth/admin/start")!;
+    let code = 0;
+    await handler({ body: { email: "auth@example.com" } } as any, {
+      status(c: number) {
+        code = c;
+        return this as any;
+      },
+      json() {},
+      header() {
+        return this as any;
+      },
+      redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
+      sendStream() {},
+      sendBuffer() {},
+    });
+
+    expect(code).toBe(204);
+    expect(sendMail).toHaveBeenCalled();
+    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_URL");
+    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_FROM");
   });
 
   it("/auth/admin/logout clears cookie and returns 204", async () => {
