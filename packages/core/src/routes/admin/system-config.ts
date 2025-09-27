@@ -191,7 +191,7 @@ export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppC
       policySignature: "GET /system/config/:key" as RouteSignature,
       scopes: [SCOPES.SYSTEM_CONFIG_READ],
     })(async (req, res) => {
-      const key = req.params.key as string | undefined;
+      const key = (req.params as Record<string, string | undefined> | undefined)?.key;
       if (!key) {
         res.status(400).json({
           status: "error",
@@ -236,7 +236,7 @@ export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppC
       policySignature: "PUT /system/config/:key" as RouteSignature,
       scopes: [SCOPES.SYSTEM_CONFIG_WRITE],
     })(async (req, res) => {
-      const key = req.params.key as string | undefined;
+      const key = (req.params as Record<string, string | undefined> | undefined)?.key;
       if (!key) {
         res.status(400).json({
           status: "error",
@@ -286,7 +286,7 @@ export function registerSystemConfigAdminRoutes(server: HttpServer, config: AppC
       policySignature: "DELETE /system/config/:key" as RouteSignature,
       scopes: [SCOPES.SYSTEM_CONFIG_WRITE],
     })(async (req, res) => {
-      const key = req.params.key as string | undefined;
+      const key = (req.params as Record<string, string | undefined> | undefined)?.key;
       if (!key) {
         res.status(400).json({
           status: "error",

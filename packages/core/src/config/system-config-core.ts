@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { DbClient } from "../db/db.js";
 import { encryptValue, decryptValue } from "../crypto/encryption.js";
 import { appendChangeLog } from "../history/changelog.js";
-import type { Prisma } from "@latchflow/db";
+import type { Prisma, SystemConfig } from "@latchflow/db";
 import type { SystemConfigValue, SystemConfigOptions } from "./types.js";
 import { SystemConfigValidator } from "./system-config-validator.js";
 
@@ -310,7 +310,7 @@ export class SystemConfigService {
     value: unknown,
     options: SystemConfigOptions,
     actorUserId: string,
-  ): Promise<{ record: Prisma.SystemConfig; rawValue: unknown }> {
+  ): Promise<{ record: SystemConfig; rawValue: unknown }> {
     const existing = await tx.systemConfig.findUnique({ where: { key } });
     const targetIsSecret = options.isSecret ?? existing?.isSecret ?? false;
 
@@ -391,7 +391,7 @@ export class SystemConfigService {
     });
   }
 
-  protected toSystemConfigValue(config: Prisma.SystemConfig, rawValue: unknown): SystemConfigValue {
+  protected toSystemConfigValue(config: SystemConfig, rawValue: unknown): SystemConfigValue {
     const metadata = config.metadata as Record<string, unknown> | null | undefined;
     const source: SystemConfigValue["source"] =
       metadata?.source === "environment_seed" ? "database_seeded" : "database";
