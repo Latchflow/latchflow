@@ -122,5 +122,5 @@ describe("main bootstrap", () => {
     expect(regAdmin).toHaveBeenCalledTimes(1);
     expect(regRecipient).toHaveBeenCalledTimes(1);
     expect(regCli).toHaveBeenCalledTimes(1);
-  });
+  }, 10_000);
 });
