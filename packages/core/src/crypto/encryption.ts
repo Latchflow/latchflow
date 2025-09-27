@@ -1,4 +1,4 @@
-import { createCipher, createDecipher, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 export type EncMode = "none" | "aes-gcm";
 
@@ -14,18 +14,27 @@ export function wrapDecryptStream(mode: EncMode, _masterKey?: Buffer) {
   return (s: NodeJS.ReadableStream) => s;
 }
 
+const AAD = Buffer.from("systemconfig");
+const IV_LENGTH = 12; // Recommended length for GCM
+
+function validateMasterKey(masterKey: Buffer): Buffer {
+  if (masterKey.length !== 32) {
+    throw new Error("Encryption master key must be 32 bytes for aes-256-gcm");
+  }
+  return masterKey;
+}
+
 export function encryptValue(value: string, masterKey: Buffer): string {
-  const iv = randomBytes(16);
-  const cipher = createCipher("aes-256-gcm", masterKey);
-  cipher.setAAD(Buffer.from("systemconfig"));
+  const key = validateMasterKey(masterKey);
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(AAD);
 
-  let encrypted = cipher.update(value, "utf8", "hex");
-  encrypted += cipher.final("hex");
-
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
   // Format: iv:authTag:encrypted
-  return `${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
+  return `${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted.toString("hex")}`;
 }
 
 export function decryptValue(encryptedValue: string, masterKey: Buffer): string {
@@ -35,15 +44,16 @@ export function decryptValue(encryptedValue: string, masterKey: Buffer): string 
   }
 
   const [ivHex, authTagHex, encrypted] = parts;
-  const _iv = Buffer.from(ivHex, "hex");
+  const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
+  const ciphertext = Buffer.from(encrypted, "hex");
 
-  const decipher = createDecipher("aes-256-gcm", masterKey);
-  decipher.setAAD(Buffer.from("systemconfig"));
+  const key = validateMasterKey(masterKey);
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAAD(AAD);
   decipher.setAuthTag(authTag);
 
-  let decrypted = decipher.update(encrypted, "hex", "utf8");
-  decrypted += decipher.final("utf8");
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 
-  return decrypted;
+  return decrypted.toString("utf8");
 }

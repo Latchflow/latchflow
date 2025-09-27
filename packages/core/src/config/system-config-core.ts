@@ -142,7 +142,7 @@ export class SystemConfigService {
   }
 
   async get(key: string): Promise<SystemConfigValue | null> {
-    const config = await this.db.systemConfig.findUnique({
+    const config = await this.db.systemConfig.findFirst({
       where: { key, isActive: true },
     });
 
@@ -252,7 +252,7 @@ export class SystemConfigService {
     const actorUserId = userId ?? this.systemUserId;
 
     return this.db.$transaction(async (tx) => {
-      const existing = await tx.systemConfig.findUnique({ where: { key } });
+      const existing = await tx.systemConfig.findFirst({ where: { key, isActive: true } });
       if (!existing) {
         return false;
       }
@@ -261,7 +261,7 @@ export class SystemConfigService {
         where: { key },
         data: {
           isActive: false,
-          updatedBy: userId,
+          updatedBy: actorUserId,
         },
       });
 
@@ -322,7 +322,7 @@ export class SystemConfigService {
       ? providedMetadata
         ? { ...existingMetadata, ...providedMetadata }
         : existingMetadata
-      : providedMetadata ?? undefined;
+      : (providedMetadata ?? undefined);
 
     const schemaInput = schema as Prisma.InputJsonValue | undefined;
     const metadataInput = mergedMetadata as Prisma.InputJsonValue | undefined;
@@ -346,6 +346,7 @@ export class SystemConfigService {
         ...(schemaInput !== undefined ? { schema: schemaInput } : {}),
         ...(metadataInput !== undefined ? { metadata: metadataInput } : {}),
         isSecret: targetIsSecret,
+        isActive: true,
         updatedBy: actorUserId,
       },
     });
@@ -392,9 +393,8 @@ export class SystemConfigService {
 
   protected toSystemConfigValue(config: Prisma.SystemConfig, rawValue: unknown): SystemConfigValue {
     const metadata = config.metadata as Record<string, unknown> | null | undefined;
-    const source: SystemConfigValue["source"] = metadata?.source === "environment_seed"
-      ? "database_seeded"
-      : "database";
+    const source: SystemConfigValue["source"] =
+      metadata?.source === "environment_seed" ? "database_seeded" : "database";
 
     return {
       key: config.key,

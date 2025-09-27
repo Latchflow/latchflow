@@ -26,10 +26,12 @@ describe("SystemConfigService", () => {
       }
       return null;
     });
+    const defaultFindFirst = vi.fn(async () => null);
 
     mockDb = {
       systemConfig: {
         findUnique: defaultFindUnique,
+        findFirst: defaultFindFirst,
         findMany: vi.fn(),
         upsert: vi.fn(),
         update: vi.fn(),
@@ -61,7 +63,7 @@ describe("SystemConfigService", () => {
         updatedBy: null,
       };
 
-      mockDb.systemConfig.findUnique.mockImplementation(async (args: any) => {
+      mockDb.systemConfig.findFirst.mockImplementation(async (args: any) => {
         if (args?.select?.schema) return { schema: null };
         if (args?.where?.key === "test-key" && args?.where?.isActive === true) {
           return mockConfig;
@@ -104,7 +106,7 @@ describe("SystemConfigService", () => {
         updatedBy: null,
       };
 
-      mockDb.systemConfig.findUnique.mockImplementation(async (args: any) => {
+      mockDb.systemConfig.findFirst.mockImplementation(async (args: any) => {
         if (args?.select?.schema) return { schema: null };
         if (args?.where?.key === "secret-key" && args?.where?.isActive === true) {
           return mockConfig;
@@ -118,6 +120,17 @@ describe("SystemConfigService", () => {
       expect(result?.value).toBe("secret-value");
       expect(result?.source).toBe("database");
       expect(mockDecryptValue).toHaveBeenCalledWith("encrypted:secret:value", masterKey);
+    });
+
+    it("does not return inactive configs", async () => {
+      mockDb.systemConfig.findFirst = vi.fn().mockResolvedValue(null);
+
+      const result = await service.get("inactive-key");
+
+      expect(result).toBeNull();
+      expect(mockDb.systemConfig.findFirst).toHaveBeenCalledWith({
+        where: { key: "inactive-key", isActive: true },
+      });
     });
 
     it("falls back to environment variables", async () => {
@@ -160,7 +173,7 @@ describe("SystemConfigService", () => {
         updatedBy: null,
       };
 
-      mockDb.systemConfig.findUnique.mockImplementation(async (args: any) => {
+      mockDb.systemConfig.findFirst.mockImplementation(async (args: any) => {
         if (args?.select?.schema) return { schema: null };
         if (args?.where?.key === "secret-key" && args?.where?.isActive === true) {
           return mockConfig;
@@ -324,7 +337,7 @@ describe("SystemConfigService", () => {
         updatedBy: null,
       };
 
-      mockDb.systemConfig.findUnique.mockResolvedValue(mockConfig);
+      mockDb.systemConfig.findFirst.mockResolvedValue(mockConfig);
       mockDb.systemConfig.update.mockResolvedValue({ ...mockConfig, isActive: false });
 
       const result = await service.delete("test-key", "user2");
@@ -337,12 +350,52 @@ describe("SystemConfigService", () => {
     });
 
     it("returns false when config missing", async () => {
-      mockDb.systemConfig.findUnique.mockResolvedValue(null);
+      mockDb.systemConfig.findFirst.mockResolvedValue(null);
 
       const result = await service.delete("missing-key");
 
       expect(result).toBe(false);
       expect(mockDb.systemConfig.update).not.toHaveBeenCalled();
+    });
+
+    it("reactivates configs on update", async () => {
+      const now = new Date();
+      mockDb.systemConfig.findUnique.mockResolvedValue({
+        id: "cfg-1",
+        key: "test-key",
+        value: "old",
+        encrypted: null,
+        category: null,
+        schema: null,
+        metadata: null,
+        isSecret: false,
+        isActive: false,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "user1",
+        updatedBy: "user1",
+      });
+
+      mockDb.systemConfig.upsert.mockResolvedValue({
+        id: "cfg-1",
+        key: "test-key",
+        value: "new-value",
+        encrypted: null,
+        category: null,
+        schema: null,
+        metadata: null,
+        isSecret: false,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "user1",
+        updatedBy: "user2",
+      });
+
+      await service.set("test-key", "new-value", { userId: "user2" });
+
+      const updateCall = mockDb.systemConfig.upsert.mock.calls[0]?.[0]?.update;
+      expect(updateCall).toMatchObject({ isActive: true, updatedBy: "user2" });
     });
   });
 
