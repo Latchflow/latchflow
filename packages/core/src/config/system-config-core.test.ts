@@ -89,6 +89,33 @@ describe("SystemConfigService", () => {
       });
     });
 
+    it("prefers database value over environment fallback", async () => {
+      process.env.TEST_KEY = "env-value";
+      const dbValue = {
+        id: "cfg-db",
+        key: "TEST_KEY",
+        value: "db-value",
+        encrypted: null,
+        category: "core",
+        schema: null,
+        metadata: null,
+        isSecret: false,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: "user1",
+        updatedBy: null,
+      };
+
+      mockDb.systemConfig.findFirst.mockResolvedValueOnce(dbValue);
+
+      const result = await service.get("TEST_KEY");
+
+      expect(result?.value).toBe("db-value");
+      expect(result?.source).toBe("database");
+      delete process.env.TEST_KEY;
+    });
+
     it("decrypts secret values", async () => {
       const mockConfig = {
         id: "cfg-secret",
@@ -131,6 +158,31 @@ describe("SystemConfigService", () => {
       expect(mockDb.systemConfig.findFirst).toHaveBeenCalledWith({
         where: { key: "inactive-key", isActive: true },
       });
+    });
+
+    it("marks seeded configs with database_seeded source", async () => {
+      const seeded = {
+        id: "cfg-seeded",
+        key: "SMTP_URL",
+        value: "smtp://db",
+        encrypted: null,
+        category: "email",
+        schema: null,
+        metadata: { source: "environment_seed" },
+        isSecret: false,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: "system",
+        updatedBy: null,
+      };
+
+      mockDb.systemConfig.findFirst.mockResolvedValueOnce(seeded);
+
+      const result = await service.get("SMTP_URL");
+
+      expect(result?.source).toBe("database_seeded");
+      expect(result?.metadata).toMatchObject({ source: "environment_seed" });
     });
 
     it("falls back to environment variables", async () => {
@@ -442,6 +494,20 @@ describe("SystemConfigService", () => {
 
       delete process.env.SMTP_URL;
       delete process.env.SMTP_FROM;
+    });
+
+    it("skips seeding when config already exists", async () => {
+      process.env.SMTP_URL = "smtp://localhost:1025";
+      mockDb.systemConfig.findUnique
+        .mockResolvedValueOnce({ key: "SMTP_URL" })
+        .mockResolvedValue(null);
+
+      await service.seedFromEnvironment({
+        SMTP_URL: { category: "email", isSecret: true },
+      });
+
+      expect(mockDb.systemConfig.upsert).not.toHaveBeenCalled();
+      delete process.env.SMTP_URL;
     });
   });
 });

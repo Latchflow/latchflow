@@ -100,6 +100,10 @@ Notes:
 - `pnpm telemetry:stop`: Stop telemetry stack.
 - `pnpm telemetry:logs`: View telemetry stack logs.
 
+## Configuration Management
+
+Runtime configuration lives in the `SystemConfig` table and is managed through the admin API. Secrets are AES‑GCM encrypted, seeded from environment variables on first boot, and audited through ChangeLog snapshots. See [`docs/system-configuration.md`](docs/system-configuration.md) for precedence rules, the available admin endpoints, and testing guidance.
+
 ## Testkit (Shared Mocks)
 - Shared unit/integration testing kit for all apps using MSW-based handlers, fixtures, and scenarios.
 - Quick start for tests (Node):
