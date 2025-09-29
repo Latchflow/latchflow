@@ -1,6 +1,6 @@
 # AGENTS.md — Latchflow
 
-## Overview
+## Project Overview
 Trigger-gated, plugin-extensible file release system.  
 Stores encrypted bundles and releases them via **Trigger → Action** pipelines.  
 Two main apps (admin-ui + portal) share a core backend; CLI mirrors admin/portal functionality.
@@ -154,6 +154,39 @@ pnpm -r test
 
 ## See Also
 
-- README.md — human-oriented overview.
-- docs/plugin-sdk.md — plugin authoring guide.
-- docs/architecture.md — high-level system design.
+- `README.md` — human-oriented overview.
+- `docs/` - Collection of documents describing key architectural decisions and code conventions.
+
+## Workflow Notes
+
+### `STORY_PLAN.md`
+
+  - `STORY_PLAN.md` is a document which describes the current work to be done.
+  - If the user says something like "Let's get started." or "Are we ready to get started?" without any additional context, check around for this file.   
+  - This file is *never* to be committed to version control. It is included in `.gitignore` and should be persisted elsewhere if at all.
+  - If the user asks you to create a plan and `STORY_PLAN.md` doesn't currently exist, create the file and write the plan there.
+  - This is the "base format" for `STORY_PLAN.md`. Plans lacking any of these sections are to be considered incomplete. Additional sections may be included if absolutely needed for clarity but please do so sparingly:
+    ```
+    ## Summary
+
+    A summary of the work to be done.
+
+    ## Scope
+
+    - A bulleted list
+    - Describing areas of focus
+    - For the work described
+
+    ## To-Do
+
+    - [ ] Task 1
+    - [ ] Task 2
+
+    ## Definition of Done (DoD)
+
+    - [ ] Requirement 1
+    - [ ] Requirement 2
+
+    ```
+  - Check off each to-do list task as the work is completed and, before beginning work on a story, check the repo, `git status`, and any recent commits make sure if any of the work described is already in progress.
+  - Run through the DoD checklist after all of the work is completed to make sure that it meets all outlined requirements.  
