@@ -21,7 +21,13 @@ describe("plugin-loader", () => {
         "module.exports = {",
         "  capabilities: [",
         "    { kind: 'TRIGGER', key: 'cron_schedule', displayName: 'Cron Schedule' }",
-        "  ]",
+        "  ],",
+        "  triggers: {",
+        "    cron_schedule: () => ({",
+        "      start: async () => {},",
+        "      stop: async () => {},",
+        "    })",
+        "  }",
         "};",
       ].join("\n");
       await fs.promises.writeFile(path.join(tmpDir, "index.js"), modContent, "utf8");
@@ -95,6 +101,13 @@ function createFakeDb() {
 
 describe("plugin upsert", () => {
   it("inserts plugin and capabilities and registers runtime", async () => {
+    const triggerFactory = vi.fn(() => ({
+      start: async () => {},
+      stop: async () => {},
+    }));
+    const actionFactory = vi.fn(() => ({
+      execute: async () => ({}),
+    }));
     const plugins: LoadedPlugin[] = [
       {
         name: "fake",
@@ -102,13 +115,22 @@ describe("plugin upsert", () => {
           { kind: "TRIGGER", key: "cron", displayName: "Cron" },
           { kind: "ACTION", key: "email", displayName: "Email" },
         ],
-        module: {},
+        module: {
+          capabilities: [
+            { kind: "TRIGGER", key: "cron", displayName: "Cron" },
+            { kind: "ACTION", key: "email", displayName: "Email" },
+          ],
+          triggers: { cron: triggerFactory },
+          actions: { email: actionFactory },
+        },
       },
     ];
     const db = createFakeDb();
     const runtime = new PluginRuntimeRegistry();
     await upsertPluginsIntoDb(db, plugins, runtime);
-    expect(runtime.get("TRIGGER", "cron")).toBeTruthy();
-    expect(runtime.get("ACTION", "email")).toBeTruthy();
+    expect(runtime.getTriggerById("c_p_fake:cron")).toBeTruthy();
+    expect(runtime.getActionById("c_p_fake:email")).toBeTruthy();
+    expect(triggerFactory).toHaveBeenCalledTimes(0);
+    expect(actionFactory).toHaveBeenCalledTimes(0);
   });
 });

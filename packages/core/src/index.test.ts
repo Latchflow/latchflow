@@ -38,7 +38,10 @@ vi.mock("./db/db.js", () => ({ getDb: () => ({}) }));
 vi.mock("./plugins/plugin-loader.js", () => ({
   loadPlugins: vi.fn(async () => []),
   upsertPluginsIntoDb: vi.fn(async () => {}),
-  PluginRuntimeRegistry: class {},
+  PluginRuntimeRegistry: class {
+    registerTrigger() {}
+    registerAction() {}
+  },
 }));
 vi.mock("./storage/loader.js", () => ({
   loadStorage: vi.fn(async () => ({ name: "fs", storage: {} })),
