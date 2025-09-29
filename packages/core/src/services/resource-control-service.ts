@@ -1,3 +1,5 @@
+import type { PluginServiceContext } from "./context.js";
+
 export interface ActivationChangeOptions {
   actorId?: string;
   reason?: string;
@@ -7,6 +9,7 @@ export interface ActivationChangeOptions {
 
 export interface BundleControlService {
   setEnabled(
+    context: PluginServiceContext,
     bundleId: string,
     isEnabled: boolean,
     options?: ActivationChangeOptions,
@@ -15,6 +18,7 @@ export interface BundleControlService {
 
 export interface BundleAssignmentControlService {
   setEnabled(
+    context: PluginServiceContext,
     assignmentId: string,
     isEnabled: boolean,
     options?: ActivationChangeOptions,
@@ -23,6 +27,7 @@ export interface BundleAssignmentControlService {
 
 export interface RecipientControlService {
   setEnabled(
+    context: PluginServiceContext,
     recipientId: string,
     isEnabled: boolean,
     options?: ActivationChangeOptions,
@@ -31,6 +36,7 @@ export interface RecipientControlService {
 
 export interface ActionDefinitionControlService {
   setEnabled(
+    context: PluginServiceContext,
     actionDefinitionId: string,
     isEnabled: boolean,
     options?: ActivationChangeOptions,
@@ -39,6 +45,7 @@ export interface ActionDefinitionControlService {
 
 export interface TriggerDefinitionControlService {
   setEnabled(
+    context: PluginServiceContext,
     triggerDefinitionId: string,
     isEnabled: boolean,
     options?: ActivationChangeOptions,
@@ -47,6 +54,7 @@ export interface TriggerDefinitionControlService {
 
 export interface PipelineControlService {
   setEnabled(
+    context: PluginServiceContext,
     pipelineId: string,
     isEnabled: boolean,
     options?: ActivationChangeOptions,

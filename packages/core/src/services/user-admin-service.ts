@@ -1,4 +1,5 @@
 import type { UserRole } from "@latchflow/db";
+import type { PluginServiceContext } from "./context.js";
 
 export interface UserActivationChangeOptions {
   actorId?: string;
@@ -18,11 +19,21 @@ export interface SessionRevokeOptions {
 }
 
 export interface UserAdminService {
-  assignRole(userId: string, role: UserRole, options?: UserRoleChangeOptions): Promise<void>;
+  assignRole(
+    context: PluginServiceContext,
+    userId: string,
+    role: UserRole,
+    options?: UserRoleChangeOptions,
+  ): Promise<void>;
   setActive(
+    context: PluginServiceContext,
     userId: string,
     isActive: boolean,
     options?: UserActivationChangeOptions,
   ): Promise<void>;
-  revokeSessions(userId: string, options?: SessionRevokeOptions): Promise<number>;
+  revokeSessions(
+    context: PluginServiceContext,
+    userId: string,
+    options?: SessionRevokeOptions,
+  ): Promise<number>;
 }

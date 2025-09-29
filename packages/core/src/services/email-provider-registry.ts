@@ -1,4 +1,5 @@
 import type { Buffer } from "node:buffer";
+import type { PluginServiceContext } from "./context.js";
 
 export interface EmailRecipient {
   address: string;
@@ -41,6 +42,8 @@ export interface EmailSendResult {
 export interface EmailProviderContext {
   capabilityId: string;
   pluginName: string;
+  definitionId?: string;
+  invocationId?: string;
 }
 
 export type EmailSendHandler = (
@@ -56,10 +59,10 @@ export interface EmailProviderRegistration {
 }
 
 export interface EmailProviderRegistry {
-  register(provider: EmailProviderRegistration): void;
-  unregister(providerId: string): void;
+  register(context: PluginServiceContext, provider: EmailProviderRegistration): void;
+  unregister(context: PluginServiceContext, providerId: string): void;
   getProvider(providerId: string): EmailProviderRegistration | undefined;
   getActiveProvider(): EmailProviderRegistration | undefined;
-  setActiveProvider(providerId: string): void;
+  setActiveProvider(context: PluginServiceContext, providerId: string): void;
   listProviders(): EmailProviderRegistration[];
 }

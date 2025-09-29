@@ -160,6 +160,6 @@ describe("plugin upsert", () => {
     const args = register.mock.calls[0][0];
     expect(args.plugin).toEqual({ name: "fake" });
     expect(args.services.logger).toBeDefined();
-    expect(args.services.core).toBe(serviceRegistry.getAll());
+    expect(args.services.core).toBe(serviceRegistry.getAllServices());
   });
 });

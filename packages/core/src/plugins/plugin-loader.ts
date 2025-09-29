@@ -79,7 +79,7 @@ export class PluginRuntimeRegistry {
   createRuntimeServices(pluginName: string): PluginRuntimeServices {
     return {
       logger: createPluginLogger(pluginName),
-      core: this.services.getAll(),
+      core: this.services.getAllServices(),
     };
   }
 }
