@@ -14,6 +14,7 @@ import {
   PluginRuntimeRegistry,
   upsertPluginsIntoDb,
 } from "./plugins/plugin-loader.js";
+import { startPluginWatcher } from "./plugins/hot-reload.js";
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
@@ -76,9 +77,9 @@ export async function main() {
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
   const pluginServices = createStubPluginServiceRegistry();
   const runtime = new PluginRuntimeRegistry(pluginServices);
+  const db = getDb();
+  let pluginsLoaded = false;
   try {
-    const db = getDb();
-
     // Initialize system configuration and seed from environment
     const systemConfigService = await getSystemConfigService(db, config);
     await seedSystemConfigFromEnvironment(systemConfigService, config);
@@ -86,11 +87,31 @@ export async function main() {
     const loaded = await loadPlugins(config.PLUGINS_PATH);
     await upsertPluginsIntoDb(db, loaded, runtime);
     createPluginLogger().info({ count: loaded.length }, "Plugins loaded");
+    pluginsLoaded = true;
   } catch (e) {
     createPluginLogger().warn(
       { error: (e as Error).message },
       "Skipping plugin DB upsert (DB unavailable?)",
     );
+  }
+
+  let pluginWatcher: ReturnType<typeof startPluginWatcher> | undefined;
+  if (pluginsLoaded && process.env.NODE_ENV !== "production") {
+    try {
+      pluginWatcher = startPluginWatcher({
+        pluginsPath: config.PLUGINS_PATH,
+        runtime,
+        db,
+      });
+      const stopWatcher = () => pluginWatcher?.close();
+      process.once("SIGINT", stopWatcher);
+      process.once("SIGTERM", stopWatcher);
+    } catch (err) {
+      createPluginLogger("watcher").warn(
+        { error: (err as Error).message },
+        "Failed to start plugin watcher",
+      );
+    }
   }
 
   // Initialize storage

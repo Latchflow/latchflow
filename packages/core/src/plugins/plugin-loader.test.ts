@@ -130,7 +130,14 @@ describe("plugin upsert", () => {
     const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
     await upsertPluginsIntoDb(db, plugins, runtime);
     expect(runtime.getTriggerById("c_p_fake:cron")).toBeTruthy();
+    expect(runtime.getTriggerByKey("fake", "cron")).toBeTruthy();
+    expect(runtime.requireTriggerById("c_p_fake:cron")).toBeTruthy();
+    expect(() => runtime.requireTriggerById("missing")).toThrow();
+
     expect(runtime.getActionById("c_p_fake:email")).toBeTruthy();
+    expect(runtime.getActionByKey("fake", "email")).toBeTruthy();
+    expect(runtime.requireActionById("c_p_fake:email")).toBeTruthy();
+    expect(() => runtime.requireActionByKey("fake", "other")).toThrow();
     expect(triggerFactory).toHaveBeenCalledTimes(0);
     expect(actionFactory).toHaveBeenCalledTimes(0);
   });
@@ -161,5 +168,71 @@ describe("plugin upsert", () => {
     expect(args.plugin).toEqual({ name: "fake" });
     expect(args.services.logger).toBeDefined();
     expect(args.services.core).toBe(serviceRegistry.getAllServices());
+  });
+
+  it("throws when trigger capability handler is missing", async () => {
+    const plugins: LoadedPlugin[] = [
+      {
+        name: "bad",
+        capabilities: [{ kind: "TRIGGER", key: "cron", displayName: "Cron" }],
+        module: {
+          capabilities: [{ kind: "TRIGGER", key: "cron", displayName: "Cron" }],
+          triggers: {},
+        },
+      },
+    ];
+    const db = createFakeDb();
+    const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
+    await expect(upsertPluginsIntoDb(db, plugins, runtime)).rejects.toThrow(
+      /has no exported handler/,
+    );
+  });
+
+  it("throws when action capability handler is missing", async () => {
+    const plugins: LoadedPlugin[] = [
+      {
+        name: "bad",
+        capabilities: [{ kind: "ACTION", key: "notify", displayName: "Notify" }],
+        module: {
+          capabilities: [{ kind: "ACTION", key: "notify", displayName: "Notify" }],
+          actions: {},
+        },
+      },
+    ];
+    const db = createFakeDb();
+    const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
+    await expect(upsertPluginsIntoDb(db, plugins, runtime)).rejects.toThrow(
+      /has no exported handler/,
+    );
+  });
+
+  it("removes plugin and disposes module", async () => {
+    const dispose = vi.fn();
+    const plugins: LoadedPlugin[] = [
+      {
+        name: "fake",
+        capabilities: [
+          { kind: "TRIGGER", key: "cron", displayName: "Cron" },
+          { kind: "ACTION", key: "email", displayName: "Email" },
+        ],
+        module: {
+          capabilities: [
+            { kind: "TRIGGER", key: "cron", displayName: "Cron" },
+            { kind: "ACTION", key: "email", displayName: "Email" },
+          ],
+          triggers: { cron: () => ({ start: async () => {}, stop: async () => {} }) },
+          actions: { email: () => ({ execute: async () => ({}) }) },
+          dispose,
+        },
+      },
+    ];
+    const db = createFakeDb();
+    const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
+    await upsertPluginsIntoDb(db, plugins, runtime);
+    expect(runtime.getTriggerById("c_p_fake:cron")).toBeTruthy();
+    await runtime.removePlugin("fake");
+    expect(runtime.getTriggerById("c_p_fake:cron")).toBeUndefined();
+    expect(runtime.getActionById("c_p_fake:email")).toBeUndefined();
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 });
