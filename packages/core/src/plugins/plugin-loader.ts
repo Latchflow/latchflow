@@ -10,11 +10,13 @@ import {
   type ActionFactory,
   type TriggerCapability,
   type ActionCapability,
+  type PluginRuntimeServices,
   isTriggerCapability,
   isActionCapability,
   isPluginModule,
 } from "./contracts.js";
 import { createPluginLogger } from "../observability/logger.js";
+import { PluginServiceRegistry } from "../services/plugin-services.js";
 
 export type LoadedPlugin = {
   name: string;
@@ -52,6 +54,8 @@ export class PluginRuntimeRegistry {
   private triggers = new Map<string, TriggerRuntimeRef>();
   private actions = new Map<string, ActionRuntimeRef>();
 
+  constructor(private readonly services: PluginServiceRegistry) {}
+
   registerTrigger(ref: TriggerRuntimeRef) {
     this.triggers.set(ref.capabilityId, ref);
   }
@@ -66,6 +70,17 @@ export class PluginRuntimeRegistry {
 
   getActionById(capabilityId: string): ActionRuntimeRef | undefined {
     return this.actions.get(capabilityId);
+  }
+
+  getServiceRegistry(): PluginServiceRegistry {
+    return this.services;
+  }
+
+  createRuntimeServices(pluginName: string): PluginRuntimeServices {
+    return {
+      logger: createPluginLogger(pluginName),
+      core: this.services.getAll(),
+    };
   }
 }
 
@@ -133,6 +148,20 @@ export async function upsertPluginsIntoDb(
           capabilityId: capabilityRow.id,
           factory,
         });
+      }
+    }
+
+    if (typeof p.module.register === "function") {
+      try {
+        await p.module.register({
+          plugin: { name: p.name },
+          services: runtime.createRuntimeServices(p.name),
+        });
+      } catch (err) {
+        createPluginLogger(p.name).error(
+          { error: err instanceof Error ? err.message : err },
+          "Plugin register hook failed",
+        );
       }
     }
   }

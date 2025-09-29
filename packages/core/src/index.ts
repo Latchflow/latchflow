@@ -38,6 +38,7 @@ import {
   getSystemConfigService,
   seedSystemConfigFromEnvironment,
 } from "./config/system-config-startup.js";
+import { createStubPluginServiceRegistry } from "./services/stubs.js";
 
 export async function main() {
   const config = loadConfig();
@@ -73,7 +74,8 @@ export async function main() {
   }
 
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
-  const runtime = new PluginRuntimeRegistry();
+  const pluginServices = createStubPluginServiceRegistry();
+  const runtime = new PluginRuntimeRegistry(pluginServices);
   try {
     const db = getDb();
 

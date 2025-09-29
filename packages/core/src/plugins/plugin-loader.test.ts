@@ -10,6 +10,7 @@ import {
   type LoadedPlugin,
 } from "../plugins/plugin-loader.js";
 import type { DbClient } from "../db/db.js";
+import { createStubPluginServiceRegistry } from "../services/stubs.js";
 
 describe("plugin-loader", () => {
   it("loads capabilities from a plugin directory", async () => {
@@ -126,11 +127,39 @@ describe("plugin upsert", () => {
       },
     ];
     const db = createFakeDb();
-    const runtime = new PluginRuntimeRegistry();
+    const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
     await upsertPluginsIntoDb(db, plugins, runtime);
     expect(runtime.getTriggerById("c_p_fake:cron")).toBeTruthy();
     expect(runtime.getActionById("c_p_fake:email")).toBeTruthy();
     expect(triggerFactory).toHaveBeenCalledTimes(0);
     expect(actionFactory).toHaveBeenCalledTimes(0);
+  });
+
+  it("invokes plugin register hook with runtime services", async () => {
+    const register = vi.fn();
+    const triggerFactory = vi.fn(() => ({
+      start: async () => {},
+      stop: async () => {},
+    }));
+    const plugins: LoadedPlugin[] = [
+      {
+        name: "fake",
+        capabilities: [{ kind: "TRIGGER", key: "cron", displayName: "Cron" }],
+        module: {
+          capabilities: [{ kind: "TRIGGER", key: "cron", displayName: "Cron" }],
+          triggers: { cron: triggerFactory },
+          register,
+        },
+      },
+    ];
+    const db = createFakeDb();
+    const serviceRegistry = createStubPluginServiceRegistry();
+    const runtime = new PluginRuntimeRegistry(serviceRegistry);
+    await upsertPluginsIntoDb(db, plugins, runtime);
+    expect(register).toHaveBeenCalledTimes(1);
+    const args = register.mock.calls[0][0];
+    expect(args.plugin).toEqual({ name: "fake" });
+    expect(args.services.logger).toBeDefined();
+    expect(args.services.core).toBe(serviceRegistry.getAll());
   });
 });

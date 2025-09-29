@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PluginCoreServices } from "../services/plugin-services.js";
 
 export const CapabilityKindSchema = z.enum(["TRIGGER", "ACTION"]);
 
@@ -31,6 +32,7 @@ export interface PluginIdentifier {
 
 export interface PluginRuntimeServices {
   logger: PluginLogger;
+  core: PluginCoreServices;
 }
 
 export interface TriggerEmitPayload {
