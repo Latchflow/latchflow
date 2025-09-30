@@ -18,6 +18,7 @@ import {
 } from "./contracts.js";
 import { createPluginLogger } from "../observability/logger.js";
 import { PluginServiceRegistry } from "../services/plugin-services.js";
+import type { TriggerRuntimeServices, TriggerEmitPayload } from "./contracts.js";
 
 export type LoadedPlugin = {
   name: string;
@@ -162,6 +163,16 @@ export class PluginRuntimeRegistry {
     };
   }
 
+  createTriggerServices(
+    pluginName: string,
+    emit: (payload?: TriggerEmitPayload) => Promise<void>,
+  ): TriggerRuntimeServices {
+    return {
+      ...this.createRuntimeServices(pluginName),
+      emit,
+    };
+  }
+
   setPluginModule(pluginName: string, module: PluginModule) {
     this.pluginModules.set(pluginName, module);
   }
@@ -216,6 +227,8 @@ export async function upsertPluginsIntoDb(
   runtime: PluginRuntimeRegistry,
 ) {
   for (const p of plugins) {
+    await runtime.removePlugin(p.name);
+
     // Find or create Plugin by name
     const existing = await db.plugin.findFirst({ where: { name: p.name } });
     const pluginRow = existing ?? (await db.plugin.create({ data: { name: p.name } }));
@@ -306,14 +319,38 @@ export type ActionRuntimeRef = {
 };
 
 async function importPlugin(absDir: string, cacheBust: boolean): Promise<unknown | null> {
-  try {
-    let url = pathToFileURL(absDir).href;
-    if (!url.endsWith("/")) url += "/";
-    if (cacheBust) url += `?update=${Date.now()}`;
-    return await import(url);
-  } catch {
-    return null;
+  const cacheSuffix = cacheBust ? `?update=${Date.now()}` : "";
+  const attempts: string[] = [];
+
+  const pkgJsonPath = path.join(absDir, "package.json");
+  if (fs.existsSync(pkgJsonPath)) {
+    try {
+      const pkg = JSON.parse(await fs.promises.readFile(pkgJsonPath, "utf8")) as {
+        main?: string;
+        module?: string;
+      };
+      const entry = pkg.module ?? pkg.main;
+      if (entry) {
+        attempts.push(pathToFileURL(path.join(absDir, entry)).href + cacheSuffix);
+      }
+    } catch {
+      // ignore pkg parse failure
+    }
   }
+
+  attempts.push(pathToFileURL(path.join(absDir, "index.js")).href + cacheSuffix);
+  let dirUrl = pathToFileURL(absDir).href;
+  if (!dirUrl.endsWith("/")) dirUrl += "/";
+  attempts.push(dirUrl + cacheSuffix);
+
+  for (const attempt of attempts) {
+    try {
+      return await import(attempt);
+    } catch {
+      // continue
+    }
+  }
+  return null;
 }
 
 function normalizePlugin(

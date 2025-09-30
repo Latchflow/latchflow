@@ -7,18 +7,21 @@ type FireMsg = {
   context?: Record<string, unknown>;
 };
 
+type TriggerEmitPayload = {
+  context?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  scheduledFor?: Date;
+};
+
 export async function startTriggerRunner(opts: { onFire: (msg: FireMsg) => Promise<void> }) {
   const db = getDb();
 
-  async function fireTriggerOnce(
-    triggerDefinitionId: string,
-    context: Record<string, unknown> = {},
-  ) {
+  async function fireTriggerOnce(triggerDefinitionId: string, payload: TriggerEmitPayload = {}) {
     // Insert TriggerEvent
     const evt = await db.triggerEvent.create({
       data: {
         triggerDefinitionId,
-        context: (context ?? null) as unknown as Prisma.InputJsonValue | Prisma.JsonNullValueInput,
+        context: (payload.context ?? null) as Prisma.InputJsonValue | Prisma.JsonNullValueInput,
       },
     });
 
@@ -38,7 +41,7 @@ export async function startTriggerRunner(opts: { onFire: (msg: FireMsg) => Promi
         await opts.onFire({
           actionDefinitionId: m.actionDefinitionId,
           triggerEventId: evt.id,
-          context,
+          context: payload.context,
         });
       }
     } else {
@@ -69,7 +72,7 @@ export async function startTriggerRunner(opts: { onFire: (msg: FireMsg) => Promi
           await opts.onFire({
             actionDefinitionId: step.actionId,
             triggerEventId: evt.id,
-            context,
+            context: payload.context,
           });
         }
       }

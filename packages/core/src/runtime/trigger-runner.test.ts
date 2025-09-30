@@ -30,7 +30,7 @@ describe("trigger-runner", () => {
         fired.push(m);
       },
     });
-    await runner.fireTriggerOnce("trig_1", { foo: "bar" });
+    await runner.fireTriggerOnce("trig_1", { context: { foo: "bar" } });
     expect(fired.map((f) => f.actionDefinitionId)).toEqual(["act_1", "act_2"]);
     expect(fired[0].triggerEventId).toBe("evt_1");
   });

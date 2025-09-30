@@ -51,10 +51,11 @@ function createFakeDb() {
     key: string;
     displayName: string;
     jsonSchema?: unknown | null;
+    isEnabled: boolean;
   };
   const plugins = new Map<string, PluginRow>();
   const caps = new Map<string, CapRow>();
-  return {
+  const store = {
     plugin: {
       findFirst: vi.fn(
         async ({ where: { name } }: { where: { name: string } }) => plugins.get(name) ?? null,
@@ -73,6 +74,7 @@ function createFakeDb() {
         async ({
           where: { pluginId_key },
           create,
+          update,
         }: {
           where: { pluginId_key: { pluginId: string; key: string } };
           create: {
@@ -82,22 +84,38 @@ function createFakeDb() {
             displayName: string;
             jsonSchema?: unknown | null;
           };
+          update: {
+            displayName?: string;
+            jsonSchema?: unknown | null;
+            isEnabled?: boolean;
+          };
         }) => {
           const k = `${pluginId_key.pluginId}:${create.key}`;
-          const row: CapRow = {
-            id: `c_${k}`,
-            pluginId: create.pluginId,
-            kind: create.kind,
-            key: create.key,
-            displayName: create.displayName,
-            jsonSchema: create.jsonSchema ?? null,
-          };
-          caps.set(k, row);
-          return row;
+          const existing = caps.get(k);
+          if (!existing) {
+            const row: CapRow = {
+              id: `c_${k}`,
+              pluginId: create.pluginId,
+              kind: create.kind,
+              key: create.key,
+              displayName: create.displayName,
+              jsonSchema: create.jsonSchema ?? null,
+              isEnabled: true,
+            };
+            caps.set(k, row);
+            return row;
+          }
+
+          if (update.displayName !== undefined) existing.displayName = update.displayName;
+          if (update.jsonSchema !== undefined) existing.jsonSchema = update.jsonSchema;
+          if (update.isEnabled !== undefined) existing.isEnabled = update.isEnabled;
+          return existing;
         },
       ),
     },
-  } as unknown as DbClient;
+    __caps: caps,
+  };
+  return store as unknown as DbClient & { __caps: Map<string, CapRow> };
 }
 
 describe("plugin upsert", () => {
@@ -234,5 +252,33 @@ describe("plugin upsert", () => {
     expect(runtime.getTriggerById("c_p_fake:cron")).toBeUndefined();
     expect(runtime.getActionById("c_p_fake:email")).toBeUndefined();
     expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("reactivates capabilities on repeated boots", async () => {
+    const plugins: LoadedPlugin[] = [
+      {
+        name: "fake",
+        capabilities: [{ kind: "ACTION", key: "email", displayName: "Email" }],
+        module: {
+          capabilities: [{ kind: "ACTION", key: "email", displayName: "Email" }],
+          actions: { email: () => ({ execute: async () => ({}) }) },
+        },
+      },
+    ];
+    const db = createFakeDb();
+    const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
+    await upsertPluginsIntoDb(db, plugins, runtime);
+
+    const helper = db as unknown as { __caps: Map<string, { isEnabled: boolean }> };
+    for (const row of helper.__caps.values()) {
+      row.isEnabled = false;
+    }
+
+    await upsertPluginsIntoDb(db, plugins, runtime);
+    const ref = runtime.requireActionById("c_p_fake:email");
+    expect(ref).toBeTruthy();
+    for (const row of helper.__caps.values()) {
+      expect(row.isEnabled).toBe(true);
+    }
   });
 });

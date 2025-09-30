@@ -9,6 +9,7 @@ import { registerCliAuthRoutes } from "./routes/auth/cli.js";
 import { loadQueue } from "./queue/loader.js";
 import { startActionConsumer } from "./runtime/action-runner.js";
 import { startTriggerRunner } from "./runtime/trigger-runner.js";
+import { TriggerRuntimeManager } from "./runtime/trigger-runtime-manager.js";
 import {
   loadPlugins,
   PluginRuntimeRegistry,
@@ -96,24 +97,6 @@ export async function main() {
   }
 
   let pluginWatcher: ReturnType<typeof startPluginWatcher> | undefined;
-  if (pluginsLoaded && process.env.NODE_ENV !== "production") {
-    try {
-      pluginWatcher = startPluginWatcher({
-        pluginsPath: config.PLUGINS_PATH,
-        runtime,
-        db,
-      });
-      const stopWatcher = () => pluginWatcher?.close();
-      process.once("SIGINT", stopWatcher);
-      process.once("SIGTERM", stopWatcher);
-    } catch (err) {
-      createPluginLogger("watcher").warn(
-        { error: (err as Error).message },
-        "Failed to start plugin watcher",
-      );
-    }
-  }
-
   // Initialize storage
   const { name: storageName, storage } = await loadStorage(
     config.STORAGE_DRIVER,
@@ -149,6 +132,42 @@ export async function main() {
   const triggerRunner = await startTriggerRunner({
     onFire: async (msg) => queue.enqueueAction(msg),
   });
+
+  const triggerRuntimeManager = new TriggerRuntimeManager({
+    db,
+    registry: runtime,
+    fireTrigger: triggerRunner.fireTriggerOnce,
+  });
+  await triggerRuntimeManager.startAll();
+
+  const stopTriggerRuntimes = () => {
+    triggerRuntimeManager
+      .stopAll()
+      .catch((err) =>
+        logger.warn({ error: (err as Error).message }, "Failed to stop trigger runtimes"),
+      );
+  };
+
+  if (pluginsLoaded && process.env.NODE_ENV !== "production") {
+    try {
+      pluginWatcher = startPluginWatcher({
+        pluginsPath: config.PLUGINS_PATH,
+        runtime,
+        db,
+      });
+      const stopWatcher = () => pluginWatcher?.close();
+      process.once("SIGINT", stopWatcher);
+      process.once("SIGTERM", stopWatcher);
+    } catch (err) {
+      createPluginLogger("watcher").warn(
+        { error: (err as Error).message },
+        "Failed to start plugin watcher",
+      );
+    }
+  }
+
+  process.once("SIGINT", stopTriggerRuntimes);
+  process.once("SIGTERM", stopTriggerRuntimes);
 
   // Start HTTP server
   const server = createExpressServer();

@@ -34,7 +34,14 @@ vi.mock("./config/env-config.js", () => ({
 }));
 
 // Mock DB and everything else used in main
-vi.mock("./db/db.js", () => ({ getDb: () => ({}) }));
+vi.mock("./db/db.js", () => ({
+  getDb: () => ({
+    triggerDefinition: {
+      findMany: vi.fn(async () => []),
+      findUnique: vi.fn(async () => null),
+    },
+  }),
+}));
 vi.mock("./plugins/plugin-loader.js", () => ({
   loadPlugins: vi.fn(async () => []),
   upsertPluginsIntoDb: vi.fn(async () => {}),
@@ -59,7 +66,12 @@ vi.mock("./runtime/action-runner.js", () => ({
   startActionConsumer: vi.fn(async () => {}),
 }));
 vi.mock("./runtime/trigger-runner.js", () => ({
-  startTriggerRunner: vi.fn(async () => ({})),
+  startTriggerRunner: vi.fn(async () => ({
+    fireTriggerOnce: vi.fn(async () => {}),
+  })),
+}));
+vi.mock("./plugins/hot-reload.js", () => ({
+  startPluginWatcher: vi.fn(() => ({ close: vi.fn() })),
 }));
 const listen = vi.fn(async () => {});
 const noop = vi.fn(() => {});
