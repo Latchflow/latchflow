@@ -23,6 +23,83 @@ import {
 } from "../services/plugin-services.js";
 import type { TriggerRuntimeServices, TriggerEmitPayload } from "./contracts.js";
 
+export interface TriggerDefinitionHealth {
+  definitionId: string;
+  capabilityId: string;
+  capabilityKey: string;
+  pluginId: string;
+  pluginName: string;
+  isRunning: boolean;
+  emitCount: number;
+  lastStartAt?: Date;
+  lastStopAt?: Date;
+  lastEmitAt?: Date;
+  lastError?: { message: string; at: Date };
+}
+
+export interface ActionDefinitionHealth {
+  definitionId: string;
+  capabilityId: string;
+  capabilityKey: string;
+  pluginId: string;
+  pluginName: string;
+  lastStatus?: string;
+  lastInvocationAt?: Date;
+  lastDurationMs?: number;
+  successCount: number;
+  retryCount: number;
+  failureCount: number;
+  skippedCount: number;
+  lastError?: { message: string; at: Date };
+}
+
+export interface PluginRuntimeSummary {
+  generatedAt: Date;
+  pluginCount: number;
+  triggerDefinitions: {
+    total: number;
+    running: number;
+    lastActivityAt?: Date;
+    totalEmitCount: number;
+    errorCount: number;
+  };
+  actionDefinitions: {
+    total: number;
+    lastInvocationAt?: Date;
+    successCount: number;
+    retryCount: number;
+    failureCount: number;
+    skippedCount: number;
+    errorCount: number;
+  };
+}
+
+function cloneDate(value?: Date) {
+  return value ? new Date(value) : undefined;
+}
+
+function cloneTriggerHealth(record: TriggerDefinitionHealth): TriggerDefinitionHealth {
+  return {
+    ...record,
+    lastStartAt: cloneDate(record.lastStartAt),
+    lastStopAt: cloneDate(record.lastStopAt),
+    lastEmitAt: cloneDate(record.lastEmitAt),
+    lastError: record.lastError
+      ? { message: record.lastError.message, at: cloneDate(record.lastError.at)! }
+      : undefined,
+  };
+}
+
+function cloneActionHealth(record: ActionDefinitionHealth): ActionDefinitionHealth {
+  return {
+    ...record,
+    lastInvocationAt: cloneDate(record.lastInvocationAt),
+    lastError: record.lastError
+      ? { message: record.lastError.message, at: cloneDate(record.lastError.at)! }
+      : undefined,
+  };
+}
+
 export type LoadedPlugin = {
   name: string;
   module: PluginModule;
@@ -72,8 +149,62 @@ export class PluginRuntimeRegistry {
   private pluginTrigIds = new Map<string, Set<string>>();
   private pluginActIds = new Map<string, Set<string>>();
   private pluginModules = new Map<string, PluginModule>();
+  private triggerHealth = new Map<string, TriggerDefinitionHealth>();
+  private actionHealth = new Map<string, ActionDefinitionHealth>();
 
   constructor(private readonly services: PluginServiceRegistry) {}
+
+  private ensureTriggerHealth(
+    definitionId: string,
+    ref: TriggerRuntimeRef,
+  ): TriggerDefinitionHealth {
+    let record = this.triggerHealth.get(definitionId);
+    if (!record) {
+      record = {
+        definitionId,
+        capabilityId: ref.capabilityId,
+        capabilityKey: ref.capability.key,
+        pluginId: ref.pluginId,
+        pluginName: ref.pluginName,
+        isRunning: false,
+        emitCount: 0,
+      };
+      this.triggerHealth.set(definitionId, record);
+    }
+    return record;
+  }
+
+  private ensureActionHealth(definitionId: string, ref: ActionRuntimeRef): ActionDefinitionHealth {
+    let record = this.actionHealth.get(definitionId);
+    if (!record) {
+      record = {
+        definitionId,
+        capabilityId: ref.capabilityId,
+        capabilityKey: ref.capability.key,
+        pluginId: ref.pluginId,
+        pluginName: ref.pluginName,
+        successCount: 0,
+        retryCount: 0,
+        failureCount: 0,
+        skippedCount: 0,
+      };
+      this.actionHealth.set(definitionId, record);
+    }
+    return record;
+  }
+
+  private removeHealthForPlugin(pluginId: string) {
+    for (const [key, record] of Array.from(this.triggerHealth.entries())) {
+      if (record.pluginId === pluginId) {
+        this.triggerHealth.delete(key);
+      }
+    }
+    for (const [key, record] of Array.from(this.actionHealth.entries())) {
+      if (record.pluginId === pluginId) {
+        this.actionHealth.delete(key);
+      }
+    }
+  }
 
   registerTrigger(ref: TriggerRuntimeRef) {
     if (this.triggers.has(ref.capabilityId)) {
@@ -159,6 +290,151 @@ export class PluginRuntimeRegistry {
     return this.services;
   }
 
+  markTriggerDefinitionStarted(definitionId: string, ref: TriggerRuntimeRef) {
+    const record = this.ensureTriggerHealth(definitionId, ref);
+    record.isRunning = true;
+    record.lastStartAt = new Date();
+  }
+
+  markTriggerDefinitionStopped(definitionId: string, ref: TriggerRuntimeRef, error?: Error) {
+    const record = this.ensureTriggerHealth(definitionId, ref);
+    record.isRunning = false;
+    record.lastStopAt = new Date();
+    if (error) {
+      record.lastError = { message: error.message, at: record.lastStopAt };
+    }
+  }
+
+  recordTriggerDefinitionEmit(
+    definitionId: string,
+    ref: TriggerRuntimeRef,
+    outcome: "SUCCEEDED" | "FAILED",
+    error?: Error,
+  ) {
+    const record = this.ensureTriggerHealth(definitionId, ref);
+    record.emitCount += 1;
+    record.lastEmitAt = new Date();
+    if (outcome === "FAILED" && error) {
+      record.lastError = { message: error.message, at: record.lastEmitAt };
+    }
+  }
+
+  getTriggerDefinitionHealth(definitionId: string): TriggerDefinitionHealth | undefined {
+    const record = this.triggerHealth.get(definitionId);
+    return record ? cloneTriggerHealth(record) : undefined;
+  }
+
+  recordActionDefinitionInvocation(
+    ref: ActionRuntimeRef,
+    definitionId: string,
+    status: string,
+    durationMs?: number,
+    error?: Error,
+  ) {
+    const record = this.ensureActionHealth(definitionId, ref);
+    record.lastStatus = status;
+    record.lastInvocationAt = new Date();
+    if (typeof durationMs === "number") {
+      record.lastDurationMs = durationMs;
+    }
+    switch (status) {
+      case "SUCCESS":
+        record.successCount += 1;
+        record.lastError = undefined;
+        break;
+      case "RETRYING":
+        record.retryCount += 1;
+        if (error) {
+          record.lastError = { message: error.message, at: new Date() };
+        }
+        break;
+      case "SKIPPED_DISABLED":
+        record.skippedCount += 1;
+        break;
+      default:
+        if (status.startsWith("FAILED")) {
+          record.failureCount += 1;
+          if (error) {
+            record.lastError = { message: error.message, at: new Date() };
+          }
+        }
+        break;
+    }
+  }
+
+  getActionDefinitionHealth(definitionId: string): ActionDefinitionHealth | undefined {
+    const record = this.actionHealth.get(definitionId);
+    return record ? cloneActionHealth(record) : undefined;
+  }
+
+  getPluginRuntimeSnapshot(pluginId: string) {
+    const triggerHealth = Array.from(this.triggerHealth.values())
+      .filter((record) => record.pluginId === pluginId)
+      .map(cloneTriggerHealth);
+    const actionHealth = Array.from(this.actionHealth.values())
+      .filter((record) => record.pluginId === pluginId)
+      .map(cloneActionHealth);
+    return { triggers: triggerHealth, actions: actionHealth };
+  }
+
+  getRuntimeHealthSummary(): PluginRuntimeSummary {
+    const generatedAt = new Date();
+    const triggerRecords = Array.from(this.triggerHealth.values());
+    const actionRecords = Array.from(this.actionHealth.values());
+
+    const pluginIds = new Set<string>();
+    for (const record of triggerRecords) {
+      pluginIds.add(record.pluginId);
+    }
+    for (const record of actionRecords) {
+      pluginIds.add(record.pluginId);
+    }
+
+    const runningTriggers = triggerRecords.filter((record) => record.isRunning).length;
+    const totalEmitCount = triggerRecords.reduce((sum, record) => sum + record.emitCount, 0);
+    const triggerErrors = triggerRecords.reduce(
+      (sum, record) => sum + (record.lastError ? 1 : 0),
+      0,
+    );
+    const lastTriggerActivityAt = triggerRecords.reduce<Date | undefined>((latest, record) => {
+      if (!record.lastEmitAt) return latest;
+      if (!latest || record.lastEmitAt > latest) return record.lastEmitAt;
+      return latest;
+    }, undefined);
+
+    const successCount = actionRecords.reduce((sum, record) => sum + record.successCount, 0);
+    const retryCount = actionRecords.reduce((sum, record) => sum + record.retryCount, 0);
+    const failureCount = actionRecords.reduce((sum, record) => sum + record.failureCount, 0);
+    const skippedCount = actionRecords.reduce((sum, record) => sum + record.skippedCount, 0);
+    const actionErrors = actionRecords.reduce((sum, record) => sum + (record.lastError ? 1 : 0), 0);
+    const lastActionInvocationAt = actionRecords.reduce<Date | undefined>((latest, record) => {
+      if (!record.lastInvocationAt) return latest;
+      if (!latest || record.lastInvocationAt > latest) return record.lastInvocationAt;
+      return latest;
+    }, undefined);
+
+    return {
+      generatedAt,
+      pluginCount: pluginIds.size,
+      triggerDefinitions: {
+        total: triggerRecords.length,
+        running: runningTriggers,
+        totalEmitCount,
+        errorCount: triggerErrors,
+        lastActivityAt: lastTriggerActivityAt ? new Date(lastTriggerActivityAt) : undefined,
+      },
+      actionDefinitions: {
+        total: actionRecords.length,
+        successCount,
+        retryCount,
+        failureCount,
+        skippedCount,
+        errorCount: actionErrors,
+        lastInvocationAt: lastActionInvocationAt ? new Date(lastActionInvocationAt) : undefined,
+      },
+    };
+  }
+
   createRuntimeServices(baseContext: PluginServiceRuntimeContextInit): PluginRuntimeServices {
     return {
       logger: createPluginLogger(baseContext.pluginName),
@@ -185,11 +461,15 @@ export class PluginRuntimeRegistry {
   }
 
   async removePlugin(pluginName: string) {
+    let pluginId: string | undefined;
     const triggerIds = this.pluginTrigIds.get(pluginName);
     if (triggerIds) {
       for (const id of triggerIds) {
         const ref = this.triggers.get(id);
         if (ref) {
+          if (!pluginId) {
+            pluginId = ref.pluginId;
+          }
           this.triggers.delete(id);
           this.triggerByKey.delete(capabilityKey(pluginName, ref.capability.key));
         }
@@ -202,6 +482,9 @@ export class PluginRuntimeRegistry {
       for (const id of actionIds) {
         const ref = this.actions.get(id);
         if (ref) {
+          if (!pluginId) {
+            pluginId = ref.pluginId;
+          }
           this.actions.delete(id);
           this.actionByKey.delete(capabilityKey(pluginName, ref.capability.key));
         }
@@ -221,6 +504,9 @@ export class PluginRuntimeRegistry {
       }
     }
     this.pluginModules.delete(pluginName);
+    if (pluginId) {
+      this.removeHealthForPlugin(pluginId);
+    }
   }
 }
 

@@ -49,6 +49,8 @@ vi.mock("../../authz/decisionLog.js", () => ({
 vi.mock("../../observability/metrics.js", () => ({
   recordAuthzDecision: vi.fn(),
   recordAuthzTwoFactor: vi.fn(),
+  recordPluginActionMetric: vi.fn(),
+  recordPluginTriggerMetric: vi.fn(),
 }));
 
 // Provide a storage service instance via instance getter

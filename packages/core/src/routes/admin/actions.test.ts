@@ -15,6 +15,7 @@ const db = {
     findUnique: vi.fn(async () => null),
   },
   actionInvocation: {
+    findMany: vi.fn(async () => []),
     count: vi.fn(async () => 0),
   },
   pipelineStep: {
@@ -61,6 +62,7 @@ async function makeServer(overrides?: {
     consumeActions?: ReturnType<typeof vi.fn>;
     stop?: ReturnType<typeof vi.fn>;
   };
+  runtime?: Record<string, unknown>;
 }) {
   const handlers = new Map<string, HttpHandler>();
   const server = {
@@ -76,6 +78,12 @@ async function makeServer(overrides?: {
       consumeActions: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),
     } as const);
+  const runtime = {
+    getActionDefinitionHealth: vi.fn(() => undefined),
+  } as Record<string, unknown>;
+  if (overrides?.runtime) {
+    Object.assign(runtime, overrides.runtime);
+  }
   registerActionAdminRoutes(server, {
     queue,
     config: {
@@ -86,8 +94,9 @@ async function makeServer(overrides?: {
       ENCRYPTION_MASTER_KEY_B64: undefined,
     } as any,
     encryption: { mode: "none" },
+    runtime: runtime as any,
   });
-  return { handlers, queue };
+  return { handlers, queue, runtime };
 }
 
 function resetDbMocks() {
@@ -321,5 +330,51 @@ describe("actions admin routes", () => {
       manualInvokerId: "admin",
       context: { foo: "bar" },
     });
+  });
+
+  it("GET /actions/:id/executions returns history with runtime", async () => {
+    const startedAt = new Date("2024-01-01T10:00:00Z");
+    const completedAt = new Date("2024-01-01T10:00:10Z");
+    db.actionInvocation.findMany.mockResolvedValueOnce([
+      {
+        id: "inv-1",
+        status: "SUCCESS",
+        startedAt,
+        completedAt,
+        retryAt: null,
+        triggerEventId: "evt-1",
+        manualInvokerId: null,
+        result: { ok: true },
+      },
+    ] as any);
+
+    const health = {
+      definitionId: "a1",
+      capabilityId: "cap-1",
+      capabilityKey: "gmail",
+      pluginId: "plug-1",
+      pluginName: "core",
+      lastStatus: "SUCCESS",
+      lastInvocationAt: completedAt,
+      lastDurationMs: 1000,
+      successCount: 1,
+      retryCount: 0,
+      failureCount: 0,
+      skippedCount: 0,
+      lastError: undefined,
+    };
+
+    const { handlers } = await makeServer({
+      runtime: { getActionDefinitionHealth: vi.fn(() => health) },
+    });
+
+    const h = handlers.get("GET /actions/:id/executions")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "a1" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(rc.body?.items?.[0]?.id).toBe("inv-1");
+    expect(rc.body?.items?.[0]?.durationMs).toBe(10000);
+    expect(rc.body?.runtime?.definitionId).toBe("a1");
+    expect(rc.body?.runtime?.successCount).toBe(1);
   });
 });

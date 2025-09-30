@@ -14,7 +14,7 @@ const db = {
   pluginCapability: {
     findUnique: vi.fn(async () => null),
   },
-  triggerEvent: { count: vi.fn(async () => 0) },
+  triggerEvent: { count: vi.fn(async () => 0), findFirst: vi.fn(async () => null) },
   pipelineTrigger: { count: vi.fn(async () => 0) },
   changeLog: {
     findMany: vi.fn(async () => []),
@@ -58,7 +58,7 @@ vi.mock("../../history/changelog.js", () => ({
   materializeVersion: materializeVersionMock,
 }));
 
-async function makeServer() {
+async function makeServer(runtimeOverrides?: Record<string, unknown>) {
   const handlers = new Map<string, HttpHandler>();
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
@@ -66,6 +66,12 @@ async function makeServer() {
     patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
+  const runtime = {
+    getTriggerDefinitionHealth: vi.fn(() => undefined),
+  } as Record<string, unknown>;
+  if (runtimeOverrides) {
+    Object.assign(runtime, runtimeOverrides);
+  }
   registerTriggerAdminRoutes(server, {
     fireTriggerOnce: async () => "evt-test",
     config: {
@@ -76,8 +82,9 @@ async function makeServer() {
       ENCRYPTION_MASTER_KEY_B64: undefined,
     } as any,
     encryption: { mode: "none" },
+    runtime: runtime as any,
   });
-  return { handlers };
+  return { handlers, runtime };
 }
 
 describe("triggers routes", () => {
@@ -323,5 +330,46 @@ describe("triggers routes", () => {
     const data = (db.triggerDefinition.update as any).mock.calls[0]?.[0]?.data;
     expect(data.config).toEqual({ restored: true });
     expect(appendChangeLogMock).toHaveBeenCalled();
+  });
+
+  it("GET /triggers/:id/status returns runtime details", async () => {
+    db.triggerDefinition.findUnique.mockResolvedValueOnce({
+      id: "trig-1",
+      name: "Cron",
+      capabilityId: "cap-1",
+      isEnabled: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
+    db.triggerEvent.findFirst.mockResolvedValueOnce({
+      id: "evt-1",
+      firedAt: new Date("2024-01-01T00:00:00Z"),
+      context: { foo: "bar" },
+    } as any);
+    db.triggerEvent.count.mockResolvedValueOnce(5 as any);
+
+    const health = {
+      definitionId: "trig-1",
+      capabilityId: "cap-1",
+      capabilityKey: "cron",
+      pluginId: "plug-1",
+      pluginName: "core",
+      isRunning: true,
+      emitCount: 10,
+      lastStartAt: new Date(),
+      lastStopAt: undefined,
+      lastEmitAt: new Date(),
+      lastError: undefined,
+    };
+
+    const { handlers } = await makeServer({ getTriggerDefinitionHealth: vi.fn(() => health) });
+    const h = handlers.get("GET /triggers/:id/status")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "trig-1" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(rc.body?.trigger?.id).toBe("trig-1");
+    expect(rc.body?.runtime?.emitCount).toBe(10);
+    expect(rc.body?.metrics?.eventCount).toBe(5);
+    expect(rc.body?.lastEvent?.id).toBe("evt-1");
   });
 });

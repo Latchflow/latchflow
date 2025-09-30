@@ -2,12 +2,67 @@ import { z } from "zod";
 import type { HttpServer } from "../../http/http-server.js";
 import { getDb } from "../../db/db.js";
 import type { Prisma } from "@latchflow/db";
+import type {
+  PluginRuntimeRegistry,
+  TriggerDefinitionHealth,
+  ActionDefinitionHealth,
+} from "../../plugins/plugin-loader.js";
 import { type RouteSignature } from "../../authz/policy.js";
 import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
 import { SCOPES } from "../../auth/scopes.js";
 
-export function registerPluginRoutes(server: HttpServer) {
+export function registerPluginRoutes(
+  server: HttpServer,
+  deps?: { runtime?: PluginRuntimeRegistry },
+) {
   const db = getDb();
+  const runtime = deps?.runtime;
+
+  const toIso = (value?: Date | string | null) => {
+    if (!value) return undefined;
+    if (value instanceof Date) return value.toISOString();
+    return new Date(value).toISOString();
+  };
+
+  const formatTriggerHealth = (record?: TriggerDefinitionHealth) => {
+    if (!record) return undefined;
+    return {
+      definitionId: record.definitionId,
+      capabilityId: record.capabilityId,
+      capabilityKey: record.capabilityKey,
+      pluginId: record.pluginId,
+      pluginName: record.pluginName,
+      isRunning: record.isRunning,
+      emitCount: record.emitCount,
+      lastStartAt: toIso(record.lastStartAt),
+      lastStopAt: toIso(record.lastStopAt),
+      lastEmitAt: toIso(record.lastEmitAt),
+      lastError: record.lastError
+        ? { message: record.lastError.message, at: toIso(record.lastError.at)! }
+        : undefined,
+    };
+  };
+
+  const formatActionHealth = (record?: ActionDefinitionHealth) => {
+    if (!record) return undefined;
+    return {
+      definitionId: record.definitionId,
+      capabilityId: record.capabilityId,
+      capabilityKey: record.capabilityKey,
+      pluginId: record.pluginId,
+      pluginName: record.pluginName,
+      lastStatus: record.lastStatus,
+      lastInvocationAt: toIso(record.lastInvocationAt),
+      lastDurationMs: record.lastDurationMs,
+      successCount: record.successCount,
+      retryCount: record.retryCount,
+      failureCount: record.failureCount,
+      skippedCount: record.skippedCount,
+      lastError: record.lastError
+        ? { message: record.lastError.message, at: toIso(record.lastError.at)! }
+        : undefined,
+    };
+  };
 
   // GET /plugins — list installed plugins with capabilities
   server.get(
@@ -133,6 +188,150 @@ export function registerPluginRoutes(server: HttpServer) {
     }),
   );
 
+  // GET /plugins/:pluginId/status — runtime + definition health
+  server.get(
+    "/plugins/:pluginId/status",
+    requireAdminOrApiToken({
+      policySignature: "GET /plugins/:pluginId/status" as RouteSignature,
+      scopes: [SCOPES.CORE_READ],
+    })(async (req, res) => {
+      const params = req.params as { pluginId?: string } | undefined;
+      const pluginId = params?.pluginId;
+      if (!pluginId) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST" });
+        return;
+      }
+      const plugin = await db.plugin.findUnique({
+        where: { id: pluginId },
+        include: {
+          capabilities: {
+            select: {
+              id: true,
+              kind: true,
+              key: true,
+              displayName: true,
+              isEnabled: true,
+            },
+          },
+        },
+      });
+      if (!plugin) {
+        res.status(404).json({ status: "error", code: "NOT_FOUND" });
+        return;
+      }
+
+      const [triggerDefs, actionDefs] = await Promise.all([
+        db.triggerDefinition.findMany({
+          where: { capability: { pluginId } },
+          select: {
+            id: true,
+            name: true,
+            isEnabled: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+        db.actionDefinition.findMany({
+          where: { capability: { pluginId } },
+          select: {
+            id: true,
+            name: true,
+            isEnabled: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      ]);
+
+      const snapshot = runtime?.getPluginRuntimeSnapshot(pluginId) ?? {
+        triggers: [],
+        actions: [],
+      };
+
+      const triggerRuntimeMap = new Map(
+        snapshot.triggers.map((entry) => [entry.definitionId, entry]),
+      );
+      const actionRuntimeMap = new Map(
+        snapshot.actions.map((entry) => [entry.definitionId, entry]),
+      );
+
+      const triggers = triggerDefs.map((def) => {
+        const runtimeEntry = triggerRuntimeMap.get(def.id);
+        if (runtimeEntry) triggerRuntimeMap.delete(def.id);
+        return {
+          id: def.id,
+          name: def.name,
+          isEnabled: def.isEnabled,
+          createdAt: toIso(def.createdAt),
+          updatedAt: toIso(def.updatedAt),
+          runtime: formatTriggerHealth(runtimeEntry),
+        };
+      });
+      const actions = actionDefs.map((def) => {
+        const runtimeEntry = actionRuntimeMap.get(def.id);
+        if (runtimeEntry) actionRuntimeMap.delete(def.id);
+        return {
+          id: def.id,
+          name: def.name,
+          isEnabled: def.isEnabled,
+          createdAt: toIso(def.createdAt),
+          updatedAt: toIso(def.updatedAt),
+          runtime: formatActionHealth(runtimeEntry),
+        };
+      });
+
+      const runningTriggers = snapshot.triggers.filter((entry) => entry.isRunning).length;
+      const lastTriggerActivityAt = snapshot.triggers.reduce<Date | undefined>((latest, entry) => {
+        if (!entry.lastEmitAt) return latest;
+        if (!latest || entry.lastEmitAt > latest) return entry.lastEmitAt;
+        return latest;
+      }, undefined);
+      const lastActionActivityAt = snapshot.actions.reduce<Date | undefined>((latest, entry) => {
+        if (!entry.lastInvocationAt) return latest;
+        if (!latest || entry.lastInvocationAt > latest) return entry.lastInvocationAt;
+        return latest;
+      }, undefined);
+
+      const orphanedTriggers = Array.from(triggerRuntimeMap.values())
+        .map(formatTriggerHealth)
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+      const orphanedActions = Array.from(actionRuntimeMap.values())
+        .map(formatActionHealth)
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+      res.status(200).json({
+        plugin: {
+          id: plugin.id,
+          name: plugin.name,
+          description: plugin.description,
+          author: plugin.author,
+          installedAt: toIso(plugin.installedAt as Date | string | null),
+        },
+        capabilities: plugin.capabilities,
+        totals: {
+          triggerDefinitions: triggerDefs.length,
+          actionDefinitions: actionDefs.length,
+          capabilityCount: plugin.capabilities.length,
+          runtimeTriggerEntries: snapshot.triggers.length,
+          runtimeActionEntries: snapshot.actions.length,
+        },
+        runtimeSummary: {
+          runningTriggers,
+          lastTriggerActivityAt: toIso(lastTriggerActivityAt),
+          lastActionActivityAt: toIso(lastActionActivityAt),
+        },
+        definitions: {
+          triggers,
+          actions,
+        },
+        orphanedRuntime: {
+          triggers: orphanedTriggers,
+          actions: orphanedActions,
+        },
+      });
+    }),
+  );
+
   // GET /capabilities — consolidated list across plugins
   server.get(
     "/capabilities",
@@ -178,6 +377,41 @@ export function registerPluginRoutes(server: HttpServer) {
           .status(err.status ?? 401)
           .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
       }
+    }),
+  );
+
+  // GET /system/plugin-runtime/health — global runtime summary
+  server.get(
+    "/system/plugin-runtime/health",
+    requireAdminOrApiToken({
+      policySignature: "GET /system/plugin-runtime/health" as RouteSignature,
+      scopes: [SCOPES.CORE_READ],
+    })(async (_req, res) => {
+      if (!runtime) {
+        res.status(503).json({ status: "error", code: "RUNTIME_UNAVAILABLE" });
+        return;
+      }
+      const summary = runtime.getRuntimeHealthSummary();
+      res.status(200).json({
+        generatedAt: summary.generatedAt.toISOString(),
+        pluginCount: summary.pluginCount,
+        triggerDefinitions: {
+          total: summary.triggerDefinitions.total,
+          running: summary.triggerDefinitions.running,
+          totalEmitCount: summary.triggerDefinitions.totalEmitCount,
+          errorCount: summary.triggerDefinitions.errorCount,
+          lastActivityAt: toIso(summary.triggerDefinitions.lastActivityAt),
+        },
+        actionDefinitions: {
+          total: summary.actionDefinitions.total,
+          successCount: summary.actionDefinitions.successCount,
+          retryCount: summary.actionDefinitions.retryCount,
+          failureCount: summary.actionDefinitions.failureCount,
+          skippedCount: summary.actionDefinitions.skippedCount,
+          errorCount: summary.actionDefinitions.errorCount,
+          lastInvocationAt: toIso(summary.actionDefinitions.lastInvocationAt),
+        },
+      });
     }),
   );
 }

@@ -7,6 +7,7 @@ import { createPluginLogger } from "../observability/logger.js";
 import { PluginServiceError } from "../services/errors.js";
 import { decryptConfig } from "../plugins/config-encryption.js";
 import { recordPluginActionAudit } from "../audit/plugin-audit.js";
+import { recordPluginActionMetric } from "../observability/metrics.js";
 import type { PluginServiceRuntimeContextInit } from "../services/plugin-services.js";
 
 const ACTION_EXECUTION_TIMEOUT_MS = 60_000;
@@ -71,9 +72,17 @@ export async function startActionConsumer(
     const attempt = msg.attempt ?? 1;
     let pluginName: string | undefined;
     let capabilityKey: string | undefined;
+    let actionRef: ReturnType<PluginRuntimeRegistry["requireActionById"]> | undefined;
+    let actionDefinition: {
+      id: string;
+      capabilityId: string;
+      config: unknown;
+      isEnabled: boolean;
+    } | null = null;
+    let executionStartMs: number | null = null;
 
     try {
-      const definition = await db.actionDefinition.findUnique({
+      const definitionRow = await db.actionDefinition.findUnique({
         where: { id: msg.actionDefinitionId },
         select: {
           id: true,
@@ -82,8 +91,27 @@ export async function startActionConsumer(
           isEnabled: true,
         },
       });
+      actionDefinition = definitionRow;
 
-      if (!definition || definition.isEnabled === false) {
+      if (!actionDefinition || actionDefinition.isEnabled === false) {
+        const ref = actionDefinition
+          ? deps.registry.getActionById(actionDefinition.capabilityId)
+          : undefined;
+        if (ref && actionDefinition) {
+          deps.registry.recordActionDefinitionInvocation(
+            ref,
+            actionDefinition.id,
+            "SKIPPED_DISABLED",
+          );
+          recordPluginActionMetric({
+            pluginId: ref.pluginId,
+            pluginName: ref.pluginName,
+            capabilityId: ref.capabilityId,
+            capabilityKey: ref.capability.key,
+            definitionId: actionDefinition.id,
+            status: "SKIPPED_DISABLED",
+          });
+        }
         await finishInvocation({
           status: "SKIPPED_DISABLED",
           result: { reason: "ACTION_DISABLED" } as unknown as Prisma.InputJsonValue,
@@ -93,7 +121,8 @@ export async function startActionConsumer(
         return;
       }
 
-      const ref = deps.registry.requireActionById(definition.capabilityId);
+      const ref = deps.registry.requireActionById(actionDefinition.capabilityId);
+      actionRef = ref;
       pluginName = ref.pluginName;
       capabilityKey = ref.capability.key;
       const logger = createPluginLogger(ref.pluginName);
@@ -103,19 +132,19 @@ export async function startActionConsumer(
         capabilityId: ref.capabilityId,
         capabilityKey: ref.capability.key,
         executionKind: "action",
-        definitionId: definition.id,
+        definitionId: actionDefinition.id,
         invocationId: invocation.id,
         triggerEventId: msg.triggerEventId,
         manualInvokerId: msg.manualInvokerId,
       };
       const services = deps.registry.createRuntimeServices(baseContext);
-      const decryptedConfig = decryptConfig(definition.config, deps.encryption);
+      const decryptedConfig = decryptConfig(actionDefinition.config, deps.encryption);
 
       await recordPluginActionAudit({
         timestamp: new Date(),
         pluginName: ref.pluginName,
         capabilityKey: ref.capability.key,
-        actionDefinitionId: definition.id,
+        actionDefinitionId: actionDefinition.id,
         invocationId: invocation.id,
         triggerEventId: msg.triggerEventId,
         phase: "STARTED",
@@ -123,7 +152,7 @@ export async function startActionConsumer(
       });
 
       const context: ActionRuntimeContext = {
-        definitionId: definition.id,
+        definitionId: actionDefinition.id,
         capability: ref.capability,
         plugin: { name: ref.pluginName },
         services,
@@ -139,6 +168,7 @@ export async function startActionConsumer(
         }
       };
       try {
+        executionStartMs = Date.now();
         const executionResult = await executeWithTimeout(
           runtime.execute({
             config: decryptedConfig,
@@ -153,7 +183,7 @@ export async function startActionConsumer(
           }),
           ACTION_EXECUTION_TIMEOUT_MS,
           ref.pluginName,
-          definition.id,
+          actionDefinition.id,
         );
 
         if (executionResult && executionResult.retry) {
@@ -167,11 +197,27 @@ export async function startActionConsumer(
             completedAt: new Date(),
             retryAt: retryDelay > 0 ? new Date(Date.now() + retryDelay) : null,
           });
+          const durationMs = executionStartMs != null ? Date.now() - executionStartMs : undefined;
+          deps.registry.recordActionDefinitionInvocation(
+            ref,
+            actionDefinition.id,
+            "RETRYING",
+            durationMs,
+          );
+          recordPluginActionMetric({
+            pluginId: ref.pluginId,
+            pluginName: ref.pluginName,
+            capabilityId: ref.capabilityId,
+            capabilityKey: ref.capability.key,
+            definitionId: actionDefinition.id,
+            status: "RETRYING",
+            durationMs,
+          });
           await recordPluginActionAudit({
             timestamp: new Date(),
             pluginName: ref.pluginName,
             capabilityKey: ref.capability.key,
-            actionDefinitionId: definition.id,
+            actionDefinitionId: actionDefinition.id,
             invocationId: invocation.id,
             triggerEventId: msg.triggerEventId,
             phase: "RETRY",
@@ -188,11 +234,27 @@ export async function startActionConsumer(
           completedAt: new Date(),
           retryAt: null,
         });
+        const durationMs = executionStartMs != null ? Date.now() - executionStartMs : undefined;
+        deps.registry.recordActionDefinitionInvocation(
+          ref,
+          actionDefinition.id,
+          "SUCCESS",
+          durationMs,
+        );
+        recordPluginActionMetric({
+          pluginId: ref.pluginId,
+          pluginName: ref.pluginName,
+          capabilityId: ref.capabilityId,
+          capabilityKey: ref.capability.key,
+          definitionId: actionDefinition.id,
+          status: "SUCCESS",
+          durationMs,
+        });
         await recordPluginActionAudit({
           timestamp: new Date(),
           pluginName: ref.pluginName,
           capabilityKey: ref.capability.key,
-          actionDefinitionId: definition.id,
+          actionDefinitionId: actionDefinition.id,
           invocationId: invocation.id,
           triggerEventId: msg.triggerEventId,
           phase: "SUCCEEDED",
@@ -204,7 +266,10 @@ export async function startActionConsumer(
             await runtime.dispose();
           } catch (err) {
             logger.warn(
-              { error: (err as Error).message, actionDefinitionId: definition.id },
+              {
+                error: (err as Error).message,
+                actionDefinitionId: actionDefinition?.id ?? msg.actionDefinitionId,
+              },
               "Action runtime dispose failed",
             );
           }
@@ -232,6 +297,25 @@ export async function startActionConsumer(
         completedAt: new Date(),
         retryAt: status === "RETRYING" && retryDelay > 0 ? new Date(Date.now() + retryDelay) : null,
       });
+      if (actionRef && actionDefinition) {
+        const durationMs = executionStartMs != null ? Date.now() - executionStartMs : undefined;
+        deps.registry.recordActionDefinitionInvocation(
+          actionRef,
+          actionDefinition.id,
+          status,
+          durationMs,
+          error,
+        );
+        recordPluginActionMetric({
+          pluginId: actionRef.pluginId,
+          pluginName: actionRef.pluginName,
+          capabilityId: actionRef.capabilityId,
+          capabilityKey: actionRef.capability.key,
+          definitionId: actionDefinition.id,
+          status,
+          durationMs,
+        });
+      }
       await recordPluginActionAudit({
         timestamp: new Date(),
         pluginName: pluginName ?? "unknown",

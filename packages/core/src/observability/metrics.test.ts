@@ -149,6 +149,8 @@ describe("authz metrics", () => {
       recordAuthzCompilation,
       recordAuthzTwoFactor,
       recordAuthzSimulation,
+      recordPluginActionMetric,
+      recordPluginTriggerMetric,
     } = await loadMetricsModule();
 
     const handle = await initializeAuthzMetrics({
@@ -247,6 +249,42 @@ describe("authz metrics", () => {
     expect(counters.get("authz_simulation_total")?.add).toHaveBeenCalledWith(
       1,
       expect.objectContaining({ evaluation_mode: "enforce", preset_id: "preset-1" }),
+    );
+
+    recordPluginActionMetric({
+      pluginId: "plug-1",
+      pluginName: "core",
+      capabilityId: "cap-1",
+      capabilityKey: "gmail",
+      definitionId: "act-1",
+      status: "SUCCESS",
+      durationMs: 42,
+    });
+    expect(counters.get("plugin_action_invocations_total")?.add).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ plugin_id: "plug-1", status: "SUCCESS" }),
+    );
+    expect(histograms.get("plugin_action_duration_ms")?.record).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ capability_key: "gmail" }),
+    );
+
+    recordPluginTriggerMetric({
+      pluginId: "plug-1",
+      pluginName: "core",
+      capabilityId: "cap-2",
+      capabilityKey: "cron",
+      definitionId: "trig-1",
+      outcome: "SUCCEEDED",
+      latencyMs: 12,
+    });
+    expect(counters.get("plugin_trigger_emits_total")?.add).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ capability_key: "cron", outcome: "SUCCEEDED" }),
+    );
+    expect(histograms.get("plugin_trigger_latency_ms")?.record).toHaveBeenCalledWith(
+      12,
+      expect.objectContaining({ definition_id: "trig-1" }),
     );
 
     await handle?.shutdown?.();

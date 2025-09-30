@@ -81,6 +81,26 @@ export type AuthzSimulationMetric = {
   rulesHash?: string;
 };
 
+export type PluginActionMetric = {
+  pluginId: string;
+  pluginName: string;
+  capabilityId: string;
+  capabilityKey: string;
+  definitionId: string;
+  status: string;
+  durationMs?: number;
+};
+
+export type PluginTriggerMetric = {
+  pluginId: string;
+  pluginName: string;
+  capabilityId: string;
+  capabilityKey: string;
+  definitionId: string;
+  outcome: "SUCCEEDED" | "FAILED";
+  latencyMs?: number;
+};
+
 export type AuthzMetricsOptions = {
   /** Full OTLP/HTTP endpoint URL. Defaults to http://localhost:4318/v1/metrics when not provided. */
   url?: string;
@@ -119,6 +139,10 @@ type AuthzMetricsState = {
   compilationDuration: OtelHistogram;
   twoFactorCounter: OtelCounter;
   simulationCounter: OtelCounter;
+  pluginActionCounter: OtelCounter;
+  pluginActionDuration: OtelHistogram;
+  pluginTriggerCounter: OtelCounter;
+  pluginTriggerLatency: OtelHistogram;
 };
 
 let state: AuthzMetricsState | null = null;
@@ -203,6 +227,20 @@ export async function initializeAuthzMetrics(
       }),
       simulationCounter: meter.createCounter("authz_simulation_total", {
         description: "Total authorization simulations executed via the simulator endpoint.",
+      }),
+      pluginActionCounter: meter.createCounter("plugin_action_invocations_total", {
+        description: "Total plugin action executions processed by the runtime.",
+      }),
+      pluginActionDuration: meter.createHistogram("plugin_action_duration_ms", {
+        description: "Observed duration (in milliseconds) of plugin action executions.",
+        unit: "ms",
+      }),
+      pluginTriggerCounter: meter.createCounter("plugin_trigger_emits_total", {
+        description: "Total trigger emissions initiated by plugins.",
+      }),
+      pluginTriggerLatency: meter.createHistogram("plugin_trigger_latency_ms", {
+        description: "Observed latency (in milliseconds) of trigger emit handlers.",
+        unit: "ms",
       }),
     };
 
@@ -311,6 +349,38 @@ export function recordAuthzSimulation(metric: AuthzSimulationMetric) {
     rules_hash: metric.rulesHash,
   });
   state.simulationCounter.add(1, attrs);
+}
+
+export function recordPluginActionMetric(metric: PluginActionMetric) {
+  if (!state) return;
+  const attrs = sanitizeAttributes({
+    plugin_id: metric.pluginId,
+    plugin_name: metric.pluginName,
+    capability_id: metric.capabilityId,
+    capability_key: metric.capabilityKey,
+    definition_id: metric.definitionId,
+    status: metric.status,
+  });
+  state.pluginActionCounter.add(1, attrs);
+  if (metric.durationMs != null) {
+    state.pluginActionDuration.record(metric.durationMs, attrs);
+  }
+}
+
+export function recordPluginTriggerMetric(metric: PluginTriggerMetric) {
+  if (!state) return;
+  const attrs = sanitizeAttributes({
+    plugin_id: metric.pluginId,
+    plugin_name: metric.pluginName,
+    capability_id: metric.capabilityId,
+    capability_key: metric.capabilityKey,
+    definition_id: metric.definitionId,
+    outcome: metric.outcome,
+  });
+  state.pluginTriggerCounter.add(1, attrs);
+  if (metric.latencyMs != null) {
+    state.pluginTriggerLatency.record(metric.latencyMs, attrs);
+  }
 }
 
 function sanitizeAttributes(input: Record<string, string | number | boolean | undefined>) {

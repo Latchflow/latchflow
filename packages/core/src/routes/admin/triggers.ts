@@ -12,6 +12,10 @@ import {
   decryptConfig,
   type ConfigEncryptionOptions,
 } from "../../plugins/config-encryption.js";
+import type {
+  PluginRuntimeRegistry,
+  TriggerDefinitionHealth,
+} from "../../plugins/plugin-loader.js";
 
 type FireFn = (triggerDefinitionId: string, context?: Record<string, unknown>) => Promise<string>;
 
@@ -34,6 +38,7 @@ interface TriggerDeps {
   fireTriggerOnce?: FireFn;
   config?: AppConfig;
   encryption?: ConfigEncryptionOptions;
+  runtime?: PluginRuntimeRegistry;
 }
 
 export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDeps) {
@@ -53,11 +58,37 @@ export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDep
   };
   const systemUserId = config.SYSTEM_USER_ID ?? "system";
   const encryption = deps?.encryption ?? { mode: "none" as const };
+  const runtime = deps?.runtime;
 
   const actorContextForReq = (req: unknown) => {
     const user = (req as { user?: { id?: string } }).user;
     const actorId = user?.id ?? systemUserId;
     return { actorType: "USER" as const, actorUserId: actorId };
+  };
+
+  const toIso = (value?: Date | string | null) => {
+    if (!value) return undefined;
+    if (value instanceof Date) return value.toISOString();
+    return new Date(value).toISOString();
+  };
+
+  const formatTriggerHealth = (record?: TriggerDefinitionHealth) => {
+    if (!record) return undefined;
+    return {
+      definitionId: record.definitionId,
+      capabilityId: record.capabilityId,
+      capabilityKey: record.capabilityKey,
+      pluginId: record.pluginId,
+      pluginName: record.pluginName,
+      isRunning: record.isRunning,
+      emitCount: record.emitCount,
+      lastStartAt: toIso(record.lastStartAt),
+      lastStopAt: toIso(record.lastStopAt),
+      lastEmitAt: toIso(record.lastEmitAt),
+      lastError: record.lastError
+        ? { message: record.lastError.message, at: toIso(record.lastError.at)! }
+        : undefined,
+    };
   };
 
   const toTriggerDto = (t: {
@@ -199,6 +230,71 @@ export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDep
         return;
       }
       res.status(200).json(toTriggerDto(row));
+    }),
+  );
+
+  // GET /triggers/:id/status — runtime + event health
+  server.get(
+    "/triggers/:id/status",
+    requireAdminOrApiToken({
+      policySignature: "GET /triggers/:id/status" as RouteSignature,
+      scopes: [SCOPES.TRIGGERS_READ],
+    })(async (req, res) => {
+      const id = (req.params as Record<string, string> | undefined)?.id;
+      if (!id) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST" });
+        return;
+      }
+      const definition = await db.triggerDefinition.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          capabilityId: true,
+          isEnabled: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      if (!definition) {
+        res.status(404).json({ status: "error", code: "NOT_FOUND" });
+        return;
+      }
+
+      const [lastEvent, eventCount] = await Promise.all([
+        db.triggerEvent.findFirst({
+          where: { triggerDefinitionId: id },
+          orderBy: { firedAt: "desc" },
+          select: { id: true, firedAt: true, context: true },
+        }),
+        db.triggerEvent.count({ where: { triggerDefinitionId: id } }),
+      ]);
+
+      const runtimeHealth = runtime
+        ? formatTriggerHealth(runtime.getTriggerDefinitionHealth(id))
+        : undefined;
+
+      res.status(200).json({
+        trigger: {
+          id: definition.id,
+          name: definition.name,
+          capabilityId: definition.capabilityId,
+          isEnabled: definition.isEnabled,
+          createdAt: toIso(definition.createdAt),
+          updatedAt: toIso(definition.updatedAt),
+        },
+        runtime: runtimeHealth,
+        lastEvent: lastEvent
+          ? {
+              id: lastEvent.id,
+              firedAt: toIso(lastEvent.firedAt),
+              context: lastEvent.context,
+            }
+          : undefined,
+        metrics: {
+          eventCount,
+        },
+      });
     }),
   );
 

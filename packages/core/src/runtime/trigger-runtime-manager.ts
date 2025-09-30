@@ -9,6 +9,7 @@ import type {
 } from "../plugins/contracts.js";
 import type { PluginRuntimeRegistry, TriggerRuntimeRef } from "../plugins/plugin-loader.js";
 import { recordPluginTriggerAudit } from "../audit/plugin-audit.js";
+import { recordPluginTriggerMetric } from "../observability/metrics.js";
 import type { PluginServiceRuntimeContextInit } from "../services/plugin-services.js";
 
 export interface TriggerRuntimeManagerOptions {
@@ -98,6 +99,7 @@ export class TriggerRuntimeManager {
     const services: TriggerRuntimeServices = this.options.registry.createTriggerServices(
       baseContext,
       async (payload) => {
+        const emitStarted = Date.now();
         await recordPluginTriggerAudit({
           timestamp: new Date(),
           pluginName: ref.pluginName,
@@ -107,6 +109,16 @@ export class TriggerRuntimeManager {
         });
         try {
           const eventId = await this.options.fireTrigger(definitionId, payload);
+          this.options.registry.recordTriggerDefinitionEmit(definitionId, ref, "SUCCEEDED");
+          recordPluginTriggerMetric({
+            pluginId: ref.pluginId,
+            pluginName: ref.pluginName,
+            capabilityId: ref.capabilityId,
+            capabilityKey: ref.capability.key,
+            definitionId,
+            outcome: "SUCCEEDED",
+            latencyMs: Date.now() - emitStarted,
+          });
           await recordPluginTriggerAudit({
             timestamp: new Date(),
             pluginName: ref.pluginName,
@@ -116,6 +128,21 @@ export class TriggerRuntimeManager {
             phase: "SUCCEEDED",
           });
         } catch (err) {
+          this.options.registry.recordTriggerDefinitionEmit(
+            definitionId,
+            ref,
+            "FAILED",
+            err instanceof Error ? err : new Error(String(err)),
+          );
+          recordPluginTriggerMetric({
+            pluginId: ref.pluginId,
+            pluginName: ref.pluginName,
+            capabilityId: ref.capabilityId,
+            capabilityKey: ref.capability.key,
+            definitionId,
+            outcome: "FAILED",
+            latencyMs: Date.now() - emitStarted,
+          });
           await recordPluginTriggerAudit({
             timestamp: new Date(),
             pluginName: ref.pluginName,
@@ -140,6 +167,7 @@ export class TriggerRuntimeManager {
 
     const runtime = await ref.factory(context);
     await runtime.start();
+    this.options.registry.markTriggerDefinitionStarted(definitionId, ref);
     this.runtimes.set(definitionId, { ref, runtime });
     this.log.info({ triggerDefinitionId: definitionId }, "Trigger runtime started");
   }
@@ -147,7 +175,13 @@ export class TriggerRuntimeManager {
   private async stopTrigger(definitionId: string, managed: ManagedTrigger) {
     try {
       await managed.runtime.stop();
+      this.options.registry.markTriggerDefinitionStopped(definitionId, managed.ref);
     } catch (err) {
+      this.options.registry.markTriggerDefinitionStopped(
+        definitionId,
+        managed.ref,
+        err instanceof Error ? err : undefined,
+      );
       this.log.warn(
         { triggerDefinitionId: definitionId, error: (err as Error).message },
         "Trigger runtime stop failed",

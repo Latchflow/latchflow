@@ -211,13 +211,14 @@ export async function main() {
   registerRecipientAuthRoutes(server, config);
   registerPortalRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerCliAuthRoutes(server, config);
-  registerPluginRoutes(server);
+  registerPluginRoutes(server, { runtime });
   registerTriggerAdminRoutes(server, {
     fireTriggerOnce: triggerRunner.fireTriggerOnce,
     config,
     encryption: configEncryption,
+    runtime,
   });
-  registerActionAdminRoutes(server, { queue, config, encryption: configEncryption });
+  registerActionAdminRoutes(server, { queue, config, encryption: configEncryption, runtime });
   registerPipelineAdminRoutes(server, { config });
   registerUserAdminRoutes(server, config);
   registerPermissionPresetAdminRoutes(server, { config });
