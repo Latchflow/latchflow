@@ -1,0 +1,81 @@
+type: object
+properties:
+  plugin:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      name: { type: string }
+      description: { type: string }
+      author: { type: string }
+      installedAt: { type: string, format: date-time }
+    required: [id, name]
+  capabilities:
+    type: array
+    items: { $ref: ./Capability.yaml }
+  totals:
+    type: object
+    properties:
+      triggerDefinitions:
+        type: integer
+        minimum: 0
+      actionDefinitions:
+        type: integer
+        minimum: 0
+      capabilityCount:
+        type: integer
+        minimum: 0
+      runtimeTriggerEntries:
+        type: integer
+        minimum: 0
+      runtimeActionEntries:
+        type: integer
+        minimum: 0
+    required: [triggerDefinitions, actionDefinitions, capabilityCount, runtimeTriggerEntries, runtimeActionEntries]
+  runtimeSummary:
+    type: object
+    properties:
+      runningTriggers:
+        type: integer
+        minimum: 0
+      lastTriggerActivityAt: { type: string, format: date-time }
+      lastActionActivityAt: { type: string, format: date-time }
+    required: [runningTriggers]
+  definitions:
+    type: object
+    properties:
+      triggers:
+        type: array
+        items:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            isEnabled: { type: boolean }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            runtime: { $ref: ./TriggerRuntimeStatus.yaml }
+          required: [id, name, isEnabled]
+      actions:
+        type: array
+        items:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            isEnabled: { type: boolean }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            runtime: { $ref: ./ActionRuntimeStatus.yaml }
+          required: [id, name, isEnabled]
+    required: [triggers, actions]
+  orphanedRuntime:
+    type: object
+    properties:
+      triggers:
+        type: array
+        items: { $ref: ./TriggerRuntimeStatus.yaml }
+      actions:
+        type: array
+        items: { $ref: ./ActionRuntimeStatus.yaml }
+    required: [triggers, actions]
+required: [plugin, capabilities, totals, runtimeSummary, definitions, orphanedRuntime]

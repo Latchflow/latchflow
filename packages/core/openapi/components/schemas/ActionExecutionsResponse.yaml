@@ -1,0 +1,8 @@
+type: object
+properties:
+  items:
+    type: array
+    items: { $ref: ./ActionExecutionRecord.yaml }
+  nextCursor: { type: string }
+  runtime: { $ref: ./ActionRuntimeStatus.yaml }
+required: [items]

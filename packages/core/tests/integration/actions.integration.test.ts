@@ -206,12 +206,19 @@ describe("actions integration flow", () => {
       delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
     } as any;
     registerActionAdminRoutes(server, {
-      queue: { enqueueAction: async () => {} },
+      queue: {
+        enqueueAction: async () => {},
+        consumeActions: async () => {},
+        stop: async () => {},
+      },
       config: {
         HISTORY_SNAPSHOT_INTERVAL: 10,
         HISTORY_MAX_CHAIN_DEPTH: 100,
         SYSTEM_USER_ID: "sys",
+        ENCRYPTION_MODE: "none",
+        ENCRYPTION_MASTER_KEY_B64: undefined,
       } as any,
+      encryption: { mode: "none" },
     });
 
     const createRc = createResponseCapture();

@@ -1,0 +1,21 @@
+type: object
+properties:
+  definitionId: { type: string, format: uuid }
+  capabilityId: { type: string, format: uuid }
+  capabilityKey: { type: string }
+  pluginId: { type: string, format: uuid }
+  pluginName: { type: string }
+  isRunning: { type: boolean }
+  emitCount:
+    type: integer
+    minimum: 0
+  lastStartAt: { type: string, format: date-time }
+  lastStopAt: { type: string, format: date-time }
+  lastEmitAt: { type: string, format: date-time }
+  lastError:
+    type: object
+    properties:
+      message: { type: string }
+      at: { type: string, format: date-time }
+    required: [message, at]
+required: [definitionId, capabilityId, capabilityKey, pluginId, pluginName, isRunning, emitCount]

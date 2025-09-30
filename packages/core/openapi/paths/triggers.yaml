@@ -137,6 +137,29 @@ triggers_item:
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
 
+triggers_status:
+  get:
+    summary: Trigger runtime status
+    operationId: getTriggerStatus
+    tags: [Triggers]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Trigger status and runtime metrics
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/TriggerStatusResponse.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
 # TriggerDefinition versions (history)
 trigger_versions_collection:
   get:

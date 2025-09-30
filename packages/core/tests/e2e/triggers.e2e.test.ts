@@ -111,7 +111,10 @@ describe("E2E: Triggers endpoints", () => {
         HISTORY_SNAPSHOT_INTERVAL: 20,
         HISTORY_MAX_CHAIN_DEPTH: 200,
         SYSTEM_USER_ID: ADMIN_ID,
+        ENCRYPTION_MODE: "none",
+        ENCRYPTION_MASTER_KEY_B64: undefined,
       } as any,
+      encryption: { mode: "none" },
     });
 
     // Create trigger

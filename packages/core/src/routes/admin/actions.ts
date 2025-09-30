@@ -8,10 +8,19 @@ import type { RouteSignature } from "../../authz/policy.js";
 import type { AppConfig } from "../../config/env-config.js";
 import { appendChangeLog, materializeVersion } from "../../history/changelog.js";
 import type { LatchflowQueue } from "../../queue/types.js";
+import type { PluginRuntimeRegistry, ActionDefinitionHealth } from "../../plugins/plugin-loader.js";
+
+import {
+  encryptConfig,
+  decryptConfig,
+  type ConfigEncryptionOptions,
+} from "../../plugins/config-encryption.js";
 
 interface ActionDeps {
   queue?: Pick<LatchflowQueue, "enqueueAction">;
   config?: AppConfig;
+  encryption?: ConfigEncryptionOptions;
+  runtime?: PluginRuntimeRegistry;
 }
 
 type ChangeLogRow = {
@@ -45,6 +54,14 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
     HISTORY_MAX_CHAIN_DEPTH: config.HISTORY_MAX_CHAIN_DEPTH,
   };
   const systemUserId = config.SYSTEM_USER_ID ?? "system";
+  const encryption = deps?.encryption ?? { mode: "none" as const };
+  const runtime = deps?.runtime;
+
+  const toIso = (value?: Date | string | null) => {
+    if (!value) return undefined;
+    if (value instanceof Date) return value.toISOString();
+    return new Date(value).toISOString();
+  };
 
   const toActionDto = (a: {
     id: string;
@@ -58,11 +75,32 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
     id: a.id,
     name: a.name,
     capabilityId: a.capabilityId,
-    config: a.config as Record<string, unknown>,
+    config: decryptConfig(a.config, encryption) as Record<string, unknown>,
     isEnabled: a.isEnabled,
     createdAt: typeof a.createdAt === "string" ? a.createdAt : a.createdAt.toISOString(),
     updatedAt: typeof a.updatedAt === "string" ? a.updatedAt : a.updatedAt.toISOString(),
   });
+
+  const formatActionHealth = (record?: ActionDefinitionHealth) => {
+    if (!record) return undefined;
+    return {
+      definitionId: record.definitionId,
+      capabilityId: record.capabilityId,
+      capabilityKey: record.capabilityKey,
+      pluginId: record.pluginId,
+      pluginName: record.pluginName,
+      lastStatus: record.lastStatus,
+      lastInvocationAt: toIso(record.lastInvocationAt),
+      lastDurationMs: record.lastDurationMs,
+      successCount: record.successCount,
+      retryCount: record.retryCount,
+      failureCount: record.failureCount,
+      skippedCount: record.skippedCount,
+      lastError: record.lastError
+        ? { message: record.lastError.message, at: toIso(record.lastError.at)! }
+        : undefined,
+    };
+  };
 
   const toVersionDto = (row: ChangeLogRow) => ({
     version: row.version,
@@ -166,7 +204,7 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
         data: {
           name,
           capabilityId,
-          config: cfg as unknown as Prisma.InputJsonValue,
+          config: encryptConfig(cfg, encryption),
           createdBy: actor.actorUserId,
         },
       });
@@ -195,6 +233,57 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
         return;
       }
       res.status(200).json(toActionDto(row));
+    }),
+  );
+
+  // GET /actions/:id/executions — recent invocation history
+  server.get(
+    "/actions/:id/executions",
+    requireAdminOrApiToken({
+      policySignature: "GET /actions/:id/executions" as RouteSignature,
+      scopes: [SCOPES.ACTIONS_READ],
+    })(async (req, res) => {
+      const id = (req.params as Record<string, string> | undefined)?.id;
+      if (!id) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST" });
+        return;
+      }
+      const Q = z.object({
+        limit: z.coerce.number().int().min(1).max(200).optional(),
+        cursor: z.string().optional(),
+      });
+      const parsed = Q.safeParse(req.query ?? {});
+      const query = parsed.success ? parsed.data : {};
+      const take = query.limit ?? 20;
+      const rows = await db.actionInvocation.findMany({
+        where: { actionDefinitionId: id },
+        orderBy: { startedAt: "desc" },
+        take,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+      });
+      const items = rows.map((row) => {
+        const startedAt = row.startedAt;
+        const completedAt = row.completedAt ?? undefined;
+        const durationMs = completedAt ? completedAt.getTime() - startedAt.getTime() : undefined;
+        return {
+          id: row.id,
+          status: row.status,
+          startedAt: startedAt.toISOString(),
+          completedAt: completedAt ? completedAt.toISOString() : undefined,
+          retryAt: row.retryAt ? row.retryAt.toISOString() : undefined,
+          triggerEventId: row.triggerEventId ?? undefined,
+          manualInvokerId: row.manualInvokerId ?? undefined,
+          result: row.result,
+          durationMs,
+        };
+      });
+      const nextCursor = rows.length === take ? rows[rows.length - 1]?.id : undefined;
+      const runtimeHealth = runtime
+        ? formatActionHealth(runtime.getActionDefinitionHealth(id))
+        : undefined;
+      res
+        .status(200)
+        .json({ items, ...(nextCursor ? { nextCursor } : {}), runtime: runtimeHealth });
     }),
   );
 
@@ -346,6 +435,12 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
         res.status(404).json({ status: "error", code: "NOT_FOUND" });
         return;
       }
+      if (typeof state === "object" && state !== null) {
+        const asRecord = state as Record<string, unknown>;
+        if ("config" in asRecord) {
+          asRecord.config = decryptConfig(asRecord.config, encryption);
+        }
+      }
       res.status(200).json({
         version: row.version,
         isSnapshot: row.isSnapshot,
@@ -384,7 +479,7 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
       }
       const actor = actorContextForReq(req);
       const patch: Prisma.ActionDefinitionUncheckedUpdateInput = {
-        config: parsed.data.config as unknown as Prisma.InputJsonValue,
+        config: encryptConfig(parsed.data.config, encryption),
         updatedBy: actor.actorUserId,
       };
       const updated = await db.actionDefinition
@@ -436,13 +531,19 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
         res.status(404).json({ status: "error", code: "NOT_FOUND" });
         return;
       }
-      if (typeof state.config === "undefined") {
+      if (typeof state === "object" && state !== null && "config" in state) {
+        (state as Record<string, unknown>).config = decryptConfig(
+          (state as Record<string, unknown>).config,
+          encryption,
+        );
+      }
+      if (typeof (state as Record<string, unknown>).config === "undefined") {
         res.status(409).json({ status: "error", code: "MISSING_CONFIG" });
         return;
       }
       const actor = actorContextForReq(req);
       const patch: Prisma.ActionDefinitionUncheckedUpdateInput = {
-        config: state.config as unknown as Prisma.InputJsonValue,
+        config: encryptConfig((state as Record<string, unknown>).config, encryption),
         updatedBy: actor.actorUserId,
       };
       const updated = await db.actionDefinition

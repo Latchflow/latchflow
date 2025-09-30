@@ -66,6 +66,8 @@ vi.mock("../../authz/decisionLog.js", () => ({
 vi.mock("../../observability/metrics.js", () => ({
   recordAuthzDecision: vi.fn(),
   recordAuthzTwoFactor: vi.fn(),
+  recordPluginActionMetric: vi.fn(),
+  recordPluginTriggerMetric: vi.fn(),
 }));
 
 function makeServer(overrides?: { scheduler?: { schedule: ReturnType<typeof vi.fn> } }) {

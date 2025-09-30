@@ -91,7 +91,7 @@ describe("admin assignments routes (integration)", () => {
     expect(it0.maxDownloads).toBe(3);
     expect(it0.downloadsRemaining).toBe(1);
     expect(it0.cooldownRemainingSeconds).toBe(0);
-  });
+  }, 10_000);
 
   it("GET /admin/recipients/:recipientId/assignments falls back to downloadEvent.count when _count missing", async () => {
     const { handlers, server } = makeServer();

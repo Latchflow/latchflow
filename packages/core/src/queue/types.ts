@@ -4,6 +4,7 @@ export interface LatchflowQueue {
     triggerEventId?: string;
     manualInvokerId?: string;
     context?: Record<string, unknown>;
+    attempt?: number;
   }): Promise<void>;
   consumeActions(
     handler: (msg: {
@@ -11,6 +12,7 @@ export interface LatchflowQueue {
       triggerEventId?: string;
       manualInvokerId?: string;
       context?: Record<string, unknown>;
+      attempt?: number;
     }) => Promise<void>,
   ): Promise<void>;
   stop(): Promise<void>;

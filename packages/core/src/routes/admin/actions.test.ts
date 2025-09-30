@@ -15,6 +15,7 @@ const db = {
     findUnique: vi.fn(async () => null),
   },
   actionInvocation: {
+    findMany: vi.fn(async () => []),
     count: vi.fn(async () => 0),
   },
   pipelineStep: {
@@ -55,7 +56,14 @@ vi.mock("../../middleware/require-session.js", () => ({
   requireSession: vi.fn(async () => ({ user: { id: "admin", role: "ADMIN" } })),
 }));
 
-async function makeServer(overrides?: { queue?: { enqueueAction: ReturnType<typeof vi.fn> } }) {
+async function makeServer(overrides?: {
+  queue?: {
+    enqueueAction: ReturnType<typeof vi.fn>;
+    consumeActions?: ReturnType<typeof vi.fn>;
+    stop?: ReturnType<typeof vi.fn>;
+  };
+  runtime?: Record<string, unknown>;
+}) {
   const handlers = new Map<string, HttpHandler>();
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
@@ -63,16 +71,32 @@ async function makeServer(overrides?: { queue?: { enqueueAction: ReturnType<type
     patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
-  const queue = overrides?.queue ?? { enqueueAction: vi.fn(async () => {}) };
+  const queue =
+    overrides?.queue ??
+    ({
+      enqueueAction: vi.fn(async () => {}),
+      consumeActions: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+    } as const);
+  const runtime = {
+    getActionDefinitionHealth: vi.fn(() => undefined),
+  } as Record<string, unknown>;
+  if (overrides?.runtime) {
+    Object.assign(runtime, overrides.runtime);
+  }
   registerActionAdminRoutes(server, {
     queue,
     config: {
       HISTORY_SNAPSHOT_INTERVAL: 20,
       HISTORY_MAX_CHAIN_DEPTH: 200,
       SYSTEM_USER_ID: "sys",
+      ENCRYPTION_MODE: "none",
+      ENCRYPTION_MASTER_KEY_B64: undefined,
     } as any,
+    encryption: { mode: "none" },
+    runtime: runtime as any,
   });
-  return { handlers, queue };
+  return { handlers, queue, runtime };
 }
 
 function resetDbMocks() {
@@ -273,7 +297,11 @@ describe("actions admin routes", () => {
 
   it("POST /actions/:id/test-run enqueues manual invocation", async () => {
     db.actionDefinition.findUnique.mockResolvedValueOnce({ id: "a1" } as any);
-    const queue = { enqueueAction: vi.fn(async () => {}) };
+    const queue = {
+      enqueueAction: vi.fn(async () => {}),
+      consumeActions: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+    };
     const handlers = new Map<string, HttpHandler>();
     const server = {
       get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
@@ -287,7 +315,10 @@ describe("actions admin routes", () => {
         HISTORY_SNAPSHOT_INTERVAL: 20,
         HISTORY_MAX_CHAIN_DEPTH: 200,
         SYSTEM_USER_ID: "sys",
+        ENCRYPTION_MODE: "none",
+        ENCRYPTION_MASTER_KEY_B64: undefined,
       } as any,
+      encryption: { mode: "none" },
     });
     const h = handlers.get("POST /actions/:id/test-run")!;
     const rc = createResponseCapture();
@@ -299,5 +330,51 @@ describe("actions admin routes", () => {
       manualInvokerId: "admin",
       context: { foo: "bar" },
     });
+  });
+
+  it("GET /actions/:id/executions returns history with runtime", async () => {
+    const startedAt = new Date("2024-01-01T10:00:00Z");
+    const completedAt = new Date("2024-01-01T10:00:10Z");
+    db.actionInvocation.findMany.mockResolvedValueOnce([
+      {
+        id: "inv-1",
+        status: "SUCCESS",
+        startedAt,
+        completedAt,
+        retryAt: null,
+        triggerEventId: "evt-1",
+        manualInvokerId: null,
+        result: { ok: true },
+      },
+    ] as any);
+
+    const health = {
+      definitionId: "a1",
+      capabilityId: "cap-1",
+      capabilityKey: "gmail",
+      pluginId: "plug-1",
+      pluginName: "core",
+      lastStatus: "SUCCESS",
+      lastInvocationAt: completedAt,
+      lastDurationMs: 1000,
+      successCount: 1,
+      retryCount: 0,
+      failureCount: 0,
+      skippedCount: 0,
+      lastError: undefined,
+    };
+
+    const { handlers } = await makeServer({
+      runtime: { getActionDefinitionHealth: vi.fn(() => health) },
+    });
+
+    const h = handlers.get("GET /actions/:id/executions")!;
+    const rc = createResponseCapture();
+    await h({ params: { id: "a1" } } as any, rc.res);
+    expect(rc.status).toBe(200);
+    expect(rc.body?.items?.[0]?.id).toBe("inv-1");
+    expect(rc.body?.items?.[0]?.durationMs).toBe(10000);
+    expect(rc.body?.runtime?.definitionId).toBe("a1");
+    expect(rc.body?.runtime?.successCount).toBe(1);
   });
 });

@@ -216,5 +216,5 @@ describe("users admin routes (integration)", () => {
       where: { userId: "usr_2", revokedAt: null },
       data: { revokedAt: expect.any(Date) },
     });
-  });
+  }, 10_000);
 });

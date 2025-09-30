@@ -142,6 +142,31 @@ actions_item:
       '404': { $ref: ../components/responses/NotFound.yaml }
       '409': { $ref: ../components/responses/Conflict.yaml }
 
+actions_executions:
+  get:
+    summary: Recent action executions
+    operationId: listActionExecutions
+    tags: [Actions]
+    security:
+      - bearer: []
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: ../components/parameters/Limit.yaml
+      - $ref: ../components/parameters/Cursor.yaml
+    responses:
+      '200':
+        description: Invocation history
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/ActionExecutionsResponse.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
 # ActionDefinition versions (history)
 action_versions_collection:
   get:

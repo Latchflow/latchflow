@@ -5,6 +5,7 @@ type Msg = {
   triggerEventId?: string;
   manualInvokerId?: string;
   context?: Record<string, unknown>;
+  attempt?: number;
 };
 
 export const createMemoryQueue: QueueFactory = async () => {

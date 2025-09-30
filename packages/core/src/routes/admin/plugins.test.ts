@@ -4,11 +4,22 @@ import type { HttpHandler } from "../../http/http-server.js";
 const db = {
   plugin: {
     findMany: vi.fn(async () => []),
+    findUnique: vi.fn(async () => null),
     delete: vi.fn(async () => ({})),
     deleteMany: vi.fn(async () => ({})),
   },
   pluginCapability: {
     findMany: vi.fn(async () => []),
+  },
+  triggerDefinition: {
+    findMany: vi.fn(async () => []),
+  },
+  actionDefinition: {
+    findMany: vi.fn(async () => []),
+  },
+  triggerEvent: {
+    findFirst: vi.fn(async () => null),
+    count: vi.fn(async () => 0),
   },
   apiToken: {
     findUnique: vi.fn(async () => null),
@@ -43,6 +54,8 @@ vi.mock("../../authz/decisionLog.js", () => ({
 vi.mock("../../observability/metrics.js", () => ({
   recordAuthzDecision: vi.fn(),
   recordAuthzTwoFactor: vi.fn(),
+  recordPluginActionMetric: vi.fn(),
+  recordPluginTriggerMetric: vi.fn(),
 }));
 
 // Default: requireSession passes
@@ -50,16 +63,44 @@ vi.mock("../../middleware/require-session.js", () => ({
   requireSession: vi.fn(async () => ({ user: { id: "u1", role: "ADMIN" } })),
 }));
 
-async function makeServer() {
+async function makeServer(runtimeOverrides?: Record<string, unknown>) {
   const handlers = new Map<string, HttpHandler>();
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
     post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
+  const runtime = {
+    getPluginRuntimeSnapshot: vi.fn(() => ({ triggers: [], actions: [] })),
+    getRuntimeHealthSummary: vi.fn(() => ({
+      generatedAt: new Date(),
+      pluginCount: 0,
+      triggerDefinitions: {
+        total: 0,
+        running: 0,
+        totalEmitCount: 0,
+        errorCount: 0,
+        lastActivityAt: undefined,
+      },
+      actionDefinitions: {
+        total: 0,
+        successCount: 0,
+        retryCount: 0,
+        failureCount: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        lastInvocationAt: undefined,
+      },
+    })),
+    getTriggerDefinitionHealth: vi.fn(() => undefined),
+    getActionDefinitionHealth: vi.fn(() => undefined),
+  } as Record<string, unknown>;
+  if (runtimeOverrides) {
+    Object.assign(runtime, runtimeOverrides);
+  }
   const { registerPluginRoutes } = await import("./plugins.js");
-  registerPluginRoutes(server);
-  return { handlers };
+  registerPluginRoutes(server, { runtime: runtime as any });
+  return { handlers, runtime };
 }
 
 describe("plugin routes", () => {
@@ -216,6 +257,116 @@ describe("plugin routes", () => {
       sendBuffer() {},
     });
     expect(status).toBe(202);
+  });
+
+  it("GET /plugins/:id/status returns runtime snapshot", async () => {
+    const installedAt = new Date();
+    db.plugin.findUnique.mockResolvedValueOnce({
+      id: "plug-1",
+      name: "core",
+      description: null,
+      author: "Latchflow",
+      installedAt,
+      capabilities: [],
+    } as any);
+    const updatedAt = new Date();
+    db.triggerDefinition.findMany.mockResolvedValueOnce([
+      {
+        id: "trig-1",
+        name: "Cron",
+        isEnabled: true,
+        createdAt: updatedAt,
+        updatedAt,
+      },
+    ] as any);
+    db.actionDefinition.findMany.mockResolvedValueOnce([] as any);
+
+    const triggerHealth = {
+      definitionId: "trig-1",
+      capabilityId: "cap-1",
+      capabilityKey: "cron",
+      pluginId: "plug-1",
+      pluginName: "core",
+      isRunning: true,
+      emitCount: 3,
+      lastStartAt: new Date(),
+      lastStopAt: undefined,
+      lastEmitAt: new Date(),
+      lastError: undefined,
+    };
+
+    const { handlers } = await makeServer({
+      getPluginRuntimeSnapshot: vi.fn(() => ({ triggers: [triggerHealth], actions: [] })),
+    });
+
+    const h = handlers.get("GET /plugins/:pluginId/status")!;
+    let status = 0;
+    let body: any;
+    await h({ params: { pluginId: "plug-1" } } as any, {
+      status(code: number) {
+        status = code;
+        return this as any;
+      },
+      json(payload: any) {
+        body = payload;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+      sendStream() {},
+      sendBuffer() {},
+    });
+
+    expect(status).toBe(200);
+    expect(body?.plugin?.id).toBe("plug-1");
+    expect(body?.runtimeSummary?.runningTriggers).toBe(1);
+    expect(body?.definitions?.triggers?.[0]?.runtime?.emitCount).toBe(3);
+  });
+
+  it("GET /system/plugin-runtime/health returns summary", async () => {
+    const summary = {
+      generatedAt: new Date(),
+      pluginCount: 2,
+      triggerDefinitions: {
+        total: 3,
+        running: 1,
+        totalEmitCount: 5,
+        errorCount: 0,
+        lastActivityAt: new Date(),
+      },
+      actionDefinitions: {
+        total: 4,
+        successCount: 10,
+        retryCount: 1,
+        failureCount: 2,
+        skippedCount: 0,
+        errorCount: 1,
+        lastInvocationAt: new Date(),
+      },
+    };
+    const { handlers } = await makeServer({ getRuntimeHealthSummary: vi.fn(() => summary) });
+    const h = handlers.get("GET /system/plugin-runtime/health")!;
+    let status = 0;
+    let body: any;
+    await h({} as any, {
+      status(code: number) {
+        status = code;
+        return this as any;
+      },
+      json(payload: any) {
+        body = payload;
+      },
+      header() {
+        return this as any;
+      },
+      redirect() {},
+      sendStream() {},
+      sendBuffer() {},
+    });
+    expect(status).toBe(200);
+    expect(body?.pluginCount).toBe(2);
+    expect(body?.triggerDefinitions?.running).toBe(1);
   });
 
   it("DELETE /plugins/:pluginId deletes and returns 204", async () => {

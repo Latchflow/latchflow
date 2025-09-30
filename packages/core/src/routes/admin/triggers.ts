@@ -7,8 +7,17 @@ import { SCOPES } from "../../auth/scopes.js";
 import type { RouteSignature } from "../../authz/policy.js";
 import type { AppConfig } from "../../config/env-config.js";
 import { appendChangeLog, materializeVersion } from "../../history/changelog.js";
+import {
+  encryptConfig,
+  decryptConfig,
+  type ConfigEncryptionOptions,
+} from "../../plugins/config-encryption.js";
+import type {
+  PluginRuntimeRegistry,
+  TriggerDefinitionHealth,
+} from "../../plugins/plugin-loader.js";
 
-type FireFn = (triggerDefinitionId: string, context?: Record<string, unknown>) => Promise<void>;
+type FireFn = (triggerDefinitionId: string, context?: Record<string, unknown>) => Promise<string>;
 
 type ChangeLogRow = {
   version: number;
@@ -25,10 +34,14 @@ type ChangeLogRow = {
   onBehalfOfUserId: string | null;
 };
 
-export function registerTriggerAdminRoutes(
-  server: HttpServer,
-  deps?: { fireTriggerOnce?: FireFn; config?: AppConfig },
-) {
+interface TriggerDeps {
+  fireTriggerOnce?: FireFn;
+  config?: AppConfig;
+  encryption?: ConfigEncryptionOptions;
+  runtime?: PluginRuntimeRegistry;
+}
+
+export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDeps) {
   const db = getDb();
   const defaultHistoryCfg: Pick<
     AppConfig,
@@ -44,11 +57,38 @@ export function registerTriggerAdminRoutes(
     HISTORY_MAX_CHAIN_DEPTH: config.HISTORY_MAX_CHAIN_DEPTH,
   };
   const systemUserId = config.SYSTEM_USER_ID ?? "system";
+  const encryption = deps?.encryption ?? { mode: "none" as const };
+  const runtime = deps?.runtime;
 
   const actorContextForReq = (req: unknown) => {
     const user = (req as { user?: { id?: string } }).user;
     const actorId = user?.id ?? systemUserId;
     return { actorType: "USER" as const, actorUserId: actorId };
+  };
+
+  const toIso = (value?: Date | string | null) => {
+    if (!value) return undefined;
+    if (value instanceof Date) return value.toISOString();
+    return new Date(value).toISOString();
+  };
+
+  const formatTriggerHealth = (record?: TriggerDefinitionHealth) => {
+    if (!record) return undefined;
+    return {
+      definitionId: record.definitionId,
+      capabilityId: record.capabilityId,
+      capabilityKey: record.capabilityKey,
+      pluginId: record.pluginId,
+      pluginName: record.pluginName,
+      isRunning: record.isRunning,
+      emitCount: record.emitCount,
+      lastStartAt: toIso(record.lastStartAt),
+      lastStopAt: toIso(record.lastStopAt),
+      lastEmitAt: toIso(record.lastEmitAt),
+      lastError: record.lastError
+        ? { message: record.lastError.message, at: toIso(record.lastError.at)! }
+        : undefined,
+    };
   };
 
   const toTriggerDto = (t: {
@@ -63,7 +103,7 @@ export function registerTriggerAdminRoutes(
     id: t.id,
     name: t.name,
     capabilityId: t.capabilityId,
-    config: t.config as Record<string, unknown>,
+    config: decryptConfig(t.config, encryption) as Record<string, unknown>,
     isEnabled: t.isEnabled,
     createdAt: typeof t.createdAt === "string" ? t.createdAt : t.createdAt.toISOString(),
     updatedAt: typeof t.updatedAt === "string" ? t.updatedAt : t.updatedAt.toISOString(),
@@ -161,7 +201,7 @@ export function registerTriggerAdminRoutes(
         data: {
           name,
           capabilityId,
-          config: cfg as unknown as Prisma.InputJsonValue,
+          config: encryptConfig(cfg, encryption),
           createdBy: actor.actorUserId,
         },
       });
@@ -190,6 +230,71 @@ export function registerTriggerAdminRoutes(
         return;
       }
       res.status(200).json(toTriggerDto(row));
+    }),
+  );
+
+  // GET /triggers/:id/status — runtime + event health
+  server.get(
+    "/triggers/:id/status",
+    requireAdminOrApiToken({
+      policySignature: "GET /triggers/:id/status" as RouteSignature,
+      scopes: [SCOPES.TRIGGERS_READ],
+    })(async (req, res) => {
+      const id = (req.params as Record<string, string> | undefined)?.id;
+      if (!id) {
+        res.status(400).json({ status: "error", code: "BAD_REQUEST" });
+        return;
+      }
+      const definition = await db.triggerDefinition.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          capabilityId: true,
+          isEnabled: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      if (!definition) {
+        res.status(404).json({ status: "error", code: "NOT_FOUND" });
+        return;
+      }
+
+      const [lastEvent, eventCount] = await Promise.all([
+        db.triggerEvent.findFirst({
+          where: { triggerDefinitionId: id },
+          orderBy: { firedAt: "desc" },
+          select: { id: true, firedAt: true, context: true },
+        }),
+        db.triggerEvent.count({ where: { triggerDefinitionId: id } }),
+      ]);
+
+      const runtimeHealth = runtime
+        ? formatTriggerHealth(runtime.getTriggerDefinitionHealth(id))
+        : undefined;
+
+      res.status(200).json({
+        trigger: {
+          id: definition.id,
+          name: definition.name,
+          capabilityId: definition.capabilityId,
+          isEnabled: definition.isEnabled,
+          createdAt: toIso(definition.createdAt),
+          updatedAt: toIso(definition.updatedAt),
+        },
+        runtime: runtimeHealth,
+        lastEvent: lastEvent
+          ? {
+              id: lastEvent.id,
+              firedAt: toIso(lastEvent.firedAt),
+              context: lastEvent.context,
+            }
+          : undefined,
+        metrics: {
+          eventCount,
+        },
+      });
     }),
   );
 
@@ -225,7 +330,7 @@ export function registerTriggerAdminRoutes(
         ...(parsed.data.name ? { name: parsed.data.name } : {}),
         ...(typeof parsed.data.isEnabled === "boolean" ? { isEnabled: parsed.data.isEnabled } : {}),
         ...(parsed.data.config !== undefined
-          ? { config: parsed.data.config as unknown as Prisma.InputJsonValue }
+          ? { config: encryptConfig(parsed.data.config, encryption) }
           : {}),
         updatedBy: actor.actorUserId,
       };
@@ -348,6 +453,12 @@ export function registerTriggerAdminRoutes(
         res.status(404).json({ status: "error", code: "NOT_FOUND" });
         return;
       }
+      if (typeof state === "object" && state !== null) {
+        const asRecord = state as Record<string, unknown>;
+        if ("config" in asRecord) {
+          asRecord.config = decryptConfig(asRecord.config, encryption);
+        }
+      }
       res.status(200).json({
         version: row.version,
         isSnapshot: row.isSnapshot,
@@ -386,7 +497,7 @@ export function registerTriggerAdminRoutes(
       }
       const actor = actorContextForReq(req);
       const patch: Prisma.TriggerDefinitionUncheckedUpdateInput = {
-        config: parsed.data.config as unknown as Prisma.InputJsonValue,
+        config: encryptConfig(parsed.data.config, encryption),
         updatedBy: actor.actorUserId,
       };
       const updated = await db.triggerDefinition
@@ -438,13 +549,19 @@ export function registerTriggerAdminRoutes(
         res.status(404).json({ status: "error", code: "NOT_FOUND" });
         return;
       }
-      if (typeof state.config === "undefined") {
+      if (typeof state === "object" && state !== null && "config" in state) {
+        (state as Record<string, unknown>).config = decryptConfig(
+          (state as Record<string, unknown>).config,
+          encryption,
+        );
+      }
+      if (typeof (state as Record<string, unknown>).config === "undefined") {
         res.status(409).json({ status: "error", code: "MISSING_CONFIG" });
         return;
       }
       const actor = actorContextForReq(req);
       const patch: Prisma.TriggerDefinitionUncheckedUpdateInput = {
-        config: state.config as unknown as Prisma.InputJsonValue,
+        config: encryptConfig((state as Record<string, unknown>).config, encryption),
         updatedBy: actor.actorUserId,
       };
       const updated = await db.triggerDefinition

@@ -1,0 +1,26 @@
+type: object
+properties:
+  id: { type: string, format: uuid }
+  status:
+    type: string
+    description: Invocation status
+    enum:
+      - PENDING
+      - SKIPPED_DISABLED
+      - RETRYING
+      - SUCCESS
+      - FAILED
+      - FAILED_PERMANENT
+  startedAt: { type: string, format: date-time }
+  completedAt: { type: string, format: date-time }
+  retryAt: { type: string, format: date-time }
+  triggerEventId: { type: string, format: uuid }
+  manualInvokerId: { type: string, format: uuid }
+  result:
+    type: object
+    description: Plugin-provided result payload
+    additionalProperties: true
+  durationMs:
+    type: integer
+    minimum: 0
+required: [id, status, startedAt]

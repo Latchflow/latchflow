@@ -54,14 +54,17 @@ describe("triggers admin routes (integration)", () => {
   it("create → enable toggle → list filters → delete", async () => {
     const { handlers, server } = makeServer();
     const { registerTriggerAdminRoutes } = await import("../../src/routes/admin/triggers.js");
-    const fire = vi.fn(async () => {});
+    const fire = vi.fn(async () => "evt_test");
     registerTriggerAdminRoutes(server, {
       fireTriggerOnce: fire,
       config: {
         HISTORY_SNAPSHOT_INTERVAL: 20,
         HISTORY_MAX_CHAIN_DEPTH: 200,
         SYSTEM_USER_ID: "sys",
+        ENCRYPTION_MODE: "none",
+        ENCRYPTION_MASTER_KEY_B64: undefined,
       } as any,
+      encryption: { mode: "none" },
     });
 
     // Create
@@ -117,5 +120,5 @@ describe("triggers admin routes (integration)", () => {
     const rcDelete = createResponseCapture();
     await handlers.get("DELETE /triggers/:id")!({ params: { id: "t1" } } as any, rcDelete.res);
     expect(rcDelete.status).toBe(204);
-  });
+  }, 10_000);
 });

@@ -192,8 +192,12 @@ paths:
     $ref: ./paths/plugins.yaml#/plugins
   /plugins/{pluginId}:
     $ref: ./paths/plugins.yaml#/plugins_item
+  /plugins/{pluginId}/status:
+    $ref: ./paths/plugins.yaml#/plugins_status
   /plugins/install:
     $ref: ./paths/plugins.yaml#/plugins_install
+  /system/plugin-runtime/health:
+    $ref: ./paths/plugins.yaml#/plugin_runtime_health
   /capabilities:
     $ref: ./paths/capabilities.yaml#/capabilities
 
@@ -201,6 +205,8 @@ paths:
     $ref: ./paths/triggers.yaml#/triggers_collection
   /triggers/{id}:
     $ref: ./paths/triggers.yaml#/triggers_item
+  /triggers/{id}/status:
+    $ref: ./paths/triggers.yaml#/triggers_status
   /triggers/{id}/versions:
     $ref: ./paths/triggers.yaml#/trigger_versions_collection
   /triggers/{id}/versions/{version}:
@@ -213,6 +219,8 @@ paths:
     $ref: ./paths/actions.yaml#/actions_collection
   /actions/{id}:
     $ref: ./paths/actions.yaml#/actions_item
+  /actions/{id}/executions:
+    $ref: ./paths/actions.yaml#/actions_executions
   /actions/{id}/versions:
     $ref: ./paths/actions.yaml#/action_versions_collection
   /actions/{id}/versions/{version}:

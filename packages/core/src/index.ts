@@ -9,11 +9,13 @@ import { registerCliAuthRoutes } from "./routes/auth/cli.js";
 import { loadQueue } from "./queue/loader.js";
 import { startActionConsumer } from "./runtime/action-runner.js";
 import { startTriggerRunner } from "./runtime/trigger-runner.js";
+import { TriggerRuntimeManager } from "./runtime/trigger-runtime-manager.js";
 import {
   loadPlugins,
   PluginRuntimeRegistry,
   upsertPluginsIntoDb,
 } from "./plugins/plugin-loader.js";
+import { startPluginWatcher } from "./plugins/hot-reload.js";
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
@@ -38,9 +40,18 @@ import {
   getSystemConfigService,
   seedSystemConfigFromEnvironment,
 } from "./config/system-config-startup.js";
+import { createStubPluginServiceRegistry } from "./services/stubs.js";
+import { resolveConfigEncryption } from "./plugins/config-encryption.js";
 
 export async function main() {
   const config = loadConfig();
+  let configEncryption;
+  try {
+    configEncryption = resolveConfigEncryption(config);
+  } catch (err) {
+    logger.warn({ error: (err as Error).message }, "Falling back to unencrypted config storage");
+    configEncryption = { mode: "none" } as const;
+  }
 
   configureAuthzFlags({
     enforce: config.AUTHZ_V2,
@@ -73,10 +84,11 @@ export async function main() {
   }
 
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
-  const runtime = new PluginRuntimeRegistry();
+  const pluginServices = createStubPluginServiceRegistry();
+  const runtime = new PluginRuntimeRegistry(pluginServices);
+  const db = getDb();
+  let pluginsLoaded = false;
   try {
-    const db = getDb();
-
     // Initialize system configuration and seed from environment
     const systemConfigService = await getSystemConfigService(db, config);
     await seedSystemConfigFromEnvironment(systemConfigService, config);
@@ -84,6 +96,7 @@ export async function main() {
     const loaded = await loadPlugins(config.PLUGINS_PATH);
     await upsertPluginsIntoDb(db, loaded, runtime);
     createPluginLogger().info({ count: loaded.length }, "Plugins loaded");
+    pluginsLoaded = true;
   } catch (e) {
     createPluginLogger().warn(
       { error: (e as Error).message },
@@ -91,6 +104,7 @@ export async function main() {
     );
   }
 
+  let pluginWatcher: ReturnType<typeof startPluginWatcher> | undefined;
   // Initialize storage
   const { name: storageName, storage } = await loadStorage(
     config.STORAGE_DRIVER,
@@ -117,15 +131,50 @@ export async function main() {
   );
 
   await startActionConsumer(queue, {
-    executeAction: async () => {
-      // TODO: resolve action capability and execute it
-      return null;
-    },
+    registry: runtime,
+    encryption: configEncryption,
   });
 
   const triggerRunner = await startTriggerRunner({
     onFire: async (msg) => queue.enqueueAction(msg),
   });
+
+  const triggerRuntimeManager = new TriggerRuntimeManager({
+    db,
+    registry: runtime,
+    fireTrigger: triggerRunner.fireTriggerOnce,
+    encryption: configEncryption,
+  });
+  await triggerRuntimeManager.startAll();
+
+  const stopTriggerRuntimes = () => {
+    triggerRuntimeManager
+      .stopAll()
+      .catch((err) =>
+        logger.warn({ error: (err as Error).message }, "Failed to stop trigger runtimes"),
+      );
+  };
+
+  if (pluginsLoaded && process.env.NODE_ENV !== "production") {
+    try {
+      pluginWatcher = startPluginWatcher({
+        pluginsPath: config.PLUGINS_PATH,
+        runtime,
+        db,
+      });
+      const stopWatcher = () => pluginWatcher?.close();
+      process.once("SIGINT", stopWatcher);
+      process.once("SIGTERM", stopWatcher);
+    } catch (err) {
+      createPluginLogger("watcher").warn(
+        { error: (err as Error).message },
+        "Failed to start plugin watcher",
+      );
+    }
+  }
+
+  process.once("SIGINT", stopTriggerRuntimes);
+  process.once("SIGTERM", stopTriggerRuntimes);
 
   // Start HTTP server
   const server = createExpressServer();
@@ -162,9 +211,14 @@ export async function main() {
   registerRecipientAuthRoutes(server, config);
   registerPortalRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerCliAuthRoutes(server, config);
-  registerPluginRoutes(server);
-  registerTriggerAdminRoutes(server, { fireTriggerOnce: triggerRunner.fireTriggerOnce, config });
-  registerActionAdminRoutes(server, { queue, config });
+  registerPluginRoutes(server, { runtime });
+  registerTriggerAdminRoutes(server, {
+    fireTriggerOnce: triggerRunner.fireTriggerOnce,
+    config,
+    encryption: configEncryption,
+    runtime,
+  });
+  registerActionAdminRoutes(server, { queue, config, encryption: configEncryption, runtime });
   registerPipelineAdminRoutes(server, { config });
   registerUserAdminRoutes(server, config);
   registerPermissionPresetAdminRoutes(server, { config });

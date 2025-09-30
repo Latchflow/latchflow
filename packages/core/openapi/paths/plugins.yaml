@@ -84,3 +84,41 @@ plugins_item:
       '204': { description: Removed }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
       '403': { $ref: ../components/responses/Forbidden.yaml }
+
+plugins_status:
+  get:
+    summary: Runtime status for a plugin
+    operationId: getPluginStatus
+    tags: [Plugins]
+    security:
+      - cookieAdmin: []
+    parameters:
+      - in: path
+        name: pluginId
+        required: true
+        schema: { type: string, format: uuid }
+    responses:
+      '200':
+        description: Plugin runtime snapshot
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PluginStatusResponse.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+
+plugin_runtime_health:
+  get:
+    summary: Aggregate plugin runtime health
+    operationId: getPluginRuntimeHealth
+    tags: [Plugins]
+    security:
+      - cookieAdmin: []
+    responses:
+      '200':
+        description: Global plugin runtime summary
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas/PluginRuntimeSummary.yaml }
+      '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }

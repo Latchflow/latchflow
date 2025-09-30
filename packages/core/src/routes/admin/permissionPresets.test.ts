@@ -68,6 +68,8 @@ vi.mock("../../authz/context.js", () => ({
 
 vi.mock("../../observability/metrics.js", () => ({
   recordAuthzSimulation: vi.fn(),
+  recordPluginActionMetric: vi.fn(),
+  recordPluginTriggerMetric: vi.fn(),
 }));
 
 function makeServer() {

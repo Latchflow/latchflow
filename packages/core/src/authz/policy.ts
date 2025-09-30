@@ -9,6 +9,7 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   "GET /triggers": { action: "read", resource: "trigger_def", v1AllowExecutor: true },
   "POST /triggers": { action: "create", resource: "trigger_def" },
   "GET /triggers/:id": { action: "read", resource: "trigger_def", v1AllowExecutor: true },
+  "GET /triggers/:id/status": { action: "read", resource: "trigger_def" },
   "PATCH /triggers/:id": { action: "update", resource: "trigger_def" },
   "DELETE /triggers/:id": { action: "delete", resource: "trigger_def" },
   "POST /triggers/:id/test-fire": { action: "update", resource: "trigger_def" },
@@ -55,14 +56,17 @@ export const POLICY: Record<RouteSignature, PolicyEntry> = {
   "POST /triggers/:id/versions/:version/activate": { action: "update", resource: "trigger_def" },
   // Admin plugin management
   "GET /plugins": { action: "read", resource: "plugin", v1AllowExecutor: true },
+  "GET /plugins/:pluginId/status": { action: "read", resource: "plugin" },
   "POST /plugins/install": { action: "manage", resource: "plugin" },
   "DELETE /plugins/:pluginId": { action: "delete", resource: "plugin" },
   "GET /capabilities": { action: "read", resource: "capability", v1AllowExecutor: true },
+  "GET /system/plugin-runtime/health": { action: "read", resource: "plugin" },
 
   // Actions (admin API)
   "GET /actions": { action: "read", resource: "action_def", v1AllowExecutor: true },
   "POST /actions": { action: "create", resource: "action_def" },
   "GET /actions/:id": { action: "read", resource: "action_def", v1AllowExecutor: true },
+  "GET /actions/:id/executions": { action: "read", resource: "action_def" },
   "PATCH /actions/:id": { action: "update", resource: "action_def" },
   "DELETE /actions/:id": { action: "delete", resource: "action_def" },
   "GET /actions/:id/versions": { action: "read", resource: "action_def", v1AllowExecutor: true },
