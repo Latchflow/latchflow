@@ -206,7 +206,11 @@ describe("actions integration flow", () => {
       delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
     } as any;
     registerActionAdminRoutes(server, {
-      queue: { enqueueAction: async () => {} },
+      queue: {
+        enqueueAction: async () => {},
+        consumeActions: async () => {},
+        stop: async () => {},
+      },
       config: {
         HISTORY_SNAPSHOT_INTERVAL: 10,
         HISTORY_MAX_CHAIN_DEPTH: 100,

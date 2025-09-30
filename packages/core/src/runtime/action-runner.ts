@@ -1,15 +1,22 @@
 import { LatchflowQueue } from "../queue/types.js";
 import { getDb } from "../db/db.js";
-import type { Prisma } from "@latchflow/db";
+import type { Prisma, $Enums } from "@latchflow/db";
 import type { PluginRuntimeRegistry } from "../plugins/plugin-loader.js";
 import type { ActionRuntimeContext } from "../plugins/contracts.js";
 import { createPluginLogger } from "../observability/logger.js";
+import { PluginServiceError } from "../services/errors.js";
+
+const ACTION_EXECUTION_TIMEOUT_MS = 60_000;
+const runnerLogger = createPluginLogger("action-runner");
+const DEFAULT_RETRY_DELAY_MS = 2_000;
+const MAX_RETRY_DELAY_MS = 60_000;
 
 type QueueMessage = {
   actionDefinitionId: string;
   triggerEventId?: string;
   manualInvokerId?: string;
   context?: Record<string, unknown>;
+  attempt?: number;
 };
 
 export async function startActionConsumer(
@@ -36,6 +43,8 @@ export async function startActionConsumer(
       });
     };
 
+    const attempt = msg.attempt ?? 1;
+
     try {
       const definition = await db.actionDefinition.findUnique({
         where: { id: msg.actionDefinitionId },
@@ -52,6 +61,7 @@ export async function startActionConsumer(
           status: "SKIPPED_DISABLED",
           result: { reason: "ACTION_DISABLED" } as unknown as Prisma.InputJsonValue,
           completedAt: new Date(),
+          retryAt: null,
         });
         return;
       }
@@ -69,22 +79,43 @@ export async function startActionConsumer(
 
       const runtime = await ref.factory(context);
       try {
-        const executionResult = await runtime.execute({
-          config: definition.config as unknown,
-          secrets: null,
-          payload: msg.context,
-          invocation: {
-            invocationId: invocation.id,
-            triggerEventId: msg.triggerEventId,
-            manualInvokerId: msg.manualInvokerId,
-            context: msg.context,
-          },
-        });
+        const executionResult = await executeWithTimeout(
+          runtime.execute({
+            config: definition.config as unknown,
+            secrets: null,
+            payload: msg.context,
+            invocation: {
+              invocationId: invocation.id,
+              triggerEventId: msg.triggerEventId,
+              manualInvokerId: msg.manualInvokerId,
+              context: msg.context,
+            },
+          }),
+          ACTION_EXECUTION_TIMEOUT_MS,
+          ref.pluginName,
+          definition.id,
+        );
+
+        if (executionResult && executionResult.retry) {
+          const retryDelay = Math.max(
+            0,
+            executionResult.retry.delayMs ?? computeBackoffDelay(attempt),
+          );
+          await finishInvocation({
+            status: "RETRYING",
+            result: (executionResult ?? null) as unknown as Prisma.InputJsonValue,
+            completedAt: new Date(),
+            retryAt: retryDelay > 0 ? new Date(Date.now() + retryDelay) : null,
+          });
+          scheduleRetry(queue, msg, retryDelay, attempt + 1);
+          return;
+        }
 
         await finishInvocation({
           status: "SUCCESS",
           result: (executionResult ?? null) as unknown as Prisma.InputJsonValue,
           completedAt: new Date(),
+          retryAt: null,
         });
       } finally {
         if (typeof runtime.dispose === "function") {
@@ -100,11 +131,95 @@ export async function startActionConsumer(
       }
     } catch (e) {
       const error = e as Error;
+      let status: $Enums.InvocationStatus = "FAILED";
+      let retryDelay = 0;
+      if (error instanceof PluginServiceError) {
+        if (error.kind === "RETRYABLE" || error.kind === "RATE_LIMIT") {
+          status = "RETRYING";
+          retryDelay = Math.max(0, error.retryDelayMs ?? computeBackoffDelay(attempt));
+        } else if (error.kind === "PERMISSION" || error.kind === "VALIDATION") {
+          status = "FAILED_PERMANENT";
+        } else if (error.kind === "FATAL") {
+          status = "FAILED_PERMANENT";
+        }
+      }
+
       await finishInvocation({
-        status: "FAILED",
+        status,
         result: { error: error.message } as unknown as Prisma.InputJsonValue,
         completedAt: new Date(),
+        retryAt: status === "RETRYING" && retryDelay > 0 ? new Date(Date.now() + retryDelay) : null,
       });
+
+      if (status === "RETRYING") {
+        scheduleRetry(queue, msg, retryDelay, attempt + 1);
+      } else if (!(error instanceof PluginServiceError)) {
+        runnerLogger.warn(
+          {
+            error: error.message,
+            actionDefinitionId: msg.actionDefinitionId,
+          },
+          "Action execution failed",
+        );
+      }
     }
+  });
+}
+
+function scheduleRetry(
+  queue: LatchflowQueue,
+  msg: QueueMessage,
+  delayMs: number,
+  nextAttempt: number,
+) {
+  const payload: QueueMessage = {
+    actionDefinitionId: msg.actionDefinitionId,
+    triggerEventId: msg.triggerEventId,
+    manualInvokerId: msg.manualInvokerId,
+    context: msg.context,
+    attempt: nextAttempt,
+  };
+  setTimeout(
+    () => {
+      queue
+        .enqueueAction(payload)
+        .catch((err) => runnerLogger.warn({ error: err.message }, "Failed to enqueue retry"));
+    },
+    Math.max(0, delayMs),
+  );
+}
+
+function computeBackoffDelay(attempt: number): number {
+  const delay = DEFAULT_RETRY_DELAY_MS * 2 ** Math.max(0, attempt - 1);
+  return Math.min(delay, MAX_RETRY_DELAY_MS);
+}
+
+async function executeWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  pluginName: string,
+  actionDefinitionId: string,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeoutError = new PluginServiceError({
+    kind: "FATAL",
+    code: "ACTION_TIMEOUT",
+    message: `Action ${actionDefinitionId} from plugin ${pluginName} timed out after ${timeoutMs}ms`,
+  });
+
+  return new Promise<T>((resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(timeoutError);
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        if (timer) clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        if (timer) clearTimeout(timer);
+        reject(err);
+      });
   });
 }

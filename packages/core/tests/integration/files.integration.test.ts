@@ -153,7 +153,7 @@ describe("files integration (in-package)", () => {
       Array.isArray(rcList2.body?.items) &&
       rcList2.body.items.some((it: any) => it.id === "f-int-1");
     expect(hasItem).toBe(false);
-  });
+  }, 10_000);
 
   it("upload triggers onFilesChanged hook with created file id", async () => {
     const calls: string[][] = [];

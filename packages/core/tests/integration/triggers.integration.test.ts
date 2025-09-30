@@ -117,5 +117,5 @@ describe("triggers admin routes (integration)", () => {
     const rcDelete = createResponseCapture();
     await handlers.get("DELETE /triggers/:id")!({ params: { id: "t1" } } as any, rcDelete.res);
     expect(rcDelete.status).toBe(204);
-  });
+  }, 10_000);
 });

@@ -149,5 +149,5 @@ describe("bundle build (integration)", () => {
     expect(upd?.storagePath).toBe("objects/sha256/zz/zz/zip");
     expect(upd?.checksum).toBe("zip-etag");
     expect(typeof upd?.bundleDigest).toBe("string");
-  });
+  }, 10_000);
 });

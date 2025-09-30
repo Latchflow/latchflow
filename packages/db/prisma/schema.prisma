@@ -33,6 +33,8 @@ enum InvocationStatus {
   SUCCESS
   FAILED
   SKIPPED_DISABLED
+  RETRYING
+  FAILED_PERMANENT
 }
 
 enum VerificationType {
@@ -396,6 +398,7 @@ model ActionInvocation {
   status             InvocationStatus
   startedAt          DateTime         @default(now())
   completedAt        DateTime?
+  retryAt            DateTime?
   result             Json?
 
   // Optional linkage to pipeline orchestration
