@@ -123,10 +123,7 @@ export async function main() {
   );
 
   await startActionConsumer(queue, {
-    executeAction: async () => {
-      // TODO: resolve action capability and execute it
-      return null;
-    },
+    registry: runtime,
   });
 
   const triggerRunner = await startTriggerRunner({
