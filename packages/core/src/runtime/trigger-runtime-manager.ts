@@ -9,6 +9,7 @@ import type {
 } from "../plugins/contracts.js";
 import type { PluginRuntimeRegistry, TriggerRuntimeRef } from "../plugins/plugin-loader.js";
 import { recordPluginTriggerAudit } from "../audit/plugin-audit.js";
+import type { PluginServiceRuntimeContextInit } from "../services/plugin-services.js";
 
 export interface TriggerRuntimeManagerOptions {
   db: DbClient;
@@ -86,8 +87,16 @@ export class TriggerRuntimeManager {
 
   private async startTrigger(definitionId: string, capabilityId: string, config: unknown) {
     const ref = this.options.registry.requireTriggerById(capabilityId);
+    const baseContext: PluginServiceRuntimeContextInit = {
+      pluginName: ref.pluginName,
+      pluginId: ref.pluginId,
+      capabilityId: ref.capabilityId,
+      capabilityKey: ref.capability.key,
+      executionKind: "trigger",
+      definitionId,
+    };
     const services: TriggerRuntimeServices = this.options.registry.createTriggerServices(
-      ref.pluginName,
+      baseContext,
       async (payload) => {
         await recordPluginTriggerAudit({
           timestamp: new Date(),

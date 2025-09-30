@@ -185,7 +185,10 @@ describe("plugin upsert", () => {
     const args = register.mock.calls[0][0];
     expect(args.plugin).toEqual({ name: "fake" });
     expect(args.services.logger).toBeDefined();
-    expect(args.services.core).toBe(serviceRegistry.getAllServices());
+    const rawCore = serviceRegistry.getAllServices();
+    expect(args.services.core).not.toBe(rawCore);
+    expect(Object.keys(args.services.core)).toEqual(Object.keys(rawCore));
+    expect(args.services.core.bundles).not.toBe(rawCore.bundles);
   });
 
   it("throws when trigger capability handler is missing", async () => {

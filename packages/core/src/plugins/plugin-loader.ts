@@ -17,7 +17,10 @@ import {
   isPluginModule,
 } from "./contracts.js";
 import { createPluginLogger } from "../observability/logger.js";
-import { PluginServiceRegistry } from "../services/plugin-services.js";
+import {
+  PluginServiceRegistry,
+  type PluginServiceRuntimeContextInit,
+} from "../services/plugin-services.js";
 import type { TriggerRuntimeServices, TriggerEmitPayload } from "./contracts.js";
 
 export type LoadedPlugin = {
@@ -156,19 +159,19 @@ export class PluginRuntimeRegistry {
     return this.services;
   }
 
-  createRuntimeServices(pluginName: string): PluginRuntimeServices {
+  createRuntimeServices(baseContext: PluginServiceRuntimeContextInit): PluginRuntimeServices {
     return {
-      logger: createPluginLogger(pluginName),
-      core: this.services.getAllServices(),
+      logger: createPluginLogger(baseContext.pluginName),
+      core: this.services.createScopedServices(baseContext),
     };
   }
 
   createTriggerServices(
-    pluginName: string,
+    baseContext: PluginServiceRuntimeContextInit,
     emit: (payload?: TriggerEmitPayload) => Promise<void>,
   ): TriggerRuntimeServices {
     return {
-      ...this.createRuntimeServices(pluginName),
+      ...this.createRuntimeServices(baseContext),
       emit,
     };
   }
@@ -266,6 +269,7 @@ export async function upsertPluginsIntoDb(
         }
         runtime.registerTrigger({
           pluginName: p.name,
+          pluginId: pluginRow.id,
           capability: { ...cap },
           capabilityId: capabilityRow.id,
           factory,
@@ -279,6 +283,7 @@ export async function upsertPluginsIntoDb(
         }
         runtime.registerAction({
           pluginName: p.name,
+          pluginId: pluginRow.id,
           capability: { ...cap },
           capabilityId: capabilityRow.id,
           factory,
@@ -290,7 +295,13 @@ export async function upsertPluginsIntoDb(
       try {
         await p.module.register({
           plugin: { name: p.name },
-          services: runtime.createRuntimeServices(p.name),
+          services: runtime.createRuntimeServices({
+            pluginName: p.name,
+            pluginId: pluginRow.id,
+            capabilityId: `${pluginRow.id}:register`,
+            capabilityKey: "register",
+            executionKind: "register",
+          }),
         });
       } catch (err) {
         createPluginLogger(p.name).error(
@@ -306,6 +317,7 @@ export async function upsertPluginsIntoDb(
 
 export type TriggerRuntimeRef = {
   pluginName: string;
+  pluginId: string;
   capabilityId: string;
   capability: TriggerCapability;
   factory: TriggerFactory;
@@ -313,6 +325,7 @@ export type TriggerRuntimeRef = {
 
 export type ActionRuntimeRef = {
   pluginName: string;
+  pluginId: string;
   capabilityId: string;
   capability: ActionCapability;
   factory: ActionFactory;

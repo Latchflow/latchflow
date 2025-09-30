@@ -7,6 +7,7 @@ import { createPluginLogger } from "../observability/logger.js";
 import { PluginServiceError } from "../services/errors.js";
 import { decryptConfig } from "../plugins/config-encryption.js";
 import { recordPluginActionAudit } from "../audit/plugin-audit.js";
+import type { PluginServiceRuntimeContextInit } from "../services/plugin-services.js";
 
 const ACTION_EXECUTION_TIMEOUT_MS = 60_000;
 const runnerLogger = createPluginLogger("action-runner");
@@ -96,7 +97,18 @@ export async function startActionConsumer(
       pluginName = ref.pluginName;
       capabilityKey = ref.capability.key;
       const logger = createPluginLogger(ref.pluginName);
-      const services = deps.registry.createRuntimeServices(ref.pluginName);
+      const baseContext: PluginServiceRuntimeContextInit = {
+        pluginName: ref.pluginName,
+        pluginId: ref.pluginId,
+        capabilityId: ref.capabilityId,
+        capabilityKey: ref.capability.key,
+        executionKind: "action",
+        definitionId: definition.id,
+        invocationId: invocation.id,
+        triggerEventId: msg.triggerEventId,
+        manualInvokerId: msg.manualInvokerId,
+      };
+      const services = deps.registry.createRuntimeServices(baseContext);
       const decryptedConfig = decryptConfig(definition.config, deps.encryption);
 
       await recordPluginActionAudit({
