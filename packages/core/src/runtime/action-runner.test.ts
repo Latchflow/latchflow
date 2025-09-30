@@ -81,7 +81,7 @@ describe("action-runner", () => {
       })),
     });
 
-    await startActionConsumer(queue, { registry });
+    await startActionConsumer(queue, { registry, encryption: { mode: "none" } });
     await queue.enqueueAction({
       actionDefinitionId: "A",
       triggerEventId: "T",
@@ -119,7 +119,7 @@ describe("action-runner", () => {
       factory: vi.fn(async () => ({ execute: vi.fn() })),
     });
     dbMocks.definition.isEnabled = false;
-    await startActionConsumer(queue, { registry });
+    await startActionConsumer(queue, { registry, encryption: { mode: "none" } });
     await queue.enqueueAction({ actionDefinitionId: "A" });
     await vi.waitFor(() => {
       expect(getDb().actionInvocation.update).toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe("action-runner", () => {
       factory: vi.fn(async () => ({ execute, dispose: vi.fn(async () => {}) })),
     });
 
-    await startActionConsumer(queue, { registry });
+    await startActionConsumer(queue, { registry, encryption: { mode: "none" } });
     const enqueueSpy = vi.spyOn(queue, "enqueueAction");
     await queue.enqueueAction({ actionDefinitionId: "A" });
 
@@ -184,7 +184,7 @@ describe("action-runner", () => {
       })),
     });
 
-    await startActionConsumer(queue, { registry });
+    await startActionConsumer(queue, { registry, encryption: { mode: "none" } });
     await queue.enqueueAction({ actionDefinitionId: "A" });
     await vi.waitFor(() => {
       expect(getDb().actionInvocation.update).toHaveBeenCalled();

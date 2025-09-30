@@ -12,7 +12,7 @@ describe("TriggerRuntimeManager", () => {
     start: vi.fn(async () => {}),
     stop: vi.fn(async () => {}),
   }));
-  const fireTrigger = vi.fn(async () => {});
+  const fireTrigger = vi.fn(async () => "evt_1");
   const capId = "cap_1";
   const pluginName = "fake";
 
@@ -44,7 +44,12 @@ describe("TriggerRuntimeManager", () => {
   });
 
   it("starts trigger runtimes and wires emit", async () => {
-    const manager = new TriggerRuntimeManager({ db, registry, fireTrigger });
+    const manager = new TriggerRuntimeManager({
+      db,
+      registry,
+      fireTrigger,
+      encryption: { mode: "none" },
+    });
     await manager.startAll();
     const runtimeInstance = triggerFactory.mock.results[0].value as Awaited<
       ReturnType<typeof triggerFactory>
@@ -57,7 +62,12 @@ describe("TriggerRuntimeManager", () => {
   });
 
   it("reloads triggers with updated config", async () => {
-    const runtime = new TriggerRuntimeManager({ db, registry, fireTrigger });
+    const runtime = new TriggerRuntimeManager({
+      db,
+      registry,
+      fireTrigger,
+      encryption: { mode: "none" },
+    });
     await runtime.startAll();
     await runtime.reloadTrigger("def_1");
     expect(triggerFactory).toHaveBeenCalledTimes(2);

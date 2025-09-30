@@ -1,6 +1,7 @@
 import type { DbClient } from "../db/db.js";
 import { createHash } from "node:crypto";
 import type { Prisma } from "@latchflow/db";
+import { isEncryptedConfig } from "../plugins/config-encryption.js";
 
 type CanonicalDbClient = DbClient | Prisma.TransactionClient;
 
@@ -235,6 +236,10 @@ function redactConfig(config: unknown): unknown {
       const obj = node as Record<string, unknown>;
       for (const k of Object.keys(obj)) {
         const v = obj[k];
+        if (isEncryptedConfig(obj[k])) {
+          obj[k] = { secretRef: `cfg:${k}` } as unknown;
+          continue;
+        }
         if (redactKeys.has(k)) {
           obj[k] = { secretRef: `cfg:${k}` } as unknown;
         } else {

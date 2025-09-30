@@ -72,7 +72,10 @@ async function makeServer() {
       HISTORY_SNAPSHOT_INTERVAL: 20,
       HISTORY_MAX_CHAIN_DEPTH: 200,
       SYSTEM_USER_ID: "sys",
+      ENCRYPTION_MODE: "none",
+      ENCRYPTION_MASTER_KEY_B64: undefined,
     } as any,
+    encryption: { mode: "none" },
   });
   return { handlers };
 }
@@ -227,7 +230,10 @@ describe("triggers routes", () => {
         HISTORY_SNAPSHOT_INTERVAL: 20,
         HISTORY_MAX_CHAIN_DEPTH: 200,
         SYSTEM_USER_ID: "sys",
+        ENCRYPTION_MODE: "none",
+        ENCRYPTION_MASTER_KEY_B64: undefined,
       } as any,
+      encryption: { mode: "none" },
     });
     const h = handlers.get("POST /triggers/:id/test-fire")!;
     (db.triggerDefinition.findUnique as any).mockResolvedValueOnce({ id: "t1" });

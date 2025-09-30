@@ -9,9 +9,16 @@ import type { AppConfig } from "../../config/env-config.js";
 import { appendChangeLog, materializeVersion } from "../../history/changelog.js";
 import type { LatchflowQueue } from "../../queue/types.js";
 
+import {
+  encryptConfig,
+  decryptConfig,
+  type ConfigEncryptionOptions,
+} from "../../plugins/config-encryption.js";
+
 interface ActionDeps {
   queue?: Pick<LatchflowQueue, "enqueueAction">;
   config?: AppConfig;
+  encryption?: ConfigEncryptionOptions;
 }
 
 type ChangeLogRow = {
@@ -45,6 +52,7 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
     HISTORY_MAX_CHAIN_DEPTH: config.HISTORY_MAX_CHAIN_DEPTH,
   };
   const systemUserId = config.SYSTEM_USER_ID ?? "system";
+  const encryption = deps?.encryption ?? { mode: "none" as const };
 
   const toActionDto = (a: {
     id: string;
@@ -58,7 +66,7 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
     id: a.id,
     name: a.name,
     capabilityId: a.capabilityId,
-    config: a.config as Record<string, unknown>,
+    config: decryptConfig(a.config, encryption) as Record<string, unknown>,
     isEnabled: a.isEnabled,
     createdAt: typeof a.createdAt === "string" ? a.createdAt : a.createdAt.toISOString(),
     updatedAt: typeof a.updatedAt === "string" ? a.updatedAt : a.updatedAt.toISOString(),
@@ -166,7 +174,7 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
         data: {
           name,
           capabilityId,
-          config: cfg as unknown as Prisma.InputJsonValue,
+          config: encryptConfig(cfg, encryption),
           createdBy: actor.actorUserId,
         },
       });
@@ -346,6 +354,12 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
         res.status(404).json({ status: "error", code: "NOT_FOUND" });
         return;
       }
+      if (typeof state === "object" && state !== null) {
+        const asRecord = state as Record<string, unknown>;
+        if ("config" in asRecord) {
+          asRecord.config = decryptConfig(asRecord.config, encryption);
+        }
+      }
       res.status(200).json({
         version: row.version,
         isSnapshot: row.isSnapshot,
@@ -384,7 +398,7 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
       }
       const actor = actorContextForReq(req);
       const patch: Prisma.ActionDefinitionUncheckedUpdateInput = {
-        config: parsed.data.config as unknown as Prisma.InputJsonValue,
+        config: encryptConfig(parsed.data.config, encryption),
         updatedBy: actor.actorUserId,
       };
       const updated = await db.actionDefinition
@@ -436,13 +450,19 @@ export function registerActionAdminRoutes(server: HttpServer, deps?: ActionDeps)
         res.status(404).json({ status: "error", code: "NOT_FOUND" });
         return;
       }
-      if (typeof state.config === "undefined") {
+      if (typeof state === "object" && state !== null && "config" in state) {
+        (state as Record<string, unknown>).config = decryptConfig(
+          (state as Record<string, unknown>).config,
+          encryption,
+        );
+      }
+      if (typeof (state as Record<string, unknown>).config === "undefined") {
         res.status(409).json({ status: "error", code: "MISSING_CONFIG" });
         return;
       }
       const actor = actorContextForReq(req);
       const patch: Prisma.ActionDefinitionUncheckedUpdateInput = {
-        config: state.config as unknown as Prisma.InputJsonValue,
+        config: encryptConfig((state as Record<string, unknown>).config, encryption),
         updatedBy: actor.actorUserId,
       };
       const updated = await db.actionDefinition

@@ -1,5 +1,6 @@
 import type { DbClient } from "../db/db.js";
 import { createPluginLogger } from "../observability/logger.js";
+import { decryptConfig } from "../plugins/config-encryption.js";
 import type {
   TriggerRuntime,
   TriggerRuntimeContext,
@@ -13,6 +14,7 @@ export interface TriggerRuntimeManagerOptions {
   db: DbClient;
   registry: PluginRuntimeRegistry;
   fireTrigger: (triggerDefinitionId: string, payload?: TriggerEmitPayload) => Promise<string>;
+  encryption: import("../plugins/config-encryption.js").ConfigEncryptionOptions;
 }
 
 interface ManagedTrigger {
@@ -76,7 +78,7 @@ export class TriggerRuntimeManager {
     const managed = this.runtimes.get(definitionId);
     if (!managed) return;
     if (typeof managed.runtime.onConfigChange === "function") {
-      await managed.runtime.onConfigChange(config);
+      await managed.runtime.onConfigChange(decryptConfig(config, this.options.encryption));
     } else {
       await this.reloadTrigger(definitionId);
     }
@@ -122,7 +124,7 @@ export class TriggerRuntimeManager {
       definitionId,
       capability: ref.capability,
       plugin: { name: ref.pluginName },
-      config,
+      config: decryptConfig(config, this.options.encryption),
       secrets: null,
       services,
     };

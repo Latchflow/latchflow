@@ -82,7 +82,10 @@ async function makeServer(overrides?: {
       HISTORY_SNAPSHOT_INTERVAL: 20,
       HISTORY_MAX_CHAIN_DEPTH: 200,
       SYSTEM_USER_ID: "sys",
+      ENCRYPTION_MODE: "none",
+      ENCRYPTION_MASTER_KEY_B64: undefined,
     } as any,
+    encryption: { mode: "none" },
   });
   return { handlers, queue };
 }
@@ -303,7 +306,10 @@ describe("actions admin routes", () => {
         HISTORY_SNAPSHOT_INTERVAL: 20,
         HISTORY_MAX_CHAIN_DEPTH: 200,
         SYSTEM_USER_ID: "sys",
+        ENCRYPTION_MODE: "none",
+        ENCRYPTION_MASTER_KEY_B64: undefined,
       } as any,
+      encryption: { mode: "none" },
     });
     const h = handlers.get("POST /actions/:id/test-run")!;
     const rc = createResponseCapture();

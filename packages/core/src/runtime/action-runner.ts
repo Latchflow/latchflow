@@ -5,6 +5,7 @@ import type { PluginRuntimeRegistry } from "../plugins/plugin-loader.js";
 import type { ActionRuntimeContext } from "../plugins/contracts.js";
 import { createPluginLogger } from "../observability/logger.js";
 import { PluginServiceError } from "../services/errors.js";
+import { decryptConfig } from "../plugins/config-encryption.js";
 import { recordPluginActionAudit } from "../audit/plugin-audit.js";
 
 const ACTION_EXECUTION_TIMEOUT_MS = 60_000;
@@ -45,6 +46,7 @@ export async function startActionConsumer(
   queue: LatchflowQueue,
   deps: {
     registry: PluginRuntimeRegistry;
+    encryption: import("../plugins/config-encryption.js").ConfigEncryptionOptions;
   },
 ) {
   const db = getDb();
@@ -95,6 +97,7 @@ export async function startActionConsumer(
       capabilityKey = ref.capability.key;
       const logger = createPluginLogger(ref.pluginName);
       const services = deps.registry.createRuntimeServices(ref.pluginName);
+      const decryptedConfig = decryptConfig(definition.config, deps.encryption);
 
       await recordPluginActionAudit({
         timestamp: new Date(),
@@ -126,7 +129,7 @@ export async function startActionConsumer(
       try {
         const executionResult = await executeWithTimeout(
           runtime.execute({
-            config: definition.config as unknown,
+            config: decryptedConfig,
             secrets: null,
             payload: msg.context,
             invocation: {

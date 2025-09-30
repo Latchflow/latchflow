@@ -41,9 +41,17 @@ import {
   seedSystemConfigFromEnvironment,
 } from "./config/system-config-startup.js";
 import { createStubPluginServiceRegistry } from "./services/stubs.js";
+import { resolveConfigEncryption } from "./plugins/config-encryption.js";
 
 export async function main() {
   const config = loadConfig();
+  let configEncryption;
+  try {
+    configEncryption = resolveConfigEncryption(config);
+  } catch (err) {
+    logger.warn({ error: (err as Error).message }, "Falling back to unencrypted config storage");
+    configEncryption = { mode: "none" } as const;
+  }
 
   configureAuthzFlags({
     enforce: config.AUTHZ_V2,
@@ -124,6 +132,7 @@ export async function main() {
 
   await startActionConsumer(queue, {
     registry: runtime,
+    encryption: configEncryption,
   });
 
   const triggerRunner = await startTriggerRunner({
@@ -134,6 +143,7 @@ export async function main() {
     db,
     registry: runtime,
     fireTrigger: triggerRunner.fireTriggerOnce,
+    encryption: configEncryption,
   });
   await triggerRuntimeManager.startAll();
 
@@ -202,8 +212,12 @@ export async function main() {
   registerPortalRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerCliAuthRoutes(server, config);
   registerPluginRoutes(server);
-  registerTriggerAdminRoutes(server, { fireTriggerOnce: triggerRunner.fireTriggerOnce, config });
-  registerActionAdminRoutes(server, { queue, config });
+  registerTriggerAdminRoutes(server, {
+    fireTriggerOnce: triggerRunner.fireTriggerOnce,
+    config,
+    encryption: configEncryption,
+  });
+  registerActionAdminRoutes(server, { queue, config, encryption: configEncryption });
   registerPipelineAdminRoutes(server, { config });
   registerUserAdminRoutes(server, config);
   registerPermissionPresetAdminRoutes(server, { config });
