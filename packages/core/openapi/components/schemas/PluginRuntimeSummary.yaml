@@ -1,0 +1,47 @@
+type: object
+properties:
+  generatedAt: { type: string, format: date-time }
+  pluginCount:
+    type: integer
+    minimum: 0
+  triggerDefinitions:
+    type: object
+    properties:
+      total:
+        type: integer
+        minimum: 0
+      running:
+        type: integer
+        minimum: 0
+      totalEmitCount:
+        type: integer
+        minimum: 0
+      errorCount:
+        type: integer
+        minimum: 0
+      lastActivityAt: { type: string, format: date-time }
+    required: [total, running, totalEmitCount, errorCount]
+  actionDefinitions:
+    type: object
+    properties:
+      total:
+        type: integer
+        minimum: 0
+      successCount:
+        type: integer
+        minimum: 0
+      retryCount:
+        type: integer
+        minimum: 0
+      failureCount:
+        type: integer
+        minimum: 0
+      skippedCount:
+        type: integer
+        minimum: 0
+      errorCount:
+        type: integer
+        minimum: 0
+      lastInvocationAt: { type: string, format: date-time }
+    required: [total, successCount, retryCount, failureCount, skippedCount, errorCount]
+required: [generatedAt, pluginCount, triggerDefinitions, actionDefinitions]

@@ -1,0 +1,30 @@
+type: object
+properties:
+  trigger:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      name: { type: string }
+      capabilityId: { type: string, format: uuid }
+      isEnabled: { type: boolean }
+      createdAt: { type: string, format: date-time }
+      updatedAt: { type: string, format: date-time }
+    required: [id, name, capabilityId, isEnabled]
+  runtime: { $ref: ./TriggerRuntimeStatus.yaml }
+  lastEvent:
+    type: object
+    properties:
+      id: { type: string, format: uuid }
+      firedAt: { type: string, format: date-time }
+      context:
+        type: object
+        additionalProperties: true
+    required: [id, firedAt]
+  metrics:
+    type: object
+    properties:
+      eventCount:
+        type: integer
+        minimum: 0
+    required: [eventCount]
+required: [trigger, metrics]

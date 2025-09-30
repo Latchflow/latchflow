@@ -1,0 +1,40 @@
+type: object
+properties:
+  definitionId: { type: string, format: uuid }
+  capabilityId: { type: string, format: uuid }
+  capabilityKey: { type: string }
+  pluginId: { type: string, format: uuid }
+  pluginName: { type: string }
+  lastStatus: { type: string }
+  lastInvocationAt: { type: string, format: date-time }
+  lastDurationMs:
+    type: integer
+    minimum: 0
+  successCount:
+    type: integer
+    minimum: 0
+  retryCount:
+    type: integer
+    minimum: 0
+  failureCount:
+    type: integer
+    minimum: 0
+  skippedCount:
+    type: integer
+    minimum: 0
+  lastError:
+    type: object
+    properties:
+      message: { type: string }
+      at: { type: string, format: date-time }
+    required: [message, at]
+required:
+  - definitionId
+  - capabilityId
+  - capabilityKey
+  - pluginId
+  - pluginName
+  - successCount
+  - retryCount
+  - failureCount
+  - skippedCount
