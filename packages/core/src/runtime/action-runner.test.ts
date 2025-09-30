@@ -165,6 +165,8 @@ describe("action-runner", () => {
       expect(dbClient.actionInvocation.create).toHaveBeenCalledTimes(2);
     });
     expect(enqueueSpy).toHaveBeenCalledTimes(2);
+    const retryPayload = enqueueSpy.mock.calls[1]?.[0];
+    expect(retryPayload).toMatchObject({ actionDefinitionId: "A", attempt: 2 });
     vi.useRealTimers();
   });
 

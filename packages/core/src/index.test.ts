@@ -67,7 +67,7 @@ vi.mock("./runtime/action-runner.js", () => ({
 }));
 vi.mock("./runtime/trigger-runner.js", () => ({
   startTriggerRunner: vi.fn(async () => ({
-    fireTriggerOnce: vi.fn(async () => {}),
+    fireTriggerOnce: vi.fn(async () => "evt_1"),
   })),
 }));
 vi.mock("./plugins/hot-reload.js", () => ({

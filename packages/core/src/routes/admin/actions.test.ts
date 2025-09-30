@@ -55,7 +55,13 @@ vi.mock("../../middleware/require-session.js", () => ({
   requireSession: vi.fn(async () => ({ user: { id: "admin", role: "ADMIN" } })),
 }));
 
-async function makeServer(overrides?: { queue?: { enqueueAction: ReturnType<typeof vi.fn> } }) {
+async function makeServer(overrides?: {
+  queue?: {
+    enqueueAction: ReturnType<typeof vi.fn>;
+    consumeActions?: ReturnType<typeof vi.fn>;
+    stop?: ReturnType<typeof vi.fn>;
+  };
+}) {
   const handlers = new Map<string, HttpHandler>();
   const server = {
     get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
@@ -63,7 +69,13 @@ async function makeServer(overrides?: { queue?: { enqueueAction: ReturnType<type
     patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
-  const queue = overrides?.queue ?? { enqueueAction: vi.fn(async () => {}) };
+  const queue =
+    overrides?.queue ??
+    ({
+      enqueueAction: vi.fn(async () => {}),
+      consumeActions: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+    } as const);
   registerActionAdminRoutes(server, {
     queue,
     config: {
@@ -273,7 +285,11 @@ describe("actions admin routes", () => {
 
   it("POST /actions/:id/test-run enqueues manual invocation", async () => {
     db.actionDefinition.findUnique.mockResolvedValueOnce({ id: "a1" } as any);
-    const queue = { enqueueAction: vi.fn(async () => {}) };
+    const queue = {
+      enqueueAction: vi.fn(async () => {}),
+      consumeActions: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+    };
     const handlers = new Map<string, HttpHandler>();
     const server = {
       get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),

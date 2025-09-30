@@ -54,7 +54,7 @@ describe("triggers admin routes (integration)", () => {
   it("create → enable toggle → list filters → delete", async () => {
     const { handlers, server } = makeServer();
     const { registerTriggerAdminRoutes } = await import("../../src/routes/admin/triggers.js");
-    const fire = vi.fn(async () => {});
+    const fire = vi.fn(async () => "evt_test");
     registerTriggerAdminRoutes(server, {
       fireTriggerOnce: fire,
       config: {

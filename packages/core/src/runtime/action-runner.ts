@@ -5,11 +5,33 @@ import type { PluginRuntimeRegistry } from "../plugins/plugin-loader.js";
 import type { ActionRuntimeContext } from "../plugins/contracts.js";
 import { createPluginLogger } from "../observability/logger.js";
 import { PluginServiceError } from "../services/errors.js";
+import { recordPluginActionAudit } from "../audit/plugin-audit.js";
 
 const ACTION_EXECUTION_TIMEOUT_MS = 60_000;
 const runnerLogger = createPluginLogger("action-runner");
 const DEFAULT_RETRY_DELAY_MS = 2_000;
 const MAX_RETRY_DELAY_MS = 60_000;
+const ACTION_CONCURRENCY_LIMIT = Math.max(1, Number(process.env.PLUGIN_ACTION_CONCURRENCY ?? 10));
+
+const slotWaiters: (() => void)[] = [];
+let inFlightActions = 0;
+
+async function acquireActionSlot(): Promise<void> {
+  if (inFlightActions < ACTION_CONCURRENCY_LIMIT) {
+    inFlightActions += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    slotWaiters.push(resolve);
+  });
+  inFlightActions += 1;
+}
+
+function releaseActionSlot() {
+  inFlightActions = Math.max(0, inFlightActions - 1);
+  const next = slotWaiters.shift();
+  if (next) next();
+}
 
 type QueueMessage = {
   actionDefinitionId: string;
@@ -44,6 +66,8 @@ export async function startActionConsumer(
     };
 
     const attempt = msg.attempt ?? 1;
+    let pluginName: string | undefined;
+    let capabilityKey: string | undefined;
 
     try {
       const definition = await db.actionDefinition.findUnique({
@@ -67,8 +91,21 @@ export async function startActionConsumer(
       }
 
       const ref = deps.registry.requireActionById(definition.capabilityId);
+      pluginName = ref.pluginName;
+      capabilityKey = ref.capability.key;
       const logger = createPluginLogger(ref.pluginName);
       const services = deps.registry.createRuntimeServices(ref.pluginName);
+
+      await recordPluginActionAudit({
+        timestamp: new Date(),
+        pluginName: ref.pluginName,
+        capabilityKey: ref.capability.key,
+        actionDefinitionId: definition.id,
+        invocationId: invocation.id,
+        triggerEventId: msg.triggerEventId,
+        phase: "STARTED",
+        attempt,
+      });
 
       const context: ActionRuntimeContext = {
         definitionId: definition.id,
@@ -78,6 +115,14 @@ export async function startActionConsumer(
       };
 
       const runtime = await ref.factory(context);
+      await acquireActionSlot();
+      let slotReleased = false;
+      const release = () => {
+        if (!slotReleased) {
+          slotReleased = true;
+          releaseActionSlot();
+        }
+      };
       try {
         const executionResult = await executeWithTimeout(
           runtime.execute({
@@ -107,6 +152,17 @@ export async function startActionConsumer(
             completedAt: new Date(),
             retryAt: retryDelay > 0 ? new Date(Date.now() + retryDelay) : null,
           });
+          await recordPluginActionAudit({
+            timestamp: new Date(),
+            pluginName: ref.pluginName,
+            capabilityKey: ref.capability.key,
+            actionDefinitionId: definition.id,
+            invocationId: invocation.id,
+            triggerEventId: msg.triggerEventId,
+            phase: "RETRY",
+            retryDelayMs: retryDelay,
+            attempt,
+          });
           scheduleRetry(queue, msg, retryDelay, attempt + 1);
           return;
         }
@@ -116,6 +172,16 @@ export async function startActionConsumer(
           result: (executionResult ?? null) as unknown as Prisma.InputJsonValue,
           completedAt: new Date(),
           retryAt: null,
+        });
+        await recordPluginActionAudit({
+          timestamp: new Date(),
+          pluginName: ref.pluginName,
+          capabilityKey: ref.capability.key,
+          actionDefinitionId: definition.id,
+          invocationId: invocation.id,
+          triggerEventId: msg.triggerEventId,
+          phase: "SUCCEEDED",
+          attempt,
         });
       } finally {
         if (typeof runtime.dispose === "function") {
@@ -128,6 +194,7 @@ export async function startActionConsumer(
             );
           }
         }
+        release();
       }
     } catch (e) {
       const error = e as Error;
@@ -149,6 +216,20 @@ export async function startActionConsumer(
         result: { error: error.message } as unknown as Prisma.InputJsonValue,
         completedAt: new Date(),
         retryAt: status === "RETRYING" && retryDelay > 0 ? new Date(Date.now() + retryDelay) : null,
+      });
+      await recordPluginActionAudit({
+        timestamp: new Date(),
+        pluginName: pluginName ?? "unknown",
+        capabilityKey: capabilityKey ?? "unknown",
+        actionDefinitionId: msg.actionDefinitionId,
+        invocationId: invocation.id,
+        triggerEventId: msg.triggerEventId,
+        phase: status === "RETRYING" ? "RETRY" : "FAILED",
+        errorCode: error instanceof PluginServiceError ? error.code : undefined,
+        errorKind: error instanceof PluginServiceError ? error.kind : "UNKNOWN",
+        retryDelayMs: status === "RETRYING" ? retryDelay : undefined,
+        message: error.message,
+        attempt,
       });
 
       if (status === "RETRYING") {

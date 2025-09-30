@@ -8,7 +8,7 @@ import type { RouteSignature } from "../../authz/policy.js";
 import type { AppConfig } from "../../config/env-config.js";
 import { appendChangeLog, materializeVersion } from "../../history/changelog.js";
 
-type FireFn = (triggerDefinitionId: string, context?: Record<string, unknown>) => Promise<void>;
+type FireFn = (triggerDefinitionId: string, context?: Record<string, unknown>) => Promise<string>;
 
 type ChangeLogRow = {
   version: number;

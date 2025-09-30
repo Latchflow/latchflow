@@ -67,7 +67,7 @@ async function makeServer() {
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
   registerTriggerAdminRoutes(server, {
-    fireTriggerOnce: async () => {},
+    fireTriggerOnce: async () => "evt-test",
     config: {
       HISTORY_SNAPSHOT_INTERVAL: 20,
       HISTORY_MAX_CHAIN_DEPTH: 200,
@@ -220,7 +220,7 @@ describe("triggers routes", () => {
       patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
       delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
     } as any;
-    const fire = vi.fn(async () => {});
+    const fire = vi.fn(async () => "evt-test");
     registerTriggerAdminRoutes(server, {
       fireTriggerOnce: fire,
       config: {

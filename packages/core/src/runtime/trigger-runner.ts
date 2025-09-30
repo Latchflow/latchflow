@@ -16,7 +16,10 @@ type TriggerEmitPayload = {
 export async function startTriggerRunner(opts: { onFire: (msg: FireMsg) => Promise<void> }) {
   const db = getDb();
 
-  async function fireTriggerOnce(triggerDefinitionId: string, payload: TriggerEmitPayload = {}) {
+  async function fireTriggerOnce(
+    triggerDefinitionId: string,
+    payload: TriggerEmitPayload = {},
+  ): Promise<string> {
     // Insert TriggerEvent
     const evt = await db.triggerEvent.create({
       data: {
@@ -77,6 +80,8 @@ export async function startTriggerRunner(opts: { onFire: (msg: FireMsg) => Promi
         }
       }
     }
+
+    return evt.id;
   }
 
   return {

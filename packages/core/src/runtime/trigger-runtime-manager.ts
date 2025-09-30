@@ -3,15 +3,16 @@ import { createPluginLogger } from "../observability/logger.js";
 import type {
   TriggerRuntime,
   TriggerRuntimeContext,
-  // TriggerRuntimeServices,
+  TriggerRuntimeServices,
   TriggerEmitPayload,
 } from "../plugins/contracts.js";
 import type { PluginRuntimeRegistry, TriggerRuntimeRef } from "../plugins/plugin-loader.js";
+import { recordPluginTriggerAudit } from "../audit/plugin-audit.js";
 
 export interface TriggerRuntimeManagerOptions {
   db: DbClient;
   registry: PluginRuntimeRegistry;
-  fireTrigger: (triggerDefinitionId: string, payload?: TriggerEmitPayload) => Promise<void>;
+  fireTrigger: (triggerDefinitionId: string, payload?: TriggerEmitPayload) => Promise<string>;
 }
 
 interface ManagedTrigger {
@@ -83,8 +84,38 @@ export class TriggerRuntimeManager {
 
   private async startTrigger(definitionId: string, capabilityId: string, config: unknown) {
     const ref = this.options.registry.requireTriggerById(capabilityId);
-    const services = this.options.registry.createTriggerServices(ref.pluginName, (payload) =>
-      this.options.fireTrigger(definitionId, payload),
+    const services: TriggerRuntimeServices = this.options.registry.createTriggerServices(
+      ref.pluginName,
+      async (payload) => {
+        await recordPluginTriggerAudit({
+          timestamp: new Date(),
+          pluginName: ref.pluginName,
+          capabilityKey: ref.capability.key,
+          triggerDefinitionId: definitionId,
+          phase: "STARTED",
+        });
+        try {
+          const eventId = await this.options.fireTrigger(definitionId, payload);
+          await recordPluginTriggerAudit({
+            timestamp: new Date(),
+            pluginName: ref.pluginName,
+            capabilityKey: ref.capability.key,
+            triggerDefinitionId: definitionId,
+            triggerEventId: eventId,
+            phase: "SUCCEEDED",
+          });
+        } catch (err) {
+          await recordPluginTriggerAudit({
+            timestamp: new Date(),
+            pluginName: ref.pluginName,
+            capabilityKey: ref.capability.key,
+            triggerDefinitionId: definitionId,
+            phase: "FAILED",
+            message: (err as Error).message,
+          });
+          throw err;
+        }
+      },
     );
 
     const context: TriggerRuntimeContext = {
