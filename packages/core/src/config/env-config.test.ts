@@ -5,7 +5,7 @@ describe("config loader", () => {
   it("parses required and defaults", () => {
     const cfg = loadConfig({
       DATABASE_URL: "postgres://user:pass@localhost:5432/db",
-      PLUGINS_PATH: "packages/plugins",
+      PLUGINS_PATH: "../plugins",
       QUEUE_DRIVER: "memory",
     } as unknown as NodeJS.ProcessEnv);
     expect(cfg.DATABASE_URL).toBeDefined();

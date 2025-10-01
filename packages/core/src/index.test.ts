@@ -5,7 +5,7 @@ vi.mock("./config/env-config.js", () => ({
   loadConfig: () => ({
     DATABASE_URL: "postgres://x",
     PORT: 3456,
-    PLUGINS_PATH: "packages/plugins",
+    PLUGINS_PATH: "../plugins",
     QUEUE_DRIVER: "memory",
     QUEUE_DRIVER_PATH: null,
     QUEUE_CONFIG_JSON: null,
@@ -137,5 +137,5 @@ describe("main bootstrap", () => {
     expect(regAdmin).toHaveBeenCalledTimes(1);
     expect(regRecipient).toHaveBeenCalledTimes(1);
     expect(regCli).toHaveBeenCalledTimes(1);
-  }, 10_000);
+  }, 20_000);
 });

@@ -217,6 +217,7 @@ export async function main() {
     config,
     encryption: configEncryption,
     runtime,
+    runtimeManager: triggerRuntimeManager,
   });
   registerActionAdminRoutes(server, { queue, config, encryption: configEncryption, runtime });
   registerPipelineAdminRoutes(server, { config });
