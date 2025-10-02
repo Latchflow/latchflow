@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --dts",
-    "dev": "tsx src/index.ts",
+    "dev": "nodemon --watch src --ext ts --exec \"tsx src/index.ts\"",
     "test": "vitest run && vitest run -c vitest.e2e.config.ts",
     "test:unit": "vitest run src",
     "test:integration": "vitest run tests",
@@ -46,6 +46,7 @@
     "@typescript-eslint/parser": "^7.6.0",
     "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^8.56.0",
+    "nodemon": "^3.1.10",
     "testcontainers": "^10.10.0",
     "tsup": "^8.0.0",
     "tsx": "^4.20.3",
