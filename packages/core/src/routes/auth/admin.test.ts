@@ -32,29 +32,9 @@ const db = {
 
 vi.mock("../../db/db.js", () => ({ getDb: () => db }));
 
-const { createTransportMock } = vi.hoisted(() => {
-  const makeTransport = () => ({ sendMail: vi.fn(async () => ({})) });
-  const createTransportMock = vi.fn(makeTransport);
-  return { createTransportMock };
-});
-
-vi.mock("nodemailer", () => ({
-  default: { createTransport: createTransportMock },
-  createTransport: createTransportMock,
-}));
-
-const { systemConfigGetMock, getSystemConfigServiceMock } = vi.hoisted(() => {
-  const systemConfigGetMock = vi.fn();
-  const service = { get: systemConfigGetMock };
-  return {
-    systemConfigGetMock,
-    getSystemConfigServiceMock: vi.fn(async () => service),
-  };
-});
-
-vi.mock("../../config/system-config-startup.js", () => ({
-  getSystemConfigService: getSystemConfigServiceMock,
-}));
+const emailService = {
+  sendEmail: vi.fn(async () => ({ delivered: true })),
+};
 
 beforeEach(() => {
   // Reset and restore default implementations to avoid cross-test leakage
@@ -80,15 +60,7 @@ beforeEach(() => {
   db.session.findMany.mockReset().mockResolvedValue([] as any[]);
   db.session.updateMany.mockReset().mockResolvedValue({} as any);
 
-  createTransportMock.mockReset();
-  createTransportMock.mockImplementation(() => ({
-    sendMail: vi.fn(async () => ({})),
-  }));
-
-  systemConfigGetMock.mockReset();
-  systemConfigGetMock.mockResolvedValue(null);
-  getSystemConfigServiceMock.mockReset();
-  getSystemConfigServiceMock.mockResolvedValue({ get: systemConfigGetMock });
+  emailService.sendEmail.mockReset().mockResolvedValue({ delivered: true });
 });
 
 function makeServer() {
@@ -107,7 +79,7 @@ describe("admin auth routes", () => {
   it("/auth/admin/start returns 400 on invalid body", async () => {
     const { server, handlers } = makeServer();
     const config = { AUTH_COOKIE_SECURE: false } as any;
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("POST /auth/admin/start")!;
     let code = 0;
     let body: any = null;
@@ -146,7 +118,7 @@ describe("admin auth routes", () => {
       email: "a@b.co",
       role: "EXECUTOR",
     } as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("POST /auth/admin/start")!;
     let code = 0;
     await handler({ body: { email: "a@b.co" } } as any, {
@@ -167,6 +139,7 @@ describe("admin auth routes", () => {
     });
     expect(code).toBe(204);
     expect(db.magicLink.create).toHaveBeenCalled();
+    expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it("/auth/admin/start returns 200 with login_url when ALLOW_DEV_AUTH=true", async () => {
@@ -183,7 +156,7 @@ describe("admin auth routes", () => {
       email: "dev@example.com",
       role: "EXECUTOR",
     } as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("POST /auth/admin/start")!;
     let code = 0;
     let body: any = null;
@@ -208,71 +181,35 @@ describe("admin auth routes", () => {
     expect(code).toBe(200);
     expect(typeof body?.login_url).toBe("string");
     expect(body.login_url.includes("/auth/admin/callback?token=")).toBe(true);
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
   });
 
-  it("/auth/admin/start sends email when SMTP config present", async () => {
+  it("/auth/admin/start returns 500 when email delivery fails", async () => {
     const { server, handlers } = makeServer();
     const config = {
       ADMIN_MAGICLINK_TTL_MIN: 15,
       AUTH_SESSION_TTL_HOURS: 12,
       AUTH_COOKIE_SECURE: false,
     } as any;
-
-    const now = new Date("2024-01-01T00:00:00Z");
-    systemConfigGetMock.mockImplementation(async (key: string) => {
-      if (key === "SMTP_URL") {
-        return {
-          key,
-          value: "smtp://localhost:2525",
-          category: "email",
-          schema: null,
-          metadata: null,
-          isSecret: true,
-          isActive: true,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: null,
-          updatedBy: null,
-          source: "database",
-        };
-      }
-      if (key === "SMTP_FROM") {
-        return {
-          key,
-          value: "auth@example.com",
-          category: "email",
-          schema: null,
-          metadata: null,
-          isSecret: false,
-          isActive: true,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: null,
-          updatedBy: null,
-          source: "database",
-        };
-      }
-      return null;
-    });
-
-    const sendMail = vi.fn(async () => ({}));
-    createTransportMock.mockReturnValueOnce({ sendMail });
-
     db.user.findUnique.mockResolvedValueOnce({
       id: "u1",
-      email: "auth@example.com",
+      email: "fail@example.com",
       role: "EXECUTOR",
     } as any);
+    emailService.sendEmail.mockRejectedValueOnce(new Error("boom"));
 
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("POST /auth/admin/start")!;
     let code = 0;
-    await handler({ body: { email: "auth@example.com" } } as any, {
+    let body: any = null;
+    await handler({ body: { email: "fail@example.com" } } as any, {
       status(c: number) {
         code = c;
         return this as any;
       },
-      json() {},
+      json(p: any) {
+        body = p;
+      },
       header() {
         return this as any;
       },
@@ -283,17 +220,15 @@ describe("admin auth routes", () => {
       sendStream() {},
       sendBuffer() {},
     });
-
-    expect(code).toBe(204);
-    expect(sendMail).toHaveBeenCalled();
-    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_URL");
-    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_FROM");
+    expect(code).toBe(500);
+    expect(body?.code).toBe("EMAIL_FAILED");
+    expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it("/auth/admin/logout clears cookie and returns 204", async () => {
     const { server, handlers } = makeServer();
     const config = { AUTH_COOKIE_SECURE: false } as any;
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("POST /auth/admin/logout")!;
     let code = 0;
     const headers: Record<string, string | string[]> = {};
@@ -322,7 +257,7 @@ describe("admin auth routes", () => {
   it("/auth/admin/callback 400 when token missing", async () => {
     const { server, handlers } = makeServer();
     const config = { AUTH_COOKIE_SECURE: false } as any;
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /auth/admin/callback")!;
     let code = 0;
     let body: any = null;
@@ -353,7 +288,7 @@ describe("admin auth routes", () => {
     const config = { AUTH_COOKIE_SECURE: false } as any;
 
     db.magicLink.updateMany.mockResolvedValueOnce({ count: 0 } as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /auth/admin/callback")!;
     let code = 0;
     let body: any = null;
@@ -401,7 +336,7 @@ describe("admin auth routes", () => {
     db.user.findUnique.mockResolvedValueOnce({ id: "u1", isActive: true } as any);
     db.session.create.mockResolvedValueOnce({ jti: "sess1" } as any);
 
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /auth/admin/callback")!;
     let code = 0;
     const headers: Record<string, string | string[]> = {};
@@ -442,7 +377,7 @@ describe("admin auth routes", () => {
     db.user.count.mockResolvedValueOnce(2);
     // Unknown email
     db.user.findUnique.mockResolvedValueOnce(null as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("POST /auth/admin/start")!;
     let code = 0;
     let body: any = null;
@@ -490,7 +425,7 @@ describe("admin auth routes", () => {
       .mockResolvedValueOnce({ id: "u1", isActive: true } as any)
       .mockResolvedValueOnce({ id: "u1", email: "first@example.com", role: "EXECUTOR" } as any);
 
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /auth/admin/callback")!;
     let code = 0;
 
@@ -517,7 +452,7 @@ describe("admin auth routes", () => {
   it("GET /auth/me returns 401 when not authenticated", async () => {
     const { server, handlers } = makeServer();
     const config = { AUTH_COOKIE_SECURE: false } as any;
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /auth/me")!;
     let code = 0;
     let body: any = null;
@@ -553,7 +488,7 @@ describe("admin auth routes", () => {
       revokedAt: null,
       user: { id: "u1", email: "a@b.co", role: "ADMIN" },
     } as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /auth/me")!;
     let code = 0;
     let body: any = null;
@@ -590,7 +525,7 @@ describe("admin auth routes", () => {
       revokedAt: null,
       user: { id: "u1", email: "a@b.co", role: "ADMIN" },
     } as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /whoami")!;
     let code = 0;
     let body: any = null;
@@ -637,7 +572,7 @@ describe("admin auth routes", () => {
         userAgent: "test",
       },
     ] as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("GET /auth/sessions")!;
     let code = 0;
     let body: any = null;
@@ -674,7 +609,7 @@ describe("admin auth routes", () => {
       revokedAt: null,
       user: { id: "u1", email: "a@b.co", role: "ADMIN" },
     } as any);
-    registerAdminAuthRoutes(server, config);
+    registerAdminAuthRoutes(server, config, { emailService });
     const handler = handlers.get("POST /auth/sessions/revoke")!;
     let code = 0;
     await handler(

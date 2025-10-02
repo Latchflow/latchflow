@@ -37,14 +37,6 @@ vi.mock("../../src/auth/tokens.js", () => ({
   sha256Hex: vi.fn((input: string) => `hash-${input}`),
 }));
 
-vi.mock("nodemailer", () => {
-  const createTransport = vi.fn(() => ({ sendMail: vi.fn(async () => ({})) }));
-  return {
-    default: { createTransport },
-    createTransport,
-  };
-});
-
 function makeServer(configOverrides: Partial<AppConfigLike> = {}) {
   const handlers = new Map<string, HttpHandler>();
   const server = {
@@ -113,14 +105,21 @@ describe("users admin routes (integration)", () => {
 
   it("create → invite → list filters → get → update → sessions list/revoke", async () => {
     const { handlers, server } = makeServer();
+    const emailService = {
+      sendEmail: vi.fn(async () => ({ delivered: true })),
+    };
     const { registerUserAdminRoutes } = await import("../../src/routes/admin/users.js");
-    registerUserAdminRoutes(server, {
-      HISTORY_SNAPSHOT_INTERVAL: 20,
-      HISTORY_MAX_CHAIN_DEPTH: 200,
-      SYSTEM_USER_ID: "sys",
-      ALLOW_DEV_AUTH: true,
-      ADMIN_MAGICLINK_TTL_MIN: 15,
-    } as any);
+    registerUserAdminRoutes(
+      server,
+      {
+        HISTORY_SNAPSHOT_INTERVAL: 20,
+        HISTORY_MAX_CHAIN_DEPTH: 200,
+        SYSTEM_USER_ID: "sys",
+        ALLOW_DEV_AUTH: true,
+        ADMIN_MAGICLINK_TTL_MIN: 15,
+      } as any,
+      { emailService },
+    );
 
     // Create active user
     const rcCreate = createResponseCapture();
@@ -139,6 +138,7 @@ describe("users admin routes (integration)", () => {
     );
     expect(rcInvite.status).toBe(202);
     expect(rcInvite.body.loginUrl).toContain("/auth/admin/callback?token=");
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
 
     // List with filters
     db.user.findMany.mockResolvedValueOnce([

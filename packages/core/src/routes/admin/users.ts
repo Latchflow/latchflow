@@ -9,15 +9,16 @@ import type { RouteSignature } from "../../authz/policy.js";
 import type { AppConfig } from "../../config/env-config.js";
 import { appendChangeLog } from "../../history/changelog.js";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
-import nodemailer from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
-import { getSystemConfigService } from "../../config/system-config-startup.js";
+import type { EmailDeliveryService } from "../../email/delivery-service.js";
 
 const ROLES = ["ADMIN", "EXECUTOR"] as const;
 
-export function registerUserAdminRoutes(server: HttpServer, config: AppConfig) {
+export function registerUserAdminRoutes(
+  server: HttpServer,
+  config: AppConfig,
+  deps: { emailService: EmailDeliveryService },
+) {
   const db = getDb();
-  const systemConfigServicePromise = getSystemConfigService(db, config);
   const historyCfg: Pick<AppConfig, "HISTORY_SNAPSHOT_INTERVAL" | "HISTORY_MAX_CHAIN_DEPTH"> = {
     HISTORY_SNAPSHOT_INTERVAL: config.HISTORY_SNAPSHOT_INTERVAL,
     HISTORY_MAX_CHAIN_DEPTH: config.HISTORY_MAX_CHAIN_DEPTH,
@@ -60,67 +61,20 @@ export function registerUserAdminRoutes(server: HttpServer, config: AppConfig) {
     );
   };
 
-  async function resolveEmailConfig(key: "SMTP_URL" | "SMTP_FROM"): Promise<string | null> {
-    try {
-      const service = await systemConfigServicePromise;
-      const record = await service.get(key);
-      if (typeof record?.value === "string" && record.value.trim().length > 0) {
-        return record.value;
-      }
-    } catch {
-      // Ignore resolution errors and fall back to environment-derived config
-    }
-
-    if (key === "SMTP_URL") {
-      const fallback = config.SMTP_URL?.trim();
-      return fallback && fallback.length > 0 ? fallback : null;
-    }
-    if (key === "SMTP_FROM") {
-      const fallback = config.SMTP_FROM?.trim();
-      return fallback && fallback.length > 0 ? fallback : null;
-    }
-    return null;
-  }
-
   async function sendMagicLinkEmail(email: string, token: string) {
     if (config.ALLOW_DEV_AUTH) {
       return { loginUrl: `/auth/admin/callback?token=${token}` } as const;
     }
-    const smtpUrlValue = await resolveEmailConfig("SMTP_URL");
-    if (!smtpUrlValue) {
-      return null;
-    }
-
-    const smtpFromValue = (await resolveEmailConfig("SMTP_FROM")) ?? "no-reply@latchflow.local";
-
-    let smtpUrl: URL;
-    try {
-      smtpUrl = new URL(smtpUrlValue);
-    } catch {
-      return null;
-    }
-    const transporter = nodemailer.createTransport({
-      host: smtpUrl.hostname,
-      port: Number(smtpUrl.port || 25),
-      secure: false,
-      ignoreTLS: true,
-      auth:
-        smtpUrl.username || smtpUrl.password
-          ? {
-              user: decodeURIComponent(smtpUrl.username),
-              pass: decodeURIComponent(smtpUrl.password),
-            }
-          : undefined,
-      tls: { rejectUnauthorized: false },
-    } satisfies SMTPTransport.Options);
-    const from = smtpFromValue;
     const loginPath = `/auth/admin/callback?token=${token}`;
-    await transporter.sendMail({
-      from,
-      to: email,
+    await deps.emailService.sendEmail({
+      to: [{ address: email }],
       subject: "Latchflow admin invitation",
-      html: `<p>You have been invited to Latchflow.</p><p><a href="${loginPath}">Click to accept</a></p>`,
-      text: loginPath,
+      htmlBody: `<p>You have been invited to Latchflow.</p><p><a href="${loginPath}">Click to accept</a></p>`,
+      textBody: loginPath,
+      metadata: {
+        source: "admin-users",
+        kind: "invitation",
+      },
     });
     return null;
   }

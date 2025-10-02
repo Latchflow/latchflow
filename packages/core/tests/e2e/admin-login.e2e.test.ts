@@ -4,6 +4,8 @@ import { loadConfig } from "../../src/config/env-config.js";
 import { getEnv } from "@tests/helpers/containers";
 import { waitForMessage, extractMagicLinkPath } from "@tests/helpers/mailhog";
 import { createResponseCapture } from "@tests/helpers/response";
+import { InMemoryEmailProviderRegistry } from "../../src/services/email-provider-registry.js";
+import { EmailDeliveryService } from "../../src/email/delivery-service.js";
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -61,7 +63,12 @@ describe("E2E: admin magic-link login (dev-allowed)", () => {
     const { handlers, server } = makeServer();
     // Import routes after DATABASE_URL is set by E2E setup
     const { registerAdminAuthRoutes } = await import("../../src/routes/auth/admin.js");
-    registerAdminAuthRoutes(server, config);
+    const emailService = new EmailDeliveryService({
+      registry: new InMemoryEmailProviderRegistry(),
+      systemConfig: { get: async () => null },
+      config,
+    });
+    registerAdminAuthRoutes(server, config, { emailService });
 
     // Ensure target user exists (avoid relying on first-user bootstrap)
     const { prisma } = await import("@latchflow/db");
@@ -122,7 +129,12 @@ describe("E2E: admin magic-link login (email delivery)", () => {
 
     const { handlers, server } = makeServer();
     const { registerAdminAuthRoutes } = await import("../../src/routes/auth/admin.js");
-    registerAdminAuthRoutes(server, config);
+    const emailService = new EmailDeliveryService({
+      registry: new InMemoryEmailProviderRegistry(),
+      systemConfig: { get: async () => null },
+      config,
+    });
+    registerAdminAuthRoutes(server, config, { emailService });
 
     const targetEmail = "e2e.admin2@example.com";
     // Ensure user exists post-bootstrap so /auth/admin/start will issue a magic link
@@ -182,7 +194,12 @@ describe("E2E: admin magic-link login (negative cases)", () => {
 
     const { handlers, server } = makeServer();
     const { registerAdminAuthRoutes } = await import("../../src/routes/auth/admin.js");
-    registerAdminAuthRoutes(server, config);
+    const emailService = new EmailDeliveryService({
+      registry: new InMemoryEmailProviderRegistry(),
+      systemConfig: { get: async () => null },
+      config,
+    });
+    registerAdminAuthRoutes(server, config, { emailService });
 
     const hCb = handlers.get("GET /auth/admin/callback")!;
     const rcCb = createResponseCapture();
@@ -215,7 +232,12 @@ describe("E2E: admin magic-link login (negative cases)", () => {
 
     const { handlers, server } = makeServer();
     const { registerAdminAuthRoutes } = await import("../../src/routes/auth/admin.js");
-    registerAdminAuthRoutes(server, config);
+    const emailService = new EmailDeliveryService({
+      registry: new InMemoryEmailProviderRegistry(),
+      systemConfig: { get: async () => null },
+      config,
+    });
+    registerAdminAuthRoutes(server, config, { emailService });
 
     const hCb = handlers.get("GET /auth/admin/callback")!;
     const rcCb = createResponseCapture();

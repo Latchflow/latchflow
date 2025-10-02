@@ -42,6 +42,8 @@ import {
 } from "./config/system-config-startup.js";
 import { createStubPluginServiceRegistry } from "./services/stubs.js";
 import { resolveConfigEncryption } from "./plugins/config-encryption.js";
+import { InMemoryEmailProviderRegistry } from "./services/email-provider-registry.js";
+import { EmailDeliveryService } from "./email/delivery-service.js";
 
 export async function main() {
   const config = loadConfig();
@@ -84,13 +86,15 @@ export async function main() {
   }
 
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
-  const pluginServices = createStubPluginServiceRegistry();
+  const emailRegistry = new InMemoryEmailProviderRegistry();
+  const pluginServices = createStubPluginServiceRegistry({ emailRegistry });
   const runtime = new PluginRuntimeRegistry(pluginServices);
   const db = getDb();
   let pluginsLoaded = false;
+  let systemConfigService: Awaited<ReturnType<typeof getSystemConfigService>> | null = null;
   try {
     // Initialize system configuration and seed from environment
-    const systemConfigService = await getSystemConfigService(db, config);
+    systemConfigService = await getSystemConfigService(db, config);
     await seedSystemConfigFromEnvironment(systemConfigService, config);
 
     const loaded = await loadPlugins(config.PLUGINS_PATH);
@@ -103,6 +107,12 @@ export async function main() {
       "Skipping plugin DB upsert (DB unavailable?)",
     );
   }
+
+  const emailService = new EmailDeliveryService({
+    registry: emailRegistry,
+    systemConfig: systemConfigService ?? { get: async () => null },
+    config,
+  });
 
   let pluginWatcher: ReturnType<typeof startPluginWatcher> | undefined;
   // Initialize storage
@@ -207,7 +217,7 @@ export async function main() {
   // Initialize bundle rebuild scheduler before route registration
   const rebuilder = createBundleRebuildScheduler({ db: getDb(), storage: _storageService });
   registerHealthRoutes(server, { queueName, storageName, checkDb, checkQueue, checkStorage });
-  registerAdminAuthRoutes(server, config);
+  registerAdminAuthRoutes(server, config, { emailService });
   registerRecipientAuthRoutes(server, config);
   registerPortalRoutes(server, { storage: _storageService, scheduler: rebuilder });
   registerCliAuthRoutes(server, config);
@@ -221,7 +231,7 @@ export async function main() {
   });
   registerActionAdminRoutes(server, { queue, config, encryption: configEncryption, runtime });
   registerPipelineAdminRoutes(server, { config });
-  registerUserAdminRoutes(server, config);
+  registerUserAdminRoutes(server, config, { emailService });
   registerPermissionPresetAdminRoutes(server, { config });
   registerBundleAdminRoutes(server, { scheduler: rebuilder, config });
   registerRecipientAdminRoutes(server, config);

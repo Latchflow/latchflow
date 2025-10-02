@@ -7,6 +7,7 @@ import type { BulkConfigInput, SystemConfigValue } from "../../config/types.js";
 import { SystemConfigValidator } from "../../config/system-config-validator.js";
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import { buildSmtpTransportOptions } from "../../email/smtp.js";
 import type { SystemConfigBulkService } from "../../config/system-config-bulk.js";
 import { requireAdminOrApiToken } from "../../middleware/require-admin-or-api-token.js";
 import { SCOPES } from "../../auth/scopes.js";
@@ -475,7 +476,7 @@ async function resolveEffectiveConfigValue(
 async function verifySmtpConnection(smtpUrl: string): Promise<void> {
   let transporter: nodemailer.Transporter<SMTPTransport.SentMessageInfo> | null = null;
   try {
-    const options = buildTransportOptions(smtpUrl);
+    const options = buildSmtpTransportOptions(smtpUrl);
     transporter = nodemailer.createTransport(options);
     await transporter.verify();
   } catch (error) {
@@ -485,33 +486,4 @@ async function verifySmtpConnection(smtpUrl: string): Promise<void> {
   } finally {
     transporter?.close();
   }
-}
-
-function buildTransportOptions(smtpUrl: string): SMTPTransport.Options {
-  const url = new URL(smtpUrl);
-  const secure = url.protocol === "smtps:";
-  const port = url.port ? Number(url.port) : secure ? 465 : 587;
-  const ignoreTLS = url.searchParams.get("ignoreTLS") === "true";
-  const rejectUnauthorizedParam = url.searchParams.get("rejectUnauthorized");
-  const tlsOptions =
-    rejectUnauthorizedParam !== null
-      ? { rejectUnauthorized: rejectUnauthorizedParam !== "false" }
-      : undefined;
-
-  const username = url.username ? decodeURIComponent(url.username) : undefined;
-  const password = url.password ? decodeURIComponent(url.password) : undefined;
-
-  const auth = username || password ? { user: username ?? "", pass: password ?? "" } : undefined;
-
-  return {
-    host: url.hostname,
-    port,
-    secure,
-    auth,
-    ignoreTLS,
-    connectionTimeout: 5_000,
-    greetingTimeout: 5_000,
-    socketTimeout: 5_000,
-    ...(tlsOptions ? { tls: tlsOptions } : {}),
-  } satisfies SMTPTransport.Options;
 }

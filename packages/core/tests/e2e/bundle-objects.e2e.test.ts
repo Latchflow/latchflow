@@ -6,6 +6,8 @@ import { getEnv } from "@tests/helpers/containers";
 import { createBundleRebuildScheduler } from "../../src/bundles/scheduler.js";
 import { loadConfig } from "../../src/config/env-config.js";
 import { createResponseCapture } from "@tests/helpers/response";
+import { InMemoryEmailProviderRegistry } from "../../src/services/email-provider-registry.js";
+import { EmailDeliveryService } from "../../src/email/delivery-service.js";
 
 function makeServer() {
   const handlers = new Map<string, HttpHandler>();
@@ -96,7 +98,12 @@ describe("E2E: bundle objects + build + portal download", () => {
     process.env.ALLOW_DEV_AUTH = "true";
     process.env.AUTH_COOKIE_SECURE = "false";
     const config = loadConfig(process.env);
-    registerAdminAuthRoutes(server, config);
+    const emailService = new EmailDeliveryService({
+      registry: new InMemoryEmailProviderRegistry(),
+      systemConfig: { get: async () => null },
+      config,
+    });
+    registerAdminAuthRoutes(server, config, { emailService });
     registerPortalRoutes(server, { storage: storageSvc, scheduler });
     registerBundleObjectsAdminRoutes(server, { scheduler, config });
 
@@ -272,7 +279,12 @@ describe("E2E: bundle objects + build + portal download", () => {
     process.env.ALLOW_DEV_AUTH = "true";
     process.env.AUTH_COOKIE_SECURE = "false";
     const config = loadConfig(process.env);
-    registerAdminAuthRoutes(server, config);
+    const emailService = new EmailDeliveryService({
+      registry: new InMemoryEmailProviderRegistry(),
+      systemConfig: { get: async () => null },
+      config,
+    });
+    registerAdminAuthRoutes(server, config, { emailService });
     registerPortalRoutes(server, { storage: storageSvc, scheduler });
     registerBundleObjectsAdminRoutes(server, { scheduler });
     registerBundleBuildAdminRoutes(server, { storage: storageSvc, scheduler });
