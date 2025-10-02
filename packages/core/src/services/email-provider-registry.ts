@@ -123,7 +123,8 @@ export class InMemoryEmailProviderRegistry implements EmailProviderRegistry {
 
     this.providers.delete(providerId);
     if (this.activeProviderId === providerId) {
-      this.activeProviderId = this.providers.size > 0 ? this.providers.keys().next().value : null;
+      const nextActive = this.providers.size > 0 ? this.providers.keys().next().value : undefined;
+      this.activeProviderId = nextActive ?? null;
     }
   }
 

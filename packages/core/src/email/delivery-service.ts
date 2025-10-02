@@ -151,13 +151,19 @@ function toNodemailerMessage(request: EmailSendRequest, fallbackFrom: string) {
     html: request.htmlBody,
     replyTo: request.replyTo ? formatRecipient(request.replyTo) : undefined,
     headers: request.headers,
-    attachments: request.attachments?.map((attachment) => ({
-      filename: attachment.filename,
-      content: attachment.content,
-      contentType: attachment.contentType,
-      cid: attachment.contentId,
-      disposition: attachment.inline ? "inline" : undefined,
-    })),
+    attachments: request.attachments?.map((attachment) => {
+      const content =
+        typeof attachment.content === "string" || Buffer.isBuffer(attachment.content)
+          ? attachment.content
+          : Buffer.from(attachment.content);
+      return {
+        filename: attachment.filename,
+        content,
+        contentType: attachment.contentType,
+        cid: attachment.contentId,
+        disposition: attachment.inline ? "inline" : undefined,
+      };
+    }),
   } satisfies nodemailer.SendMailOptions;
 }
 
