@@ -16,6 +16,11 @@ import {
   upsertPluginsIntoDb,
 } from "./plugins/plugin-loader.js";
 import { startPluginWatcher } from "./plugins/hot-reload.js";
+import {
+  ensureCoreBuiltins,
+  registerCoreBuiltinActions,
+  type CoreBuiltinCapabilityIds,
+} from "./plugins/core-plugin.js";
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
@@ -92,10 +97,13 @@ export async function main() {
   const db = getDb();
   let pluginsLoaded = false;
   let systemConfigService: Awaited<ReturnType<typeof getSystemConfigService>> | null = null;
+  let coreCapabilityIds: CoreBuiltinCapabilityIds | null = null;
   try {
     // Initialize system configuration and seed from environment
     systemConfigService = await getSystemConfigService(db, config);
     await seedSystemConfigFromEnvironment(systemConfigService, config);
+
+    coreCapabilityIds = await ensureCoreBuiltins(db);
 
     const loaded = await loadPlugins(config.PLUGINS_PATH);
     await upsertPluginsIntoDb(db, loaded, runtime);
@@ -104,7 +112,7 @@ export async function main() {
   } catch (e) {
     createPluginLogger().warn(
       { error: (e as Error).message },
-      "Skipping plugin DB upsert (DB unavailable?)",
+      "Skipping core built-in seed and plugin DB upsert (DB unavailable?)",
     );
   }
 
@@ -113,6 +121,13 @@ export async function main() {
     systemConfig: systemConfigService ?? { get: async () => null },
     config,
   });
+
+  if (coreCapabilityIds) {
+    registerCoreBuiltinActions(runtime, {
+      emailCapabilityId: coreCapabilityIds.emailSendId,
+      emailService,
+    });
+  }
 
   let pluginWatcher: ReturnType<typeof startPluginWatcher> | undefined;
   // Initialize storage
