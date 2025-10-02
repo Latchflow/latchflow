@@ -1,7 +1,9 @@
 import { PluginServiceRegistry, type PluginCoreServiceDefinitions } from "./plugin-services.js";
 import { PLUGIN_SERVICE_SCOPES } from "./scopes.js";
-import { InMemoryEmailProviderRegistry } from "./email-provider-registry.js";
-import type { EmailProviderRegistry } from "./email-provider-registry.js";
+import type {
+  EmailProviderRegistry,
+  EmailProviderRegistration,
+} from "./email-provider-registry.js";
 import type {
   UserAdminService,
   UserRoleChangeOptions,
@@ -24,6 +26,27 @@ import type {
   ReleaseLinkRequest,
   ReleaseLinkResult,
 } from "./storage-service.js";
+
+class StubEmailProviderRegistry implements EmailProviderRegistry {
+  register(_context: PluginServiceContext, _provider: EmailProviderRegistration): void {
+    throw new Error("Email provider registry not implemented");
+  }
+  unregister(_context: PluginServiceContext, _providerId: string): void {
+    throw new Error("Email provider registry not implemented");
+  }
+  getProvider(): EmailProviderRegistration | undefined {
+    throw new Error("Email provider registry not implemented");
+  }
+  getActiveProvider(): EmailProviderRegistration | undefined {
+    throw new Error("Email provider registry not implemented");
+  }
+  setActiveProvider(_context: PluginServiceContext, _providerId: string): void {
+    throw new Error("Email provider registry not implemented");
+  }
+  listProviders(): EmailProviderRegistration[] {
+    throw new Error("Email provider registry not implemented");
+  }
+}
 
 class StubUserAdminService implements UserAdminService {
   async assignRole(
@@ -91,19 +114,12 @@ function createStubToggleService(): StubToggleService {
   return new StubToggleService();
 }
 
-type StubRegistryOptions = {
-  emailRegistry?: EmailProviderRegistry;
-};
-
-export function createStubPluginServiceRegistry(
-  options: StubRegistryOptions = {},
-): PluginServiceRegistry {
+export function createStubPluginServiceRegistry(): PluginServiceRegistry {
   const toggles = createStubToggleService();
   const storage = new StubStorageAccessService();
-  const emailRegistry = options.emailRegistry ?? new InMemoryEmailProviderRegistry();
   const definitions: PluginCoreServiceDefinitions = {
     emailProviders: {
-      service: emailRegistry,
+      service: new StubEmailProviderRegistry(),
       scopes: [PLUGIN_SERVICE_SCOPES.EMAIL_SEND],
       description: "Email provider registry stub",
     },

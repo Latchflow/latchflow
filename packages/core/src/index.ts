@@ -16,11 +16,6 @@ import {
   upsertPluginsIntoDb,
 } from "./plugins/plugin-loader.js";
 import { startPluginWatcher } from "./plugins/hot-reload.js";
-import {
-  ensureCoreBuiltins,
-  registerCoreBuiltinActions,
-  type CoreBuiltinCapabilityIds,
-} from "./plugins/core-plugin.js";
 import { loadStorage } from "./storage/loader.js";
 import { createStorageService } from "./storage/service.js";
 import { registerOpenApiRoute } from "./routes/openapi.js";
@@ -47,8 +42,6 @@ import {
 } from "./config/system-config-startup.js";
 import { createStubPluginServiceRegistry } from "./services/stubs.js";
 import { resolveConfigEncryption } from "./plugins/config-encryption.js";
-import { InMemoryEmailProviderRegistry } from "./services/email-provider-registry.js";
-import { EmailDeliveryService } from "./email/delivery-service.js";
 
 export async function main() {
   const config = loadConfig();
@@ -91,13 +84,10 @@ export async function main() {
   }
 
   // Initialize DB (lazy in getDb) and load plugins into registry + DB
-  const emailRegistry = new InMemoryEmailProviderRegistry();
-  const pluginServices = createStubPluginServiceRegistry({ emailRegistry });
+  const pluginServices = createStubPluginServiceRegistry();
   const runtime = new PluginRuntimeRegistry(pluginServices);
   const db = getDb();
   let pluginsLoaded = false;
-  let systemConfigService: Awaited<ReturnType<typeof getSystemConfigService>> | null = null;
-  let coreCapabilityIds: CoreBuiltinCapabilityIds | null = null;
   try {
     // Initialize system configuration and seed from environment
     systemConfigService = await getSystemConfigService(db, config);
@@ -114,19 +104,6 @@ export async function main() {
       { error: (e as Error).message },
       "Skipping core built-in seed and plugin DB upsert (DB unavailable?)",
     );
-  }
-
-  const emailService = new EmailDeliveryService({
-    registry: emailRegistry,
-    systemConfig: systemConfigService ?? { get: async () => null },
-    config,
-  });
-
-  if (coreCapabilityIds) {
-    registerCoreBuiltinActions(runtime, {
-      emailCapabilityId: coreCapabilityIds.emailSendId,
-      emailService,
-    });
   }
 
   let pluginWatcher: ReturnType<typeof startPluginWatcher> | undefined;
@@ -242,7 +219,6 @@ export async function main() {
     config,
     encryption: configEncryption,
     runtime,
-    runtimeManager: triggerRuntimeManager,
   });
   registerActionAdminRoutes(server, { queue, config, encryption: configEncryption, runtime });
   registerPipelineAdminRoutes(server, { config });

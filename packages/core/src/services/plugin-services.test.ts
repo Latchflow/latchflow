@@ -11,7 +11,6 @@ import { PLUGIN_SERVICE_SCOPES } from "./scopes.js";
 import type { PluginServiceCallContext } from "./context.js";
 import { PluginServiceError } from "./errors.js";
 import type { BundleControlService } from "./resource-control-service.js";
-import type { EmailProviderRegistry } from "./email-provider-registry.js";
 
 describe("PluginServiceRegistry instrumentation", () => {
   beforeEach(() => {
@@ -149,11 +148,11 @@ function createRegistry(overrides: RegistryOverrides) {
     setEnabled: vi.fn(async () => {}),
   };
 
-  const emailRegistry: EmailProviderRegistry = {
+  const emailRegistry = {
     register: vi.fn(),
     unregister: vi.fn(),
-    getProvider: vi.fn(() => undefined),
-    getActiveProvider: vi.fn(() => undefined),
+    getProvider: vi.fn(),
+    getActiveProvider: vi.fn(),
     setActiveProvider: vi.fn(),
     listProviders: vi.fn(() => []),
   };
