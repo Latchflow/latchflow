@@ -23,6 +23,8 @@ servers:
 tags:
   - name: System
     description: System-level endpoints (OpenAPI document)
+  - name: System Configuration
+    description: Manage encrypted configuration entries used by providers and core services
   - name: Health
     description: Health and readiness probes
   - name: Auth (Admin)
@@ -70,6 +72,11 @@ paths:
     $ref: ./paths/system.yaml#/health_ready
   /health:
     $ref: ./paths/health.yaml#/health
+
+  /system-config:
+    $ref: ./paths/system.yaml#/system_config_collection
+  /system-config/{key}:
+    $ref: ./paths/system.yaml#/system_config_item
 
   /auth/admin/start:
     $ref: ./paths/auth/admin.yaml#/admin_start

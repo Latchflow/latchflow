@@ -132,18 +132,35 @@ describe("SystemConfigBulkService", () => {
       expect(mockDb.$transaction).not.toHaveBeenCalled();
     });
 
-    it("reports secret type mismatches", async () => {
-      const configs = [{ key: "SECRET_KEY", value: { not: "string" }, isSecret: true }];
+    it("allows secret objects and encrypts them", async () => {
+      const configs = [{ key: "SECRET_KEY", value: { token: "abc" }, isSecret: true }];
 
       service.validateSchema = vi.fn().mockResolvedValue({ valid: true });
 
+      mockEncryptValue.mockReturnValue("encrypted:bulk");
+
+      const now = new Date();
+      mockDb.systemConfig.upsert.mockResolvedValue({
+        id: "cfg-secret",
+        key: "SECRET_KEY",
+        value: null,
+        encrypted: "encrypted:bulk",
+        category: null,
+        schema: null,
+        metadata: null,
+        isSecret: true,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "user1",
+        updatedBy: null,
+      });
+
       const result = await service.setBulk(configs, "user1");
 
-      expect(result.success).toHaveLength(0);
-      expect(result.errors[0]).toEqual({
-        key: "SECRET_KEY",
-        error: "Secret values must be strings",
-      });
+      expect(result.errors).toHaveLength(0);
+      expect(result.success[0]).toMatchObject({ key: "SECRET_KEY" });
+      expect(mockEncryptValue).toHaveBeenCalledWith(JSON.stringify({ token: "abc" }), masterKey);
     });
 
     it("requires values to be provided", async () => {

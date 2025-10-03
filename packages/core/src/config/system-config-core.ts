@@ -84,6 +84,17 @@ export const ALL_CONFIG_MAPPING = {
   ...ENCRYPTION_CONFIG_MAPPING,
 } as const;
 
+function deserializeSecret(raw: unknown): unknown {
+  if (typeof raw !== "string") {
+    return raw;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
 type HistoryConfig = {
   HISTORY_SNAPSHOT_INTERVAL: number;
   HISTORY_MAX_CHAIN_DEPTH: number;
@@ -152,7 +163,7 @@ export class SystemConfigService {
       if (config.isSecret && config.encrypted) {
         const masterKey = this.requireMasterKey("decrypt", key);
         try {
-          rawValue = decryptValue(config.encrypted, masterKey);
+          rawValue = deserializeSecret(decryptValue(config.encrypted, masterKey));
         } catch (error) {
           throw this.badRequest(
             `Failed to decrypt secret value for key ${key}: ${(error as Error).message}`,
@@ -160,7 +171,7 @@ export class SystemConfigService {
           );
         }
       } else {
-        rawValue = config.value;
+        rawValue = deserializeSecret(config.value);
       }
 
       return this.toSystemConfigValue(config, rawValue);
@@ -204,7 +215,7 @@ export class SystemConfigService {
         const masterKey = this.requireMasterKey("decrypt", config.key);
         try {
           const decrypted = decryptValue(config.encrypted, masterKey);
-          return this.toSystemConfigValue(config, decrypted);
+          return this.toSystemConfigValue(config, deserializeSecret(decrypted));
         } catch (error) {
           throw this.badRequest(
             `Failed to decrypt secret value for key ${config.key}: ${(error as Error).message}`,
@@ -213,7 +224,7 @@ export class SystemConfigService {
         }
       }
 
-      return this.toSystemConfigValue(config, config.value);
+      return this.toSystemConfigValue(config, deserializeSecret(config.value));
     });
   }
 
@@ -362,12 +373,11 @@ export class SystemConfigService {
     key: string,
   ): { encrypted?: string; jsonValue?: Prisma.InputJsonValue } {
     if (isSecret) {
-      if (typeof value !== "string") {
-        throw this.badRequest("Secret values must be strings", "INVALID_SECRET_VALUE");
-      }
       const masterKey = this.requireMasterKey("encrypt", key);
+      const serialized = typeof value === "string" ? value : JSON.stringify(value ?? null);
       return {
-        encrypted: encryptValue(value, masterKey),
+        encrypted: encryptValue(serialized, masterKey),
+        jsonValue: null as unknown as Prisma.InputJsonValue,
       };
     }
 
@@ -396,9 +406,11 @@ export class SystemConfigService {
     const source: SystemConfigValue["source"] =
       metadata?.source === "environment_seed" ? "database_seeded" : "database";
 
+    const finalValue = config.isSecret ? deserializeSecret(rawValue) : rawValue;
+
     return {
       key: config.key,
-      value: config.isSecret ? rawValue : (config.value as unknown),
+      value: finalValue,
       category: config.category,
       schema: config.schema,
       metadata: config.metadata,

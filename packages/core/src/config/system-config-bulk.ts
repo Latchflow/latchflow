@@ -52,14 +52,6 @@ export class SystemConfigBulkService extends SystemConfigService {
         continue;
       }
 
-      if (targetIsSecret && typeof config.value !== "string") {
-        errors.push({
-          key: config.key,
-          error: "Secret values must be strings",
-        });
-        continue;
-      }
-
       prepared.push({
         key: config.key,
         value: config.value,
