@@ -62,7 +62,6 @@ function parseField(field, def) {
   }
 
   if (values.size === 0) {
-    // For wildcard we still want the full range
     for (let v = def.min; v <= def.max; v += 1) {
       values.add(normalizeValue(v, def));
     }
@@ -133,7 +132,7 @@ function normalizeValue(value, def) {
 
 function mapDayOfWeek(value, def) {
   if (def.name === "dayOfWeek" && value === 7) {
-    return 0; // both 0 and 7 represent Sunday
+    return 0;
   }
   if (value < def.min || value > def.max) {
     throw new Error(`Cron value out of range for ${def.name}: ${value}`);
@@ -155,7 +154,7 @@ function computeNextOccurrence(parsedExpression, fromDate) {
   throw new Error("Unable to resolve next cron execution within one year");
 }
 
-function matchesExpression(parsed, date, _lowerBound) {
+function matchesExpression(parsed, date) {
   const [minuteField, hourField, dayOfMonthField, monthField, dayOfWeekField] = parsed;
   const minute = date.getUTCMinutes();
   const hour = date.getUTCHours();
@@ -171,7 +170,6 @@ function matchesExpression(parsed, date, _lowerBound) {
   const dowMatch = dayOfWeekField.values.has(dayOfWeek);
 
   if (!dayOfMonthField.isWildcard && !dayOfWeekField.isWildcard) {
-    // At least one must match, and the next occurrence should move forward.
     if (domMatch || dowMatch) {
       return domMatch || dowMatch;
     }
