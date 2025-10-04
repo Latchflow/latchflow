@@ -12,6 +12,7 @@ export interface PluginWatcherOptions {
   pluginsPath: string;
   runtime: PluginRuntimeRegistry;
   db: DbClient;
+  systemConfig?: import("../config/system-config-core.js").SystemConfigService;
   debounceMs?: number;
 }
 
@@ -71,7 +72,9 @@ export function startPluginWatcher(options: PluginWatcherOptions): PluginWatcher
       }
 
       await options.runtime.removePlugin(pluginName);
-      await upsertPluginsIntoDb(options.db, [plugin], options.runtime);
+      await upsertPluginsIntoDb(options.db, [plugin], options.runtime, {
+        systemConfig: options.systemConfig,
+      });
       pluginLogger.info("Plugin hot-reloaded");
     })();
     inflight.set(pluginName, reloadPromise);

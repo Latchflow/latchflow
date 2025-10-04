@@ -9,8 +9,64 @@ import {
   upsertPluginsIntoDb,
   type LoadedPlugin,
 } from "../plugins/plugin-loader.js";
+import type { ProviderDescriptor } from "./contracts.js";
 import type { DbClient } from "../db/db.js";
 import { createStubPluginServiceRegistry } from "../services/stubs.js";
+
+class MockSystemConfigService {
+  private store = new Map<string, { value: unknown; schema?: unknown }>();
+
+  async get(key: string) {
+    const entry = this.store.get(key);
+    if (!entry) return null;
+    return {
+      key,
+      value: entry.value,
+      category: null,
+      schema: entry.schema ?? null,
+      metadata: null,
+      isSecret: true,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: null,
+      updatedBy: null,
+      source: "database" as const,
+    };
+  }
+
+  async set(key: string, value: unknown, options: { schema?: unknown } = {}) {
+    this.store.set(key, { value, schema: options.schema });
+    return (await this.get(key))!;
+  }
+
+  getStoredValue(key: string) {
+    return this.store.get(key)?.value;
+  }
+
+  async validateSchema(
+    _key: string,
+    value: unknown,
+    schemaOverride?: unknown,
+  ): Promise<{ valid: boolean; errors?: string[] }> {
+    const schema = schemaOverride as Record<string, unknown> | undefined;
+    if (!schema) return { valid: true };
+    if (schema.type === "object") {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return { valid: false, errors: ["Expected object"] };
+      }
+      if (Array.isArray(schema.required)) {
+        const missing = schema.required.filter(
+          (key) => (value as Record<string, unknown>)[key] == null,
+        );
+        if (missing.length > 0) {
+          return { valid: false, errors: missing.map((k) => `Missing required property ${k}`) };
+        }
+      }
+    }
+    return { valid: true };
+  }
+}
 
 describe("plugin-loader", () => {
   it("loads capabilities from a plugin directory", async () => {
@@ -146,7 +202,8 @@ describe("plugin upsert", () => {
     ];
     const db = createFakeDb();
     const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
-    await upsertPluginsIntoDb(db, plugins, runtime);
+    const systemConfig = new MockSystemConfigService();
+    await upsertPluginsIntoDb(db, plugins, runtime, { systemConfig });
     expect(runtime.getTriggerById("c_p_fake:cron")).toBeTruthy();
     expect(runtime.getTriggerByKey("fake", "cron")).toBeTruthy();
     expect(runtime.requireTriggerById("c_p_fake:cron")).toBeTruthy();
@@ -180,7 +237,8 @@ describe("plugin upsert", () => {
     const db = createFakeDb();
     const serviceRegistry = createStubPluginServiceRegistry();
     const runtime = new PluginRuntimeRegistry(serviceRegistry);
-    await upsertPluginsIntoDb(db, plugins, runtime);
+    const systemConfig = new MockSystemConfigService();
+    await upsertPluginsIntoDb(db, plugins, runtime, { systemConfig });
     expect(register).toHaveBeenCalledTimes(1);
     const args = register.mock.calls[0][0];
     expect(args.plugin).toEqual({ name: "fake" });
@@ -189,6 +247,86 @@ describe("plugin upsert", () => {
     expect(args.services.core).not.toBe(rawCore);
     expect(Object.keys(args.services.core)).toEqual(Object.keys(rawCore));
     expect(args.services.core.bundles).not.toBe(rawCore.bundles);
+  });
+
+  it("registers provider descriptors and injects validated config", async () => {
+    const sendHandler = vi.fn();
+    const providerDescriptor = {
+      kind: "email" as const,
+      id: "gmail",
+      displayName: "Gmail",
+      configSchema: {
+        type: "object",
+        properties: {
+          providerId: { type: "string" },
+          displayName: { type: "string" },
+          clientId: { type: "string" },
+          clientSecret: { type: "string" },
+          refreshToken: { type: "string" },
+          sender: { type: "string" },
+          makeDefault: { type: "boolean" },
+        },
+        required: ["providerId", "clientId", "clientSecret", "refreshToken", "sender"],
+        additionalProperties: false,
+      },
+      defaults: {
+        providerId: "gmail",
+        displayName: "Gmail",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+        refreshToken: "refresh-token",
+        sender: "sender@example.com",
+        makeDefault: true,
+      },
+      async register({ services, config }) {
+        await services.core.emailProviders.register(
+          { requestedScopes: ["email:send"] },
+          {
+            id: config.providerId,
+            capabilityId: "gmail:email",
+            displayName: config.displayName,
+            send: sendHandler,
+          },
+        );
+        if (config.makeDefault) {
+          await services.core.emailProviders.setActiveProvider(
+            { requestedScopes: ["email:send"] },
+            config.providerId,
+          );
+        }
+      },
+    } satisfies ProviderDescriptor<Record<string, unknown>>;
+
+    const plugins: LoadedPlugin[] = [
+      {
+        name: "gmail",
+        capabilities: [],
+        module: {
+          capabilities: [],
+          providers: [providerDescriptor],
+        },
+      },
+    ];
+
+    const db = createFakeDb();
+    const serviceRegistry = createStubPluginServiceRegistry();
+    const runtime = new PluginRuntimeRegistry(serviceRegistry);
+    const systemConfig = new MockSystemConfigService();
+
+    const emailService = serviceRegistry.get("emailProviders");
+    const registerSpy = vi.spyOn(emailService, "register");
+    const setActiveSpy = vi.spyOn(emailService, "setActiveProvider");
+
+    await upsertPluginsIntoDb(db, plugins, runtime, { systemConfig });
+
+    expect(registerSpy).toHaveBeenCalledTimes(1);
+    expect(setActiveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ requestedScopes: ["email:send"] }),
+      "gmail",
+    );
+    expect(systemConfig.getStoredValue("PLUGIN_GMAIL_PROVIDER_GMAIL")).toEqual(
+      expect.objectContaining({ providerId: "gmail" }),
+    );
   });
 
   it("throws when trigger capability handler is missing", async () => {
@@ -204,7 +342,8 @@ describe("plugin upsert", () => {
     ];
     const db = createFakeDb();
     const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
-    await expect(upsertPluginsIntoDb(db, plugins, runtime)).rejects.toThrow(
+    const systemConfig = new MockSystemConfigService();
+    await expect(upsertPluginsIntoDb(db, plugins, runtime, { systemConfig })).rejects.toThrow(
       /has no exported handler/,
     );
   });
@@ -222,7 +361,8 @@ describe("plugin upsert", () => {
     ];
     const db = createFakeDb();
     const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
-    await expect(upsertPluginsIntoDb(db, plugins, runtime)).rejects.toThrow(
+    const systemConfig = new MockSystemConfigService();
+    await expect(upsertPluginsIntoDb(db, plugins, runtime, { systemConfig })).rejects.toThrow(
       /has no exported handler/,
     );
   });
@@ -249,7 +389,9 @@ describe("plugin upsert", () => {
     ];
     const db = createFakeDb();
     const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
-    await upsertPluginsIntoDb(db, plugins, runtime);
+    await upsertPluginsIntoDb(db, plugins, runtime, {
+      systemConfig: new MockSystemConfigService(),
+    });
     expect(runtime.getTriggerById("c_p_fake:cron")).toBeTruthy();
     await runtime.removePlugin("fake");
     expect(runtime.getTriggerById("c_p_fake:cron")).toBeUndefined();
@@ -270,14 +412,18 @@ describe("plugin upsert", () => {
     ];
     const db = createFakeDb();
     const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
-    await upsertPluginsIntoDb(db, plugins, runtime);
+    await upsertPluginsIntoDb(db, plugins, runtime, {
+      systemConfig: new MockSystemConfigService(),
+    });
 
     const helper = db as unknown as { __caps: Map<string, { isEnabled: boolean }> };
     for (const row of helper.__caps.values()) {
       row.isEnabled = false;
     }
 
-    await upsertPluginsIntoDb(db, plugins, runtime);
+    await upsertPluginsIntoDb(db, plugins, runtime, {
+      systemConfig: new MockSystemConfigService(),
+    });
     const ref = runtime.requireActionById("c_p_fake:email");
     expect(ref).toBeTruthy();
     for (const row of helper.__caps.values()) {

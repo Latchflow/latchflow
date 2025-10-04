@@ -12,15 +12,19 @@ import {
   type TriggerCapability,
   type ActionCapability,
   type PluginRuntimeServices,
+  type ProviderDescriptor,
   isTriggerCapability,
   isActionCapability,
   isPluginModule,
+  isProviderDescriptor,
 } from "./contracts.js";
 import { createPluginLogger } from "../observability/logger.js";
 import {
   PluginServiceRegistry,
   type PluginServiceRuntimeContextInit,
 } from "../services/plugin-services.js";
+import { ensureProviderConfig } from "./provider-config.js";
+import type { SystemConfigService } from "../config/system-config-core.js";
 import type { TriggerRuntimeServices, TriggerEmitPayload } from "./contracts.js";
 
 export interface TriggerDefinitionHealth {
@@ -514,6 +518,7 @@ export async function upsertPluginsIntoDb(
   db: DbClient,
   plugins: LoadedPlugin[],
   runtime: PluginRuntimeRegistry,
+  options?: { systemConfig?: SystemConfigService },
 ) {
   for (const p of plugins) {
     await runtime.removePlugin(p.name);
@@ -574,6 +579,45 @@ export async function upsertPluginsIntoDb(
           capabilityId: capabilityRow.id,
           factory,
         });
+      }
+    }
+
+    if (Array.isArray(p.module.providers) && p.module.providers.length > 0) {
+      if (!options?.systemConfig) {
+        createPluginLogger(p.name).warn(
+          "SystemConfig service unavailable; skipping provider registration",
+        );
+      } else {
+        for (const descriptor of p.module.providers as ProviderDescriptor[]) {
+          if (!isProviderDescriptor(descriptor)) continue;
+          const providerLogger = createPluginLogger(`${p.name}:${descriptor.id}`);
+          try {
+            const config = await ensureProviderConfig({
+              descriptor,
+              systemConfig: options.systemConfig,
+              pluginName: p.name,
+              logger: providerLogger,
+            });
+
+            await descriptor.register({
+              plugin: { name: p.name },
+              logger: providerLogger,
+              config,
+              services: runtime.createRuntimeServices({
+                pluginName: p.name,
+                pluginId: pluginRow.id,
+                capabilityId: `${pluginRow.id}:provider:${descriptor.id}`,
+                capabilityKey: `provider:${descriptor.id}`,
+                executionKind: "register",
+              }),
+            });
+          } catch (err) {
+            providerLogger.warn(
+              { error: err instanceof Error ? err.message : err },
+              "Provider registration skipped due to configuration error",
+            );
+          }
+        }
       }
     }
 
@@ -659,11 +703,15 @@ function normalizePlugin(
   if (!pluginModule) return null;
   const parsed = CapabilityArraySchema.safeParse(pluginModule.capabilities ?? []);
   if (!parsed.success) return null;
+  const finalName =
+    typeof pluginModule.name === "string" && pluginModule.name.length > 0
+      ? pluginModule.name
+      : pluginName;
   const normalized: PluginModule = {
     ...pluginModule,
     capabilities: parsed.data,
   };
-  return { name: pluginName, module: normalized, capabilities: normalized.capabilities };
+  return { name: finalName, module: normalized, capabilities: normalized.capabilities };
 }
 
 function resolvePluginModule(mod: unknown): PluginModule | null {

@@ -106,7 +106,9 @@ export async function main() {
     coreCapabilityIds = await ensureCoreBuiltins(db);
 
     const loaded = await loadPlugins(config.PLUGINS_PATH);
-    await upsertPluginsIntoDb(db, loaded, runtime);
+    await upsertPluginsIntoDb(db, loaded, runtime, {
+      systemConfig: systemConfigService,
+    });
     createPluginLogger().info({ count: loaded.length }, "Plugins loaded");
     pluginsLoaded = true;
   } catch (e) {
@@ -186,6 +188,7 @@ export async function main() {
         pluginsPath: config.PLUGINS_PATH,
         runtime,
         db,
+        systemConfig: systemConfigService ?? undefined,
       });
       const stopWatcher = () => pluginWatcher?.close();
       process.once("SIGINT", stopWatcher);
