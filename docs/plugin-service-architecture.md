@@ -25,6 +25,19 @@
 - Storage access (`storage-service.ts`) offers release link creation and bundle object metadata lookups, again requiring context for auditing.
 - Each service method accepts specific option objects (actorId, reason, audit metadata) to capture extra audit information from the runtime.
 
+## Provider Descriptors & SystemConfig-backed Secrets
+
+- Plugins can now declare `providers` on their module export. Each descriptor supplies:
+  - A `kind` (e.g. `email`), stable `id`, human-readable `displayName`, and a JSON schema describing the configuration the provider expects.
+  - Optional defaults—used to seed SystemConfig on first load and to provide development-friendly fallbacks.
+  - A `register` hook that receives the validated config, a scoped logger, and the standard runtime services. The hook is responsible for wiring the provider into the appropriate core registry (e.g. `emailProviders.register`) and may set itself active when appropriate.
+- Core stores provider configuration in `SystemConfig` under the namespaced key `PLUGIN_{PLUGIN_NAME}_PROVIDER_{PROVIDER_ID}`. Values are AES-GCM encrypted and can contain arbitrary JSON (obj/array). Environment defaults are only used to seed the initial record; subsequent edits flow through the admin API.
+- On startup (and hot reload), the loader:
+  1. Validates or seeds the SystemConfig entry based on the descriptor’s schema and defaults.
+  2. Injects the decrypted config object into the provider register hook.
+  3. Skips registration (with a warning) if validation fails, preventing half-configured providers from crashing the service.
+- The Gmail plugin is the first adopter: it declares the required OAuth credentials and sender address, registers itself with the email provider registry, and becomes the active provider when `makeDefault` is true.
+
 ## Execution Flow (Planned)
 
 1. Plugin runtime resolves capability metadata (including allowed service scopes).
