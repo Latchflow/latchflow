@@ -7,7 +7,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 ## Core Concepts
 - Bundles: Secure sets of files assigned to recipients.
 - Recipients: People or endpoints allowed to retrieve specific bundles.
-- Triggers: Events that start a release process (cron schedules, webhooks, manual overrides, dead-man’s switch, etc.).
+- Triggers: Events that start a release process (scheduled cron/one-time runs, webhooks, manual overrides, dead-man’s switch, etc.).
 - Actions: What happens after a trigger (send email, publish signed URL, push webhook, etc.).
 - Pipelines/Steps: How triggers relate to actions. Defines a set of actions (steps) to be executed in order after a trigger is fired.
 - Executors: Humans with scoped admin permissions to manage bundles, run actions, and perform other managerial tasks.
@@ -244,7 +244,7 @@ apps/
   portal/    - Recipient portal
   cli/       - CLI
 packages/plugins/
-  core/      - Built-in plugins (cron, webhook, email, publish)
+  core/      - Built-in plugins (scheduled trigger, webhook, email, publish)
 ```
 
 ## Environment

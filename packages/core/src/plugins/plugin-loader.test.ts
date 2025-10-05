@@ -77,7 +77,7 @@ describe("plugin-loader", () => {
       const modContent = [
         "module.exports = {",
         "  capabilities: [",
-        "    { kind: 'TRIGGER', key: 'cron_schedule', displayName: 'Cron Schedule' }",
+        "    { kind: 'TRIGGER', key: 'cron_schedule', displayName: 'Scheduled Trigger' }",
         "  ],",
         "  triggers: {",
         "    cron_schedule: () => ({",

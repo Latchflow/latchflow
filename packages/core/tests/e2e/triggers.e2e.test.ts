@@ -49,7 +49,7 @@ async function seedPluginWithTriggerAndAction() {
       pluginId: p.id,
       kind: "TRIGGER",
       key: "cron",
-      displayName: "Cron Schedule",
+      displayName: "Scheduled Trigger",
       jsonSchema: { type: "object" },
       isEnabled: true,
     },
