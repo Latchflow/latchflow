@@ -16,6 +16,8 @@ import type {
   PluginRuntimeRegistry,
   TriggerDefinitionHealth,
 } from "../../plugins/plugin-loader.js";
+import type { TriggerRuntimeManager } from "../../runtime/trigger-runtime-manager.js";
+import { createPluginLogger } from "../../observability/logger.js";
 
 type FireFn = (triggerDefinitionId: string, context?: Record<string, unknown>) => Promise<string>;
 
@@ -39,6 +41,7 @@ interface TriggerDeps {
   config?: AppConfig;
   encryption?: ConfigEncryptionOptions;
   runtime?: PluginRuntimeRegistry;
+  runtimeManager?: TriggerRuntimeManager;
 }
 
 export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDeps) {
@@ -59,6 +62,8 @@ export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDep
   const systemUserId = config.SYSTEM_USER_ID ?? "system";
   const encryption = deps?.encryption ?? { mode: "none" as const };
   const runtime = deps?.runtime;
+  const runtimeManager = deps?.runtimeManager;
+  const runtimeLogger = createPluginLogger("trigger-runtime-control");
 
   const actorContextForReq = (req: unknown) => {
     const user = (req as { user?: { id?: string } }).user;
@@ -209,6 +214,17 @@ export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDep
         changeKind: "UPDATE_PARENT" as ChangeKind,
       });
       res.status(201).json(toTriggerDto(created));
+      if (runtimeManager) {
+        runtimeManager.reloadTrigger(created.id).catch((err) =>
+          runtimeLogger.warn(
+            {
+              error: (err as Error).message,
+              triggerDefinitionId: created.id,
+            },
+            "Failed to reload trigger after creation",
+          ),
+        );
+      }
     }),
   );
 
@@ -343,6 +359,17 @@ export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDep
         changeKind: "UPDATE_PARENT" as ChangeKind,
       });
       res.sendStatus(204);
+      if (runtimeManager) {
+        runtimeManager.reloadTrigger(id).catch((err) =>
+          runtimeLogger.warn(
+            {
+              error: (err as Error).message,
+              triggerDefinitionId: id,
+            },
+            "Failed to reload trigger after update",
+          ),
+        );
+      }
     }),
   );
 
@@ -375,6 +402,17 @@ export function registerTriggerAdminRoutes(server: HttpServer, deps?: TriggerDep
         return;
       }
       res.sendStatus(204);
+      if (runtimeManager) {
+        runtimeManager.reloadTrigger(id).catch((err) =>
+          runtimeLogger.warn(
+            {
+              error: (err as Error).message,
+              triggerDefinitionId: id,
+            },
+            "Failed to reload trigger after deletion",
+          ),
+        );
+      }
     }),
   );
 

@@ -107,6 +107,7 @@ export interface PluginModule {
   capabilities: Capability[];
   triggers?: Record<string, TriggerFactory>;
   actions?: Record<string, ActionFactory>;
+  providers?: ProviderDescriptor[];
   register?(ctx: {
     plugin: PluginIdentifier;
     services: PluginRuntimeServices;
@@ -127,4 +128,40 @@ export function isPluginModule(value: unknown): value is PluginModule {
   const maybe = value as Record<string, unknown>;
   if (!Array.isArray(maybe.capabilities)) return false;
   return true;
+}
+
+export type ProviderKind = "email";
+
+export interface ProviderConfigSchema {
+  type: "object";
+  properties: Record<string, unknown>;
+  required?: string[];
+  additionalProperties?: boolean;
+  [key: string]: unknown;
+}
+
+export interface ProviderDescriptor<TConfig = unknown> {
+  kind: ProviderKind;
+  id: string;
+  displayName: string;
+  configSchema: ProviderConfigSchema;
+  defaults?: TConfig;
+  register: (ctx: ProviderRegisterContext<TConfig>) => Promise<void> | void;
+}
+
+export interface ProviderRegisterContext<TConfig> {
+  plugin: PluginIdentifier;
+  logger: PluginLogger;
+  config: TConfig;
+  services: PluginRuntimeServices;
+}
+
+export function isProviderDescriptor(value: unknown): value is ProviderDescriptor {
+  if (!value || typeof value !== "object") return false;
+  const maybe = value as Record<string, unknown>;
+  return (
+    typeof maybe.kind === "string" &&
+    typeof maybe.id === "string" &&
+    typeof maybe.register === "function"
+  );
 }

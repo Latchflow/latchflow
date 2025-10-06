@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { HttpHandler } from "../../src/http/http-server.js";
 import { createResponseCapture } from "@tests/helpers/response";
+import { EmailDeliveryService } from "../../src/email/delivery-service.js";
+import { InMemoryEmailProviderRegistry } from "../../src/services/email-provider-registry.js";
 
 const db = {
   user: {
@@ -36,14 +38,6 @@ vi.mock("../../src/auth/tokens.js", () => ({
   randomToken: vi.fn(() => "tok123"),
   sha256Hex: vi.fn((input: string) => `hash-${input}`),
 }));
-
-vi.mock("nodemailer", () => {
-  const createTransport = vi.fn(() => ({ sendMail: vi.fn(async () => ({})) }));
-  return {
-    default: { createTransport },
-    createTransport,
-  };
-});
 
 function makeServer(configOverrides: Partial<AppConfigLike> = {}) {
   const handlers = new Map<string, HttpHandler>();
@@ -113,14 +107,21 @@ describe("users admin routes (integration)", () => {
 
   it("create → invite → list filters → get → update → sessions list/revoke", async () => {
     const { handlers, server } = makeServer();
+    const emailService = {
+      sendEmail: vi.fn(async () => ({ delivered: true })),
+    };
     const { registerUserAdminRoutes } = await import("../../src/routes/admin/users.js");
-    registerUserAdminRoutes(server, {
-      HISTORY_SNAPSHOT_INTERVAL: 20,
-      HISTORY_MAX_CHAIN_DEPTH: 200,
-      SYSTEM_USER_ID: "sys",
-      ALLOW_DEV_AUTH: true,
-      ADMIN_MAGICLINK_TTL_MIN: 15,
-    } as any);
+    registerUserAdminRoutes(
+      server,
+      {
+        HISTORY_SNAPSHOT_INTERVAL: 20,
+        HISTORY_MAX_CHAIN_DEPTH: 200,
+        SYSTEM_USER_ID: "sys",
+        ALLOW_DEV_AUTH: true,
+        ADMIN_MAGICLINK_TTL_MIN: 15,
+      } as any,
+      { emailService },
+    );
 
     // Create active user
     const rcCreate = createResponseCapture();
@@ -139,6 +140,7 @@ describe("users admin routes (integration)", () => {
     );
     expect(rcInvite.status).toBe(202);
     expect(rcInvite.body.loginUrl).toContain("/auth/admin/callback?token=");
+    expect(emailService.sendEmail).not.toHaveBeenCalled();
 
     // List with filters
     db.user.findMany.mockResolvedValueOnce([
@@ -217,4 +219,61 @@ describe("users admin routes (integration)", () => {
       data: { revokedAt: expect.any(Date) },
     });
   }, 10_000);
+
+  it("POST /users/invite delivers via active email provider", async () => {
+    const { handlers, server } = makeServer();
+    const registry = new InMemoryEmailProviderRegistry();
+    const providerSend = vi.fn(async () => ({}));
+    const providerCtx = {
+      pluginName: "gmail",
+      capabilityId: "gmail:email",
+      capabilityKey: "email",
+      executionKind: "register" as const,
+      timestamp: new Date(),
+    };
+    registry.register(providerCtx, {
+      id: "gmail",
+      capabilityId: "gmail:email",
+      displayName: "Gmail",
+      send: providerSend,
+    });
+    registry.setActiveProvider(providerCtx, "gmail");
+
+    const config = {
+      HISTORY_SNAPSHOT_INTERVAL: 20,
+      HISTORY_MAX_CHAIN_DEPTH: 200,
+      SYSTEM_USER_ID: "sys",
+      ALLOW_DEV_AUTH: false,
+      ADMIN_MAGICLINK_TTL_MIN: 15,
+      SMTP_URL: null,
+      SMTP_FROM: null,
+    } as any;
+
+    const emailService = new EmailDeliveryService({
+      registry,
+      systemConfig: { get: vi.fn(async () => null) },
+      config,
+    });
+
+    const { registerUserAdminRoutes } = await import("../../src/routes/admin/users.js");
+    registerUserAdminRoutes(server, config, { emailService });
+
+    const rcInvite = createResponseCapture();
+    await handlers.get("POST /users/invite")!(
+      { body: { email: "provider-invite@example.com", name: "Provider" } } as any,
+      rcInvite.res,
+    );
+
+    expect(rcInvite.status).toBe(202);
+    await vi.waitFor(() => {
+      expect(providerSend).toHaveBeenCalledTimes(1);
+    });
+    expect(providerSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: [{ address: "provider-invite@example.com" }],
+        subject: expect.stringContaining("invitation"),
+      }),
+      expect.objectContaining({ capabilityId: "gmail:email", pluginName: "gmail" }),
+    );
+  });
 });

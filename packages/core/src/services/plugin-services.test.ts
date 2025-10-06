@@ -11,6 +11,7 @@ import { PLUGIN_SERVICE_SCOPES } from "./scopes.js";
 import type { PluginServiceCallContext } from "./context.js";
 import { PluginServiceError } from "./errors.js";
 import type { BundleControlService } from "./resource-control-service.js";
+import type { EmailProviderRegistry } from "./email-provider-registry.js";
 
 describe("PluginServiceRegistry instrumentation", () => {
   beforeEach(() => {
@@ -137,6 +138,28 @@ describe("PluginServiceRegistry instrumentation", () => {
     expect(auditEntry.pluginName).toBe("plugin-beta");
     expect(auditEntry.capabilityId).toBe("cap-9");
   });
+
+  it("throws fatal error when context is missing", async () => {
+    const bundlesService: BundleControlService = {
+      setEnabled: vi.fn(async () => {}),
+    };
+
+    const registry = createRegistry({ bundles: bundlesService });
+    const services = registry.createScopedServices({
+      pluginName: "plugin-gamma",
+      pluginId: "plug-3",
+      capabilityId: "cap-ctx",
+      capabilityKey: "bundles",
+      executionKind: "action",
+    });
+
+    expect(() =>
+      (services.bundles as BundleControlService).setEnabled(undefined as any, "bundle", true),
+    ).toThrow(/requires a context/);
+
+    expect(bundlesService.setEnabled).not.toHaveBeenCalled();
+    expect(recordPluginServiceCallMock).not.toHaveBeenCalled();
+  });
 });
 
 interface RegistryOverrides {
@@ -148,11 +171,11 @@ function createRegistry(overrides: RegistryOverrides) {
     setEnabled: vi.fn(async () => {}),
   };
 
-  const emailRegistry = {
+  const emailRegistry: EmailProviderRegistry = {
     register: vi.fn(),
     unregister: vi.fn(),
-    getProvider: vi.fn(),
-    getActiveProvider: vi.fn(),
+    getProvider: vi.fn(() => undefined),
+    getActiveProvider: vi.fn(() => undefined),
     setActiveProvider: vi.fn(),
     listProviders: vi.fn(() => []),
   };

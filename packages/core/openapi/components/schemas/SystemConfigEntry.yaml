@@ -1,0 +1,41 @@
+type: object
+required:
+  - key
+  - value
+  - isSecret
+  - isActive
+  - createdAt
+  - updatedAt
+properties:
+  key:
+    type: string
+    description: Unique configuration key
+  value:
+    description: Stored value (redacted when secret and caller lacks permission)
+  category:
+    type: string
+    nullable: true
+  schema:
+    type: object
+    nullable: true
+    additionalProperties: true
+  metadata:
+    type: object
+    nullable: true
+    additionalProperties: true
+  isSecret:
+    type: boolean
+  isActive:
+    type: boolean
+  createdAt:
+    type: string
+    format: date-time
+  updatedAt:
+    type: string
+    format: date-time
+  createdBy:
+    type: string
+    nullable: true
+  updatedBy:
+    type: string
+    nullable: true

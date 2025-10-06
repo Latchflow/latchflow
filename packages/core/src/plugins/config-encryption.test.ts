@@ -1,38 +1,48 @@
 import { describe, it, expect } from "vitest";
-import { encryptConfig, decryptConfig, resolveConfigEncryption } from "./config-encryption.js";
 
-describe("config-encryption", () => {
-  it("returns value unchanged in none mode", () => {
-    const opts = { mode: "none" as const };
-    const config = { foo: "bar" };
-    const stored = encryptConfig(config, opts);
-    expect(stored).toEqual(config);
-    expect(decryptConfig(stored, opts)).toEqual(config);
+import {
+  encryptConfig,
+  decryptConfig,
+  resolveConfigEncryption,
+  isEncryptedConfig,
+  type ConfigEncryptionOptions,
+} from "./config-encryption.js";
+
+describe("config encryption", () => {
+  const sample = { secret: "hunter2", nested: { token: "abc123" } };
+
+  it("returns plaintext when encryption disabled", () => {
+    const options: ConfigEncryptionOptions = { mode: "none" };
+    const encrypted = encryptConfig(sample, options);
+    expect(encrypted).toEqual(sample);
+    expect(isEncryptedConfig(encrypted)).toBe(false);
+    const decrypted = decryptConfig(encrypted, options);
+    expect(decrypted).toEqual(sample);
   });
 
-  it("encrypts and decrypts payload with aes-gcm", () => {
-    const masterKey = Buffer.alloc(32, 7);
-    const opts = { mode: "aes-gcm" as const, masterKey };
-    const config = { secret: "value", nested: { token: "abc" } };
-    const stored = encryptConfig(config, opts);
-    expect(stored).not.toEqual(config);
-    expect(typeof stored).toBe("object");
-    const decrypted = decryptConfig(stored, opts);
-    expect(decrypted).toEqual(config);
-  });
-
-  it("resolves encryption options from app config", () => {
-    const options = resolveConfigEncryption({
-      ENCRYPTION_MODE: "none",
-    } as any);
-    expect(options).toEqual({ mode: "none" });
-
-    const key = Buffer.alloc(32, 1).toString("base64");
-    const aesOpts = resolveConfigEncryption({
+  it("encrypts and decrypts config with AES-GCM", () => {
+    const config = {
       ENCRYPTION_MODE: "aes-gcm",
-      ENCRYPTION_MASTER_KEY_B64: key,
-    } as any);
-    expect(aesOpts.mode).toBe("aes-gcm");
-    expect(aesOpts.masterKey?.length).toBe(32);
+      ENCRYPTION_MASTER_KEY_B64: Buffer.from("0123456789abcdef0123456789abcdef").toString("base64"),
+    } as unknown as Parameters<typeof resolveConfigEncryption>[0];
+
+    const options = resolveConfigEncryption(config);
+    const encrypted = encryptConfig(sample, options);
+
+    expect(encrypted).not.toEqual(sample);
+    expect(typeof encrypted).toBe("object");
+    expect(isEncryptedConfig(encrypted)).toBe(true);
+    expect(JSON.stringify(encrypted)).not.toContain(sample.secret);
+    const decrypted = decryptConfig(encrypted, options);
+    expect(decrypted).toEqual(sample);
+  });
+
+  it("throws when the master key cannot be decoded", () => {
+    const badConfig = {
+      ENCRYPTION_MODE: "aes-gcm",
+      ENCRYPTION_MASTER_KEY_B64: Buffer.from("too-short").toString("base64"),
+    } as unknown as Parameters<typeof resolveConfigEncryption>[0];
+
+    expect(() => resolveConfigEncryption(badConfig)).toThrow(/must decode to 32 bytes/);
   });
 });

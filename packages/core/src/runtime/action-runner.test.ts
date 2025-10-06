@@ -197,4 +197,36 @@ describe("action-runner", () => {
       }),
     );
   });
+
+  it("fails fast when action runtime does not implement execute", async () => {
+    const queue = await createMemoryQueue({ config: null });
+    const registry = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
+    registry.registerAction({
+      pluginName: "invalid",
+      capabilityId: "cap_invalid",
+      capability: { kind: "ACTION", key: "invalid", displayName: "Invalid" },
+      factory: vi.fn(async () => ({}) as any),
+    });
+
+    dbMocks.definition.capabilityId = "cap_invalid";
+
+    await startActionConsumer(queue, { registry, encryption: { mode: "none" } });
+    await queue.enqueueAction({ actionDefinitionId: "A" });
+
+    await vi.waitFor(() => {
+      expect(getDb().actionInvocation.update).toHaveBeenCalled();
+    });
+    const dbClient = getDb() as any;
+    const updateCall = dbClient.actionInvocation.update.mock.calls[0]?.[0];
+    expect(updateCall).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "FAILED",
+          result: expect.objectContaining({
+            error: expect.stringContaining("must implement execute()"),
+          }),
+        }),
+      }),
+    );
+  });
 });

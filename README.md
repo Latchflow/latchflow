@@ -7,7 +7,7 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 ## Core Concepts
 - Bundles: Secure sets of files assigned to recipients.
 - Recipients: People or endpoints allowed to retrieve specific bundles.
-- Triggers: Events that start a release process (cron schedules, webhooks, manual overrides, dead-man’s switch, etc.).
+- Triggers: Events that start a release process (scheduled cron/one-time runs, webhooks, manual overrides, dead-man’s switch, etc.).
 - Actions: What happens after a trigger (send email, publish signed URL, push webhook, etc.).
 - Pipelines/Steps: How triggers relate to actions. Defines a set of actions (steps) to be executed in order after a trigger is fired.
 - Executors: Humans with scoped admin permissions to manage bundles, run actions, and perform other managerial tasks.
@@ -103,6 +103,35 @@ Notes:
 ## Configuration Management
 
 Runtime configuration lives in the `SystemConfig` table and is managed through the admin API. Secrets are AES‑GCM encrypted, seeded from environment variables on first boot, and audited through ChangeLog snapshots. See [`docs/system-configuration.md`](docs/system-configuration.md) for precedence rules, the available admin endpoints, and testing guidance.
+
+### Gmail Provider Setup
+
+The bundled Gmail provider is a plugin that registers itself through the email provider registry. To enable it:
+
+1. Obtain a **Web application** OAuth client in Google Cloud Console and add `https://developers.google.com/oauthplayground` as a redirect URI.
+2. Use [OAuth Playground](https://developers.google.com/oauthplayground) with your client ID/secret, request the `https://www.googleapis.com/auth/gmail.send` scope, and exchange the code with **offline access** to receive a refresh token.
+3. Store the credentials via the admin API (example request):
+   ```http
+   PUT /system/config/PLUGIN_LATCHFLOW_PLUGIN_GMAIL_PROVIDER_GMAIL
+   Content-Type: application/json
+
+   {
+     "value": {
+       "providerId": "gmail",
+       "displayName": "Gmail",
+       "clientId": "<oauth-client-id>",
+       "clientSecret": "<oauth-client-secret>",
+       "refreshToken": "<refresh-token>",
+       "sender": "you@example.com",
+       "makeDefault": true
+     },
+     "category": "provider:email",
+     "isSecret": true
+   }
+   ```
+4. Restart the core service. The Gmail provider will register itself on boot and become the active email backend until you change or deactivate it.
+
+If the provider fails to refresh (e.g., `invalid_client`/`invalid_grant`), regenerate the OAuth client or refresh token and update the same SystemConfig key.
 
 ## Testkit (Shared Mocks)
 - Shared unit/integration testing kit for all apps using MSW-based handlers, fixtures, and scenarios.
@@ -215,7 +244,7 @@ apps/
   portal/    - Recipient portal
   cli/       - CLI
 packages/plugins/
-  core/      - Built-in plugins (cron, webhook, email, publish)
+  core/      - Built-in plugins (scheduled trigger, webhook, email, publish)
 ```
 
 ## Environment

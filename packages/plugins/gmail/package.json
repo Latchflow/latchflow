@@ -3,5 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "main": "./index.js",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "google-auth-library": "^9.14.1"
+  }
 }

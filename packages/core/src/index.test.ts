@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 // Mock config to a minimal, valid configuration
 vi.mock("./config/env-config.js", () => ({
   loadConfig: () => ({
     DATABASE_URL: "postgres://x",
     PORT: 3456,
-    PLUGINS_PATH: "packages/plugins",
+    PLUGINS_PATH: "../plugins",
     QUEUE_DRIVER: "memory",
     QUEUE_DRIVER_PATH: null,
     QUEUE_CONFIG_JSON: null,
@@ -42,6 +42,9 @@ vi.mock("./db/db.js", () => ({
     },
   }),
 }));
+const ensureCoreBuiltinsMock = vi.fn(async () => ({ emailSendId: "core-email" }));
+const registerCoreBuiltinActionsMock = vi.fn();
+
 vi.mock("./plugins/plugin-loader.js", () => ({
   loadPlugins: vi.fn(async () => []),
   upsertPluginsIntoDb: vi.fn(async () => {}),
@@ -49,6 +52,10 @@ vi.mock("./plugins/plugin-loader.js", () => ({
     registerTrigger() {}
     registerAction() {}
   },
+}));
+vi.mock("./plugins/core-plugin.js", () => ({
+  ensureCoreBuiltins: ensureCoreBuiltinsMock,
+  registerCoreBuiltinActions: registerCoreBuiltinActionsMock,
 }));
 vi.mock("./storage/loader.js", () => ({
   loadStorage: vi.fn(async () => ({ name: "fs", storage: {} })),
@@ -65,10 +72,11 @@ vi.mock("./queue/loader.js", () => ({
 vi.mock("./runtime/action-runner.js", () => ({
   startActionConsumer: vi.fn(async () => {}),
 }));
+const triggerRunnerMock = {
+  fireTriggerOnce: vi.fn(async () => "evt_1"),
+};
 vi.mock("./runtime/trigger-runner.js", () => ({
-  startTriggerRunner: vi.fn(async () => ({
-    fireTriggerOnce: vi.fn(async () => "evt_1"),
-  })),
+  startTriggerRunner: vi.fn(async () => triggerRunnerMock),
 }));
 vi.mock("./plugins/hot-reload.js", () => ({
   startPluginWatcher: vi.fn(() => ({ close: vi.fn() })),
@@ -126,7 +134,50 @@ vi.mock("./routes/admin/permissionPresets.js", () => ({
 }));
 vi.mock("./routes/admin/bundles.js", () => ({ registerBundleAdminRoutes: vi.fn() }));
 vi.mock("./routes/admin/recipients.js", () => ({ registerRecipientAdminRoutes: vi.fn() }));
-vi.mock("./bundles/scheduler.js", () => ({ createBundleRebuildScheduler: vi.fn(() => ({})) }));
+const rebuilderMock = {
+  schedule: vi.fn(),
+  scheduleForFiles: vi.fn(),
+  getStatus: vi.fn(),
+};
+vi.mock("./bundles/scheduler.js", () => ({
+  createBundleRebuildScheduler: vi.fn(() => rebuilderMock),
+}));
+
+const stubRegistryMock = vi.fn(() => ({}));
+vi.mock("./services/stubs.js", () => ({
+  createStubPluginServiceRegistry: (...args: any[]) => stubRegistryMock(...args),
+}));
+
+const emailRegistryCtor = vi.fn(function InMemoryEmailProviderRegistryMock(this: any) {
+  return this;
+});
+vi.mock("./services/email-provider-registry.js", () => ({
+  InMemoryEmailProviderRegistry: emailRegistryCtor,
+}));
+
+const emailServiceInstance = {
+  sendEmail: vi.fn(async () => ({ delivered: true })),
+};
+const EmailDeliveryServiceMock = vi.fn(() => emailServiceInstance);
+vi.mock("./email/delivery-service.js", () => ({
+  EmailDeliveryService: EmailDeliveryServiceMock,
+}));
+
+beforeEach(() => {
+  vi.resetModules();
+  listen.mockClear();
+  regHealth.mockClear();
+  regAdmin.mockClear();
+  regRecipient.mockClear();
+  regCli.mockClear();
+  ensureCoreBuiltinsMock.mockClear();
+  registerCoreBuiltinActionsMock.mockClear();
+  stubRegistryMock.mockClear();
+  emailRegistryCtor.mockClear();
+  EmailDeliveryServiceMock.mockClear();
+  emailServiceInstance.sendEmail.mockClear();
+  triggerRunnerMock.fireTriggerOnce.mockClear();
+});
 
 describe("main bootstrap", () => {
   it("starts server and registers routes", async () => {
@@ -137,5 +188,20 @@ describe("main bootstrap", () => {
     expect(regAdmin).toHaveBeenCalledTimes(1);
     expect(regRecipient).toHaveBeenCalledTimes(1);
     expect(regCli).toHaveBeenCalledTimes(1);
-  }, 10_000);
+    expect(ensureCoreBuiltinsMock).toHaveBeenCalledTimes(1);
+    expect(registerCoreBuiltinActionsMock).toHaveBeenCalledWith(expect.any(Object), {
+      emailCapabilityId: "core-email",
+      emailService: emailServiceInstance,
+    });
+    const emailRegistryInstance = emailRegistryCtor.mock.instances[0];
+    expect(stubRegistryMock).toHaveBeenCalledWith({
+      emailRegistry: emailRegistryInstance,
+    });
+    expect(EmailDeliveryServiceMock).toHaveBeenCalledWith({
+      registry: emailRegistryInstance,
+      systemConfig: expect.any(Object),
+      config: expect.any(Object),
+    });
+    expect(regAdmin.mock.calls[0][2]).toEqual({ emailService: emailServiceInstance });
+  }, 20_000);
 });

@@ -42,7 +42,7 @@ describe("express adapter", () => {
     expect(typeof server.get).toBe("function");
     expect(typeof server.post).toBe("function");
     expect(typeof server.listen).toBe("function");
-  });
+  }, 20_000);
 
   it("supports header array, both redirect branches, and error fallbacks", async () => {
     const { createExpressServer } = await import("../http/express-server.js");

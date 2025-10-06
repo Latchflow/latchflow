@@ -353,20 +353,16 @@ describe("SystemConfigService", () => {
       mockEncryptValue.mockReturnValue("encrypted:secret:value");
       mockDb.systemConfig.upsert.mockResolvedValue(mockConfig);
 
-      const result = await service.set("secret-key", "secret-value", {
+      const secret = { token: "secret-value" };
+
+      const result = await service.set("secret-key", secret, {
         isSecret: true,
         userId: "user1",
       });
 
-      expect(result.value).toBe("secret-value");
+      expect(result.value).toEqual(secret);
       expect(result.source).toBe("database");
-      expect(mockEncryptValue).toHaveBeenCalledWith("secret-value", masterKey);
-    });
-
-    it("rejects non-string secret values", async () => {
-      await expect(
-        service.set("secret-key", { not: "string" }, { isSecret: true }),
-      ).rejects.toThrow("Secret values must be strings");
+      expect(mockEncryptValue).toHaveBeenCalledWith(JSON.stringify(secret), masterKey);
     });
   });
 

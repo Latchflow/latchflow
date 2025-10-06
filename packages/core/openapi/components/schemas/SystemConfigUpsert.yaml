@@ -1,0 +1,22 @@
+type: object
+required:
+  - key
+  - value
+properties:
+  key:
+    type: string
+    description: Configuration key
+  value:
+    description: Arbitrary JSON value to store
+  category:
+    type: string
+    description: Optional category used for grouping
+  schema:
+    type: object
+    description: Optional JSON schema override for validation
+  metadata:
+    type: object
+    description: Additional metadata stored alongside the entry
+  isSecret:
+    type: boolean
+    description: When true, value is stored encrypted at rest

@@ -40,3 +40,107 @@ health_ready:
           application/json:
             schema:
               $ref: ../components/schemas/Error.yaml
+
+system_config_collection:
+  get:
+    summary: List active system configuration entries
+    operationId: listSystemConfig
+    tags: [System Configuration]
+    security:
+      - bearerAuth: [system:read]
+    parameters:
+      - in: query
+        name: category
+        schema: { type: string }
+        description: Optional category filter (e.g. `provider:email`)
+      - in: query
+        name: includeSecrets
+        schema: { type: boolean }
+        description: Include decrypted secret values when authorized
+    responses:
+      '200':
+        description: Collection of system config entries
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: ../components/schemas/SystemConfigEntry.yaml
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+  post:
+    summary: Create or update a system configuration entry
+    operationId: upsertSystemConfig
+    tags: [System Configuration]
+    security:
+      - bearerAuth: [system:write]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SystemConfigUpsert.yaml
+    responses:
+      '200':
+        description: Configuration entry upserted
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/SystemConfigEntry.yaml
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+
+system_config_item:
+  parameters:
+    - name: key
+      in: path
+      required: true
+      schema: { type: string }
+      description: System configuration key
+  get:
+    summary: Fetch a system configuration entry
+    operationId: getSystemConfig
+    tags: [System Configuration]
+    security:
+      - bearerAuth: [system:read]
+    responses:
+      '200':
+        description: Configuration entry
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/SystemConfigEntry.yaml
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  put:
+    summary: Replace a system configuration entry
+    operationId: replaceSystemConfig
+    tags: [System Configuration]
+    security:
+      - bearerAuth: [system:write]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SystemConfigUpsert.yaml
+    responses:
+      '200':
+        description: Updated configuration entry
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas/SystemConfigEntry.yaml
+      '400': { $ref: ../components/responses/ValidationError.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+  delete:
+    summary: Deactivate a system configuration entry
+    operationId: deleteSystemConfig
+    tags: [System Configuration]
+    security:
+      - bearerAuth: [system:write]
+    responses:
+      '204': { description: Entry deactivated }
+      '404': { $ref: ../components/responses/NotFound.yaml }

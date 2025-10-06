@@ -82,26 +82,9 @@ vi.mock("../../auth/tokens.js", () => ({
   sha256Hex: (input: string) => `hash-${input}`,
 }));
 
-const { systemConfigGetMock, getSystemConfigServiceMock } = vi.hoisted(() => {
-  const systemConfigGetMock = vi.fn();
-  const service = { get: systemConfigGetMock };
-  return {
-    systemConfigGetMock,
-    getSystemConfigServiceMock: vi.fn(async () => service),
-  };
-});
-
-vi.mock("../../config/system-config-startup.js", () => ({
-  getSystemConfigService: getSystemConfigServiceMock,
-}));
-
-vi.mock("nodemailer", () => {
-  const createTransport = vi.fn(() => ({ sendMail: vi.fn(async () => ({})) }));
-  return {
-    default: { createTransport },
-    createTransport,
-  };
-});
+const emailService = {
+  sendEmail: vi.fn(async () => ({ delivered: true })),
+};
 
 async function makeServer(overrides?: Partial<AppConfigLike>) {
   const handlers = new Map<string, HttpHandler>();
@@ -111,14 +94,18 @@ async function makeServer(overrides?: Partial<AppConfigLike>) {
     patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
     delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
   } as any;
-  registerUserAdminRoutes(server, {
-    HISTORY_SNAPSHOT_INTERVAL: 20,
-    HISTORY_MAX_CHAIN_DEPTH: 200,
-    SYSTEM_USER_ID: "sys",
-    ALLOW_DEV_AUTH: true,
-    ADMIN_MAGICLINK_TTL_MIN: 15,
-    ...overrides,
-  });
+  registerUserAdminRoutes(
+    server,
+    {
+      HISTORY_SNAPSHOT_INTERVAL: 20,
+      HISTORY_MAX_CHAIN_DEPTH: 200,
+      SYSTEM_USER_ID: "sys",
+      ALLOW_DEV_AUTH: true,
+      ADMIN_MAGICLINK_TTL_MIN: 15,
+      ...overrides,
+    },
+    { emailService },
+  );
   return { handlers };
 }
 
@@ -155,10 +142,8 @@ function resetMocks() {
     onBehalfOfUserId: null,
   });
   primeUserMocks();
-  systemConfigGetMock.mockReset();
-  systemConfigGetMock.mockResolvedValue(null);
-  getSystemConfigServiceMock.mockReset();
-  getSystemConfigServiceMock.mockResolvedValue({ get: systemConfigGetMock });
+  emailService.sendEmail.mockReset();
+  emailService.sendEmail.mockResolvedValue({ delivered: true });
 }
 
 describe("users routes", () => {
@@ -225,48 +210,7 @@ describe("users routes", () => {
     expect(db.magicLink.create).toHaveBeenCalled();
   });
 
-  it("POST /users/invite sends SMTP email when configured in system config", async () => {
-    const now = new Date("2024-01-01T00:00:00Z");
-    systemConfigGetMock.mockImplementation(async (key: string) => {
-      if (key === "SMTP_URL") {
-        return {
-          key,
-          value: "smtp://localhost:1025",
-          category: "email",
-          schema: null,
-          metadata: null,
-          isSecret: true,
-          isActive: true,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: null,
-          updatedBy: null,
-          source: "database",
-        };
-      }
-      if (key === "SMTP_FROM") {
-        return {
-          key,
-          value: "mailer@example.com",
-          category: "email",
-          schema: null,
-          metadata: null,
-          isSecret: false,
-          isActive: true,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: null,
-          updatedBy: null,
-          source: "database",
-        };
-      }
-      return null;
-    });
-
-    const mailer = await vi.importMock<typeof import("nodemailer")>("nodemailer");
-    const sendMail = vi.fn(async () => ({}));
-    (mailer.createTransport as any).mockReturnValueOnce({ sendMail });
-
+  it("POST /users/invite sends email via delivery service when dev auth disabled", async () => {
     const { handlers } = await makeServer({ ALLOW_DEV_AUTH: false });
     const h = handlers.get("POST /users/invite")!;
     const rc = createResponseCapture();
@@ -274,9 +218,13 @@ describe("users routes", () => {
 
     expect(rc.status).toBe(202);
     expect(rc.body).toBeUndefined();
-    expect(sendMail).toHaveBeenCalled();
-    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_URL");
-    expect(systemConfigGetMock).toHaveBeenCalledWith("SMTP_FROM");
+    expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: [{ address: "invitee@example.com" }],
+        metadata: expect.objectContaining({ kind: "invitation" }),
+      }),
+    );
   });
 
   it("GET /users/:id returns user", async () => {

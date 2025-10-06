@@ -7,7 +7,7 @@ const EnvSchema = z.object({
     .transform((v) => (v ? Number(v) : 3001))
     .pipe(z.number().int().positive())
     .optional(),
-  PLUGINS_PATH: z.string().default("packages/plugins"),
+  PLUGINS_PATH: z.string().default("../plugins"),
 
   QUEUE_DRIVER: z.string().default("memory"),
   QUEUE_DRIVER_PATH: z.string().optional(),

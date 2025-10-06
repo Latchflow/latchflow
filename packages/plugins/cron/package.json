@@ -3,5 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "main": "./index.js",
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "workspace:*"
+  }
 }

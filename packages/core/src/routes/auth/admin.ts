@@ -5,39 +5,18 @@ import { Prisma } from "@latchflow/db";
 import { randomToken, sha256Hex } from "../../auth/tokens.js";
 import { ADMIN_SESSION_COOKIE, type AppConfig } from "../../config/env-config.js";
 import { clearCookie, parseCookies, setCookie } from "../../auth/cookies.js";
-import nodemailer from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { requireAdmin } from "../../middleware/require-admin.js";
 import { bootstrapGrantAdminIfOnlyUserTx } from "../../auth/bootstrap.js";
 import { createAuthLogger } from "../../observability/logger.js";
-import { getSystemConfigService } from "../../config/system-config-startup.js";
+import type { EmailDeliveryService } from "../../email/delivery-service.js";
 
-export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
+export function registerAdminAuthRoutes(
+  server: HttpServer,
+  config: AppConfig,
+  deps: { emailService: EmailDeliveryService },
+) {
   const db = getDb();
-  const systemConfigServicePromise = getSystemConfigService(db, config);
   const authLogger = createAuthLogger();
-
-  async function resolveEmailConfig(key: "SMTP_URL" | "SMTP_FROM"): Promise<string | null> {
-    try {
-      const service = await systemConfigServicePromise;
-      const record = await service.get(key);
-      if (typeof record?.value === "string" && record.value.trim().length > 0) {
-        return record.value;
-      }
-    } catch (error) {
-      authLogger.warn({ key, error: (error as Error).message }, "Failed to resolve email config");
-    }
-
-    if (key === "SMTP_URL") {
-      const fallback = config.SMTP_URL?.trim();
-      return fallback && fallback.length > 0 ? fallback : null;
-    }
-    if (key === "SMTP_FROM") {
-      const fallback = config.SMTP_FROM?.trim();
-      return fallback && fallback.length > 0 ? fallback : null;
-    }
-    return null;
-  }
 
   // POST /auth/admin/start
   server.post("/auth/admin/start", async (req, res) => {
@@ -94,55 +73,28 @@ export function registerAdminAuthRoutes(server: HttpServer, config: AppConfig) {
     if (config.ALLOW_DEV_AUTH) {
       return res.status(200).json({ login_url: `/auth/admin/callback?token=${token}` });
     }
-    // Attempt email delivery via SMTP when configured
-    const smtpUrlValue = await resolveEmailConfig("SMTP_URL");
-    if (smtpUrlValue) {
-      try {
-        const u = new URL(smtpUrlValue);
-        const transporter = nodemailer.createTransport({
-          host: u.hostname,
-          port: Number(u.port || 25),
-          secure: false,
-          ignoreTLS: true,
-          auth:
-            u.username || u.password
-              ? { user: decodeURIComponent(u.username), pass: decodeURIComponent(u.password) }
-              : undefined,
-          tls: { rejectUnauthorized: false },
-        } satisfies SMTPTransport.Options);
-        const from = (await resolveEmailConfig("SMTP_FROM")) ?? "no-reply@latchflow.local";
-        const loginPath = `/auth/admin/callback?token=${token}`;
-        const html = `<p>Click to sign in:</p><p><a href="${loginPath}">${loginPath}</a></p>`;
-        authLogger.info(
-          { email, smtpHost: u.hostname, smtpPort: u.port || 25 },
-          "Sending magic link via SMTP",
-        );
-        await transporter.sendMail({
-          from,
-          to: email,
-          subject: "Latchflow admin login",
-          html,
-          text: loginPath,
-        });
-        authLogger.info({ email }, "SMTP send completed");
-        return res.sendStatus(204);
-      } catch (e) {
-        authLogger.warn({ email, error: (e as Error).message }, "SMTP delivery failed");
-        return res.status(500).json({
-          status: "error",
-          code: "EMAIL_FAILED",
-          message: "Failed to send email",
-        });
-      }
+    const loginPath = `/auth/admin/callback?token=${token}`;
+    try {
+      await deps.emailService.sendEmail({
+        to: [{ address: email }],
+        subject: "Latchflow admin login",
+        htmlBody: `<p>Click to sign in:</p><p><a href="${loginPath}">${loginPath}</a></p>`,
+        textBody: loginPath,
+        metadata: {
+          source: "admin-auth",
+          kind: "magic-link",
+        },
+      });
+      authLogger.info({ email }, "Magic link email dispatched");
+      return res.sendStatus(204);
+    } catch (error) {
+      authLogger.warn({ email, error: (error as Error).message }, "Email delivery failed");
+      return res.status(500).json({
+        status: "error",
+        code: "EMAIL_FAILED",
+        message: "Failed to send email",
+      });
     }
-
-    // Dev-only: log the callback URL (partial token)
-    authLogger.info(
-      { email, tokenPrefix: token.substring(0, 4) },
-      "Magic link generated (dev mode)",
-    );
-
-    return res.sendStatus(204);
   });
 
   // GET /auth/admin/callback
