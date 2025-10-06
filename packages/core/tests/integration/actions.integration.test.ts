@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { HttpHandler } from "../../src/http/http-server.js";
 import { registerActionAdminRoutes } from "../../src/routes/admin/actions.js";
 import { createResponseCapture } from "@tests/helpers/response";
+import { createMemoryQueue } from "../../src/queue/memory-queue.js";
+import { startActionConsumer } from "../../src/runtime/action-runner.js";
+import { PluginRuntimeRegistry } from "../../src/plugins/plugin-loader.js";
+import { createStubPluginServiceRegistry } from "../../src/services/stubs.js";
+import { registerCoreBuiltinActions } from "../../src/plugins/core-plugin.js";
 
 interface ActionRow {
   id: string;
@@ -108,12 +113,18 @@ const db = {
   pluginCapability: {
     findUnique: vi.fn(async ({ where: { id } }: any) => {
       if (id === "cap1") return { id, kind: "ACTION", isEnabled: true };
+      if (id === "cap_core_email") return { id, kind: "ACTION", isEnabled: true };
       if (id === "cap-disabled") return { id, kind: "ACTION", isEnabled: false };
       return null;
     }),
   },
   actionInvocation: {
     count: vi.fn(async () => 0),
+    create: vi.fn(async ({ data }: any) => ({
+      id: `inv_${Math.random().toString(36).slice(2, 10)}`,
+      ...data,
+    })),
+    update: vi.fn(async ({ where: { id }, data }: any) => ({ id, ...data })),
   },
   pipelineStep: {
     count: vi.fn(async () => 0),
@@ -265,5 +276,91 @@ describe("actions integration flow", () => {
     await del({ params: { id: actionId } } as any, deleteRc.res);
     expect(deleteRc.status).toBe(204);
     expect(actions.length).toBe(0);
+  });
+
+  it("POST /actions/:id/test-run executes built-in email action through the queue", async () => {
+    const builtinCapabilityId = "cap_core_email";
+    const builtinDefinitionId = "act_core_email";
+    const emailService = {
+      sendEmail: vi.fn(async () => ({ delivered: true })),
+    };
+    const queue = await createMemoryQueue({ config: null });
+    const runtime = new PluginRuntimeRegistry(createStubPluginServiceRegistry());
+    registerCoreBuiltinActions(runtime, {
+      emailCapabilityId: builtinCapabilityId,
+      emailService: emailService as any,
+    });
+    await startActionConsumer(queue, { registry: runtime, encryption: { mode: "none" } });
+
+    const handlers = new Map<string, HttpHandler>();
+    const server = {
+      get: (p: string, h: HttpHandler) => handlers.set(`GET ${p}`, h),
+      post: (p: string, h: HttpHandler) => handlers.set(`POST ${p}`, h),
+      patch: (p: string, h: HttpHandler) => handlers.set(`PATCH ${p}`, h),
+      delete: (p: string, h: HttpHandler) => handlers.set(`DELETE ${p}`, h),
+    } as any;
+
+    const now = new Date();
+    actions.push({
+      id: builtinDefinitionId,
+      name: "Core Email",
+      capabilityId: builtinCapabilityId,
+      config: {
+        to: [{ address: "base@example.com" }],
+        subject: "Base Subject",
+      },
+      isEnabled: true,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: "admin",
+      updatedBy: null,
+    });
+
+    try {
+      registerActionAdminRoutes(server, {
+        queue,
+        config: {
+          HISTORY_SNAPSHOT_INTERVAL: 10,
+          HISTORY_MAX_CHAIN_DEPTH: 100,
+          SYSTEM_USER_ID: "sys",
+          ENCRYPTION_MODE: "none",
+          ENCRYPTION_MASTER_KEY_B64: undefined,
+        } as any,
+        encryption: { mode: "none" },
+        runtime,
+      });
+
+      const handler = handlers.get("POST /actions/:id/test-run")!;
+      const rc = createResponseCapture();
+      await handler(
+        {
+          params: { id: builtinDefinitionId },
+          body: {
+            context: {
+              to: [{ address: "override@example.com" }],
+              subject: "Override Subject",
+              textBody: "Hello",
+            },
+          },
+          user: { id: "admin" },
+        } as any,
+        rc.res,
+      );
+
+      expect(rc.status).toBe(202);
+      await vi.waitFor(() => {
+        expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
+      });
+      expect(emailService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: [{ address: "override@example.com" }],
+          subject: "Override Subject",
+          textBody: "Hello",
+        }),
+      );
+    } finally {
+      actions.pop();
+      await queue.stop();
+    }
   });
 });

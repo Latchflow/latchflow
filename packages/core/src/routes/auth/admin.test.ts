@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { registerAdminAuthRoutes } from "./admin.js";
 import type { HttpHandler } from "../../http/http-server.js";
+import { EmailDeliveryService } from "../../email/delivery-service.js";
+import { InMemoryEmailProviderRegistry } from "../../services/email-provider-registry.js";
 
 // Mutable in-file DB stub so tests can tailor behavior per case
 const db = {
@@ -140,6 +142,79 @@ describe("admin auth routes", () => {
     expect(code).toBe(204);
     expect(db.magicLink.create).toHaveBeenCalled();
     expect(emailService.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("/auth/admin/start delivers via active email provider when configured", async () => {
+    const { server, handlers } = makeServer();
+    const registry = new InMemoryEmailProviderRegistry();
+    const providerSend = vi.fn(async () => ({}));
+    const providerCtx = {
+      pluginName: "gmail",
+      capabilityId: "gmail:email",
+      capabilityKey: "email",
+      executionKind: "register" as const,
+      timestamp: new Date(),
+    };
+    registry.register(providerCtx, {
+      id: "gmail",
+      capabilityId: "gmail:email",
+      displayName: "Gmail",
+      send: providerSend,
+    });
+    registry.setActiveProvider(providerCtx, "gmail");
+
+    const config = {
+      ADMIN_MAGICLINK_TTL_MIN: 15,
+      AUTH_SESSION_TTL_HOURS: 12,
+      AUTH_COOKIE_SECURE: false,
+      ALLOW_DEV_AUTH: false,
+      SMTP_URL: null,
+      SMTP_FROM: null,
+    } as any;
+
+    const service = new EmailDeliveryService({
+      registry,
+      systemConfig: { get: vi.fn(async () => null) },
+      config,
+    });
+
+    db.user.findUnique.mockResolvedValueOnce({
+      id: "u1",
+      email: "provider@example.com",
+      role: "EXECUTOR",
+    } as any);
+
+    registerAdminAuthRoutes(server, config, { emailService: service });
+    const handler = handlers.get("POST /auth/admin/start")!;
+    let code = 0;
+    await handler({ body: { email: "provider@example.com" } } as any, {
+      status(c: number) {
+        code = c;
+        return this as any;
+      },
+      json() {},
+      header() {
+        return this as any;
+      },
+      redirect() {},
+      sendStatus(c: number) {
+        code = c;
+      },
+      sendStream() {},
+      sendBuffer() {},
+    });
+
+    expect(code).toBe(204);
+    await vi.waitFor(() => {
+      expect(providerSend).toHaveBeenCalledTimes(1);
+    });
+    expect(providerSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: [{ address: "provider@example.com" }],
+        subject: expect.stringContaining("Latchflow admin login"),
+      }),
+      expect.objectContaining({ capabilityId: "gmail:email", pluginName: "gmail" }),
+    );
   });
 
   it("/auth/admin/start returns 200 with login_url when ALLOW_DEV_AUTH=true", async () => {

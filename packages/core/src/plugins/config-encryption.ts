@@ -11,16 +11,23 @@ export interface ConfigEncryptionOptions {
 
 export function resolveConfigEncryption(config: AppConfig): ConfigEncryptionOptions {
   if (config.ENCRYPTION_MODE === "aes-gcm" && config.ENCRYPTION_MASTER_KEY_B64) {
+    let masterKey: Buffer;
     try {
-      return {
-        mode: "aes-gcm",
-        masterKey: Buffer.from(config.ENCRYPTION_MASTER_KEY_B64, "base64"),
-      };
+      masterKey = Buffer.from(config.ENCRYPTION_MASTER_KEY_B64, "base64");
     } catch (err) {
       throw new Error(
         `Failed to decode ENCRYPTION_MASTER_KEY_B64: ${(err as Error).message ?? String(err)}`,
       );
     }
+
+    if (masterKey.length !== 32) {
+      throw new Error("ENCRYPTION_MASTER_KEY_B64 must decode to 32 bytes for aes-gcm");
+    }
+
+    return {
+      mode: "aes-gcm",
+      masterKey,
+    };
   }
   return { mode: "none" };
 }

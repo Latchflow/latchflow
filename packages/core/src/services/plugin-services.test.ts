@@ -138,6 +138,28 @@ describe("PluginServiceRegistry instrumentation", () => {
     expect(auditEntry.pluginName).toBe("plugin-beta");
     expect(auditEntry.capabilityId).toBe("cap-9");
   });
+
+  it("throws fatal error when context is missing", async () => {
+    const bundlesService: BundleControlService = {
+      setEnabled: vi.fn(async () => {}),
+    };
+
+    const registry = createRegistry({ bundles: bundlesService });
+    const services = registry.createScopedServices({
+      pluginName: "plugin-gamma",
+      pluginId: "plug-3",
+      capabilityId: "cap-ctx",
+      capabilityKey: "bundles",
+      executionKind: "action",
+    });
+
+    expect(() =>
+      (services.bundles as BundleControlService).setEnabled(undefined as any, "bundle", true),
+    ).toThrow(/requires a context/);
+
+    expect(bundlesService.setEnabled).not.toHaveBeenCalled();
+    expect(recordPluginServiceCallMock).not.toHaveBeenCalled();
+  });
 });
 
 interface RegistryOverrides {

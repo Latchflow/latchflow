@@ -8,7 +8,9 @@ import {
   type Capability,
   type PluginModule,
   type TriggerFactory,
+  type TriggerRuntime,
   type ActionFactory,
+  type ActionRuntime,
   type TriggerCapability,
   type ActionCapability,
   type PluginRuntimeServices,
@@ -218,8 +220,14 @@ export class PluginRuntimeRegistry {
     if (this.triggerByKey.has(key)) {
       throw new Error(`Trigger capability already registered: ${key}`);
     }
-    this.triggers.set(ref.capabilityId, ref);
-    this.triggerByKey.set(key, ref);
+
+    const wrappedRef: TriggerRuntimeRef = {
+      ...ref,
+      factory: wrapTriggerFactory(ref.pluginName, ref.capability.key, ref.factory),
+    };
+
+    this.triggers.set(ref.capabilityId, wrappedRef);
+    this.triggerByKey.set(key, wrappedRef);
     if (!this.pluginTrigIds.has(ref.pluginName)) {
       this.pluginTrigIds.set(ref.pluginName, new Set());
     }
@@ -234,8 +242,12 @@ export class PluginRuntimeRegistry {
     if (this.actionByKey.has(key)) {
       throw new Error(`Action capability already registered: ${key}`);
     }
-    this.actions.set(ref.capabilityId, ref);
-    this.actionByKey.set(key, ref);
+    const wrappedRef: ActionRuntimeRef = {
+      ...ref,
+      factory: wrapActionFactory(ref.pluginName, ref.capability.key, ref.factory),
+    };
+    this.actions.set(ref.capabilityId, wrappedRef);
+    this.actionByKey.set(key, wrappedRef);
     if (!this.pluginActIds.has(ref.pluginName)) {
       this.pluginActIds.set(ref.pluginName, new Set());
     }
@@ -735,4 +747,87 @@ function resolveActionFactory(module: PluginModule, key: string): ActionFactory 
   if (!module.actions) return null;
   const candidate = module.actions[key];
   return typeof candidate === "function" ? candidate : null;
+}
+
+function wrapTriggerFactory(
+  pluginName: string,
+  capabilityKey: string,
+  factory: TriggerFactory,
+): TriggerFactory {
+  return async (ctx) => {
+    const runtime = await factory(ctx);
+    return validateTriggerRuntime(pluginName, capabilityKey, runtime);
+  };
+}
+
+function wrapActionFactory(
+  pluginName: string,
+  capabilityKey: string,
+  factory: ActionFactory,
+): ActionFactory {
+  return async (ctx) => {
+    const runtime = await factory(ctx);
+    return validateActionRuntime(pluginName, capabilityKey, runtime);
+  };
+}
+
+function validateTriggerRuntime(
+  pluginName: string,
+  capabilityKey: string,
+  runtime: TriggerRuntime | null | undefined,
+): TriggerRuntime {
+  if (!runtime || typeof runtime !== "object") {
+    throw new Error(
+      `Trigger runtime ${pluginName}:${capabilityKey} must return an object with start() and stop() methods`,
+    );
+  }
+  if (typeof runtime.start !== "function" || typeof runtime.stop !== "function") {
+    throw new Error(
+      `Trigger runtime ${pluginName}:${capabilityKey} must implement start() and stop() methods`,
+    );
+  }
+  if (
+    runtime.onConfigChange !== undefined &&
+    runtime.onConfigChange !== null &&
+    typeof runtime.onConfigChange !== "function"
+  ) {
+    throw new Error(
+      `Trigger runtime ${pluginName}:${capabilityKey} onConfigChange must be a function when provided`,
+    );
+  }
+  if (
+    runtime.dispose !== undefined &&
+    runtime.dispose !== null &&
+    typeof runtime.dispose !== "function"
+  ) {
+    throw new Error(
+      `Trigger runtime ${pluginName}:${capabilityKey} dispose must be a function when provided`,
+    );
+  }
+  return runtime;
+}
+
+function validateActionRuntime(
+  pluginName: string,
+  capabilityKey: string,
+  runtime: ActionRuntime | null | undefined,
+): ActionRuntime {
+  if (!runtime || typeof runtime !== "object") {
+    throw new Error(
+      `Action runtime ${pluginName}:${capabilityKey} must return an object with an execute() method`,
+    );
+  }
+  if (typeof runtime.execute !== "function") {
+    throw new Error(`Action runtime ${pluginName}:${capabilityKey} must implement execute()`);
+  }
+  if (
+    runtime.dispose !== undefined &&
+    runtime.dispose !== null &&
+    typeof runtime.dispose !== "function"
+  ) {
+    throw new Error(
+      `Action runtime ${pluginName}:${capabilityKey} dispose must be a function when provided`,
+    );
+  }
+  return runtime;
 }
