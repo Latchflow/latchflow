@@ -38,16 +38,38 @@
   3. Skips registration (with a warning) if validation fails, preventing half-configured providers from crashing the service.
 - The Gmail plugin is the first adopter: it declares the required OAuth credentials and sender address, registers itself with the email provider registry, and becomes the active provider when `makeDefault` is true.
 
-## Execution Flow (Planned)
+## Execution Flow (Implemented)
 
 1. Plugin runtime resolves capability metadata (including allowed service scopes).
-2. Registry verifies the capability has the scopes required by the requested service key.
-3. Service adapter records the `PluginServiceContext`, appends audit entries, performs policy checks, and invokes the underlying core system (Prisma, queue, etc.).
-4. Errors bubble up as `PluginServiceError` instances, allowing the runtime to mark invocations retryable vs fatal.
+2. Service adapters record the `PluginServiceContext`, append audit entries, and invoke the underlying core system.
+3. Action runner enforces concurrency limits (default 10, configurable via `PLUGIN_ACTION_CONCURRENCY`).
+4. Trigger runtime manager handles lifecycle (start/stop/reload) with graceful shutdown.
+5. Errors bubble up as `PluginServiceError` instances, allowing the runtime to mark invocations retryable vs fatal.
 
-## Next Steps
+## Implementation Status
 
-- Implement real adapters that bridge registry calls to existing admin flows (Prisma + policy + change log + queue).
-- Backfill capability metadata with allowed scopes and enforce during definition creation.
-- Instrument service adapters with audit logging per the STORY_PLAN task.
-- Replace SMTP paths in auth routes to resolve email via the registry once Gmail plugin ships.
+✅ **Completed:**
+- Plugin runtime registration with lifecycle validation
+- Trigger and action execution pipelines
+- Service adapter instrumentation with audit logging
+- Email provider registry with Gmail integration
+- Config encryption/decryption (AES-GCM)
+- Provider configuration via SystemConfig
+- SMTP fallback for email delivery
+- Hot-reloading for development
+- Concurrency control and backlog processing
+- Graceful shutdown and configuration change handling
+
+📋 **Future Enhancements:**
+- Per-capability scope enforcement during registration
+- Rate limiting for service calls
+- Plugin version management and isolation
+- Advanced monitoring and alerting
+
+## Verification
+
+- Plugin runtime registration wraps trigger/action factories, asserting required lifecycle methods at execution time. See `packages/core/src/plugins/plugin-loader.ts` and the associated unit coverage in `src/runtime/*` tests.
+- Built-in `email.send` coverage includes an integration path from `POST /actions/:id/test-run` through the action queue to the email service.
+- Admin magic link and invite flows now exercise the email provider registry via `EmailDeliveryService`, with integration tests verifying provider dispatch when an active provider is configured.
+- Security regression tests cover config encryption/decryption and enforce context validation for plugin-facing services.
+- Gmail provider integration tests register the plugin through the runtime services and mock the Gmail API to verify token exchange, request formatting, and provider cleanup.

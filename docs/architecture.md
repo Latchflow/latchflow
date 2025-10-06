@@ -71,6 +71,17 @@ This document explains the runtime shape and key flows with an emphasis on the p
 
 - Triggers and actions are declared by installed plugins and registered at startup.
 - The core runtime orchestrates trigger → action pipelines; no hard‑coded types.
+- See [Plugin Runtime Documentation](./plugin-runtime.md) for detailed architecture and usage guides.
+
+### Built-in Plugins
+
+- **Core System Plugin** (`@latchflow/core`): Provides `email.send` built-in action
+- **Cron Trigger** (`@latchflow/plugin-cron`): Recurring and one-time scheduled triggers
+- **Gmail Provider** (`@latchflow/plugin-gmail`): OAuth2-based email delivery via Gmail API
+
+See:
+- [Cron Trigger Setup](./plugins/cron-trigger.md)
+- [Gmail Provider Setup](./plugins/gmail-provider.md)
 
 ## Admin Authorization (AuthZ v2)
 
