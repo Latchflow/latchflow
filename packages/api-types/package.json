@@ -9,10 +9,9 @@
   ],
   "types": "src/index.d.ts",
   "scripts": {
-    "generate": "openapi-typescript ../core/openapi/dist/openapi.json -o src/index.d.ts --export-type"
+    "generate": "openapi-typescript ../core/openapi/dist/openapi.json -o src/generated.d.ts --export-type"
   },
   "devDependencies": {
     "openapi-typescript": "^7.4.0"
   }
 }
-

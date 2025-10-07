@@ -33,7 +33,8 @@
     "telemetry:start": "docker compose -f docker-compose.telemetry.yml up -d",
     "telemetry:stop": "docker compose -f docker-compose.telemetry.yml down",
     "telemetry:logs": "docker compose -f docker-compose.telemetry.yml logs -f",
-    "plugins:test": "pnpm --filter '@latchflow/plugin-*' test"
+    "plugins:test": "pnpm --filter '@latchflow/plugin-*' test",
+    "api-types:generate": "pnpm run oas:bundle && pnpm -F @latchflow/api-types run generate"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.0",
