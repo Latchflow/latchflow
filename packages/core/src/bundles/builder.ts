@@ -109,7 +109,19 @@ export async function buildBundleArtifact(
       if (!registered) return undefined;
       return () => remove(target, event, handler);
     };
-    const handleData = (c: Buffer) => buffers.push(Buffer.from(c));
+    const handleData: Listener = (chunk) => {
+      if (Buffer.isBuffer(chunk)) {
+        buffers.push(Buffer.from(chunk));
+        return;
+      }
+      if (chunk instanceof Uint8Array) {
+        buffers.push(Buffer.from(chunk));
+        return;
+      }
+      if (typeof chunk === "string") {
+        buffers.push(Buffer.from(chunk, "utf8"));
+      }
+    };
     const handleEnd = () => {
       cleanup();
       resolve(Buffer.concat(buffers));
