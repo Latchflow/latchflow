@@ -4,8 +4,51 @@ import { buildBundleArtifact } from "./builder.js";
 
 // Mock zip-stream with deterministic concatenation of entry data
 vi.mock("zip-stream", () => {
-  class FakeZip {
+  type Listener = (...args: any[]) => void;
+  class MiniEmitter {
+    private listeners = new Map<string, Set<Listener>>();
+    on(event: string, listener: Listener) {
+      let set = this.listeners.get(event);
+      if (!set) {
+        set = new Set();
+        this.listeners.set(event, set);
+      }
+      set.add(listener);
+      return this;
+    }
+    addListener(event: string, listener: Listener) {
+      return this.on(event, listener);
+    }
+    once(event: string, listener: Listener) {
+      const wrapper: Listener = (...args: any[]) => {
+        this.off(event, wrapper);
+        listener(...args);
+      };
+      return this.on(event, wrapper);
+    }
+    off(event: string, listener: Listener) {
+      const set = this.listeners.get(event);
+      if (set) set.delete(listener);
+      return this;
+    }
+    removeListener(event: string, listener: Listener) {
+      return this.off(event, listener);
+    }
+    emit(event: string, ...args: any[]) {
+      const set = this.listeners.get(event);
+      if (!set) return false;
+      for (const listener of Array.from(set)) {
+        listener(...args);
+      }
+      return true;
+    }
+  }
+  class FakeZip extends MiniEmitter {
     private chunks: Buffer[] = [];
+    private _dst: { write?: (b: Buffer) => void; end?: () => void } | null = null;
+    constructor() {
+      super();
+    }
     pipe(dst: any) {
       this._dst = dst;
     }
@@ -21,11 +64,11 @@ vi.mock("zip-stream", () => {
       };
       void collect();
     }
-    finish(cb: () => void) {
+    finish(cb?: () => void) {
       const buf = Buffer.concat(this.chunks);
       if (this._dst?.write) this._dst.write(buf);
       if (this._dst?.end) this._dst.end();
-      cb();
+      if (typeof cb === "function") cb();
     }
   }
   return { default: FakeZip } as any;

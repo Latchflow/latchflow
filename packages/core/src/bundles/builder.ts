@@ -10,7 +10,11 @@ type ZipLike = {
     options: { name: string; store?: boolean; date?: Date },
     cb: (err: Error | null) => void,
   ): void;
-  finish(cb: () => void): void;
+  finish(cb?: () => void): void;
+  on?: (event: string, listener: (err: Error) => void) => unknown;
+  once?: (event: string, listener: (err: Error) => void) => unknown;
+  off?: (event: string, listener: (err: Error) => void) => unknown;
+  removeListener?: (event: string, listener: (err: Error) => void) => unknown;
 };
 
 async function createZip(): Promise<ZipLike> {
@@ -55,9 +59,83 @@ export async function buildBundleArtifact(
   const out = new PassThrough();
   const buffers: Buffer[] = [];
   const collecting = new Promise<Buffer>((resolve, reject) => {
-    out.on("data", (c: Buffer) => buffers.push(Buffer.from(c)));
-    out.on("end", () => resolve(Buffer.concat(buffers)));
-    out.on("error", reject);
+    type Listener = (...args: unknown[]) => void;
+    type EventTarget = {
+      on?: (event: string, listener: Listener) => unknown;
+      once?: (event: string, listener: Listener) => unknown;
+      addListener?: (event: string, listener: Listener) => unknown;
+      off?: (event: string, listener: Listener) => unknown;
+      removeListener?: (event: string, listener: Listener) => unknown;
+      removeEventListener?: (event: string, listener: Listener) => unknown;
+    };
+    const remove = (target: EventTarget, event: string, listener: Listener) => {
+      if (!target) return;
+      if (typeof target.off === "function") target.off(event, listener);
+      else if (typeof target.removeListener === "function") target.removeListener(event, listener);
+      else if (typeof target.removeEventListener === "function")
+        target.removeEventListener(event, listener);
+    };
+    const add = (
+      target: EventTarget,
+      event: string,
+      listener: Listener,
+      opts?: { once?: boolean },
+    ): (() => void) | undefined => {
+      if (!target) return undefined;
+      let handler = listener;
+      let registered = false;
+      if (opts?.once) {
+        if (typeof target.once === "function") {
+          target.once(event, handler);
+          registered = true;
+        } else if (typeof target.on === "function" || typeof target.addListener === "function") {
+          handler = (...args: unknown[]) => {
+            remove(target, event, handler);
+            listener(...args);
+          };
+        } else {
+          return undefined;
+        }
+      }
+      if (!registered) {
+        if (typeof target.on === "function") {
+          target.on(event, handler);
+          registered = true;
+        } else if (typeof target.addListener === "function") {
+          target.addListener(event, handler);
+          registered = true;
+        }
+      }
+      if (!registered) return undefined;
+      return () => remove(target, event, handler);
+    };
+    const handleData = (c: Buffer) => buffers.push(Buffer.from(c));
+    const handleEnd = () => {
+      cleanup();
+      resolve(Buffer.concat(buffers));
+    };
+    const handleError = (err: unknown) => {
+      cleanup();
+      reject(err);
+    };
+    const cleanupFns: Array<() => void> = [];
+    const maybePush = (fn: (() => void) | undefined) => {
+      if (typeof fn === "function") cleanupFns.push(fn);
+    };
+    maybePush(add(out, "data", handleData));
+    maybePush(add(out, "end", handleEnd, { once: true }));
+    maybePush(add(out, "error", handleError, { once: true }));
+    maybePush(add(zip, "error", handleError, { once: true }));
+    const cleanup = () => {
+      while (cleanupFns.length > 0) {
+        const fn = cleanupFns.pop();
+        try {
+          fn?.();
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    };
   });
   zip.pipe(out);
 
@@ -94,7 +172,7 @@ export async function buildBundleArtifact(
     });
   }
 
-  await new Promise<void>((resolve) => zip.finish(() => resolve()));
+  zip.finish();
   const zipBuffer = await collecting;
 
   const put = await storage.putFile({ body: zipBuffer, contentType: "application/zip" });
