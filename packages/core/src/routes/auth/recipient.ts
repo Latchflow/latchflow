@@ -51,7 +51,8 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
       return db.recipient.findUnique({ where: { email: body.email } });
     })();
     if (!recipient || (recipient as { isEnabled?: boolean }).isEnabled === false) {
-      res.status(404).json({ status: "error", code: "NOT_FOUND", message: "Recipient not found" });
+      // Return 204 to avoid leaking recipient existence; do not touch OTP records.
+      res.status(204).json({});
       return;
     }
     const recipientId: string = (recipient as { id: string }).id;
@@ -196,7 +197,9 @@ export function registerRecipientAuthRoutes(server: HttpServer, config: AppConfi
       return db.recipient.findUnique({ where: { email: body.email } });
     })();
     if (!recipient || (recipient as { isEnabled?: boolean }).isEnabled === false) {
-      res.status(404).json({ status: "error", code: "NOT_FOUND", message: "Recipient not found" });
+      // Always return 204 so callers cannot enumerate recipients. Deliberately
+      // omit any DB writes or logging in this branch.
+      res.status(204).json({});
       return;
     }
     const recipientId: string = (recipient as { id: string }).id;

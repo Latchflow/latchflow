@@ -2,8 +2,14 @@ type: object
 properties:
   id: { type: string, format: uuid }
   name: { type: string }
-  storagePath: { type: string }
-  checksum: { type: string }
+  storagePath:
+    oneOf:
+      - { type: string }
+      - { type: "null" }
+  checksum:
+    oneOf:
+      - { type: string }
+      - { type: "null" }
   description:
     oneOf:
       - { type: string }

@@ -23,6 +23,7 @@ portal_me:
                       name: { type: string }
               required: [recipient, bundles]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 portal_bundles:
   get:
@@ -48,6 +49,7 @@ portal_bundles:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 portal_bundle_objects:
   get:
@@ -78,6 +80,7 @@ portal_bundle_objects:
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
 
 portal_bundle_download:
   get:
@@ -99,6 +102,10 @@ portal_bundle_download:
             schema: { type: string, format: binary }
       '302': { description: Redirect to signed URL }
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
+      '404': { $ref: ../components/responses/NotFound.yaml }
+      '409': { $ref: ../components/responses/Conflict.yaml }
+      '429': { $ref: ../components/responses/RateLimited.yaml }
 
 portal_otp_resend:
   post:
@@ -144,3 +151,4 @@ portal_assignments:
                   items: { $ref: ../components/schemas/AssignmentSummary.yaml }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
+      '403': { $ref: ../components/responses/Forbidden.yaml }
