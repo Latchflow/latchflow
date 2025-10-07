@@ -21,17 +21,14 @@
       },
       "extensions": [
         "ms-vscode.vscode-typescript-next",
-        "prisma.prisma",
-        "openai.chatgpt",
-        "anthropic.claude-code"
+        "prisma.prisma"
       ]
     }
   },
   "mounts": [
     "source=codex_config,target=/home/node/.codex,type=volume",
-    "source=claude_config,target=/home/node/.claude,type=volume",
     "source=gh_config,target=/home/node/.config/gh,type=volume"
   ],
-  "postCreateCommand": "bash -lc \"set -e; mkdir -p ~/.codex ~/.claude ~/.config/gh; sudo chown -R node:node ~/.codex ~/.claude ~/.config/gh; chmod 700 ~/.codex ~/.claude ~/.config/gh; sudo usermod -aG docker node; pnpm install\"",
-  "postStartCommand": "bash -lc \"sudo chown -R node:node ~/.codex ~/.claude ~/.config/gh || true\""
+  "postCreateCommand": "bash -lc \"set -e; mkdir -p ~/.codex ~/.config/gh; sudo chown -R node:node ~/.codex ~/.config/gh; chmod 700 ~/.codex ~/.config/gh; sudo usermod -aG docker node; pnpm install; npm i -g @openai/codex\"",
+  "postStartCommand": "bash -lc \"sudo chown -R node:node ~/.codex ~/.config/gh || true\""
 }
