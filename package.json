@@ -37,7 +37,7 @@
     "api-types:generate": "pnpm run oas:bundle && pnpm -F @latchflow/api-types run generate"
   },
   "devDependencies": {
-    "@commitlint/cli": "^18.4.0",
+    "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^18.4.0",
     "@dotenvx/dotenvx": "^1.48.4",
     "@redocly/cli": "^1.34.5",
