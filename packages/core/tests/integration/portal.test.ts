@@ -254,7 +254,9 @@ describe("portal routes (integration)", () => {
     // Ensure we asked DB with isEnabled filter and sort
     const args = db.bundleObject.findMany.mock.calls[0]?.[0] ?? {};
     expect(args?.where?.isEnabled).toBe(true);
-    expect(args?.orderBy?.sortOrder).toBe("asc");
+    const orderBy = Array.isArray(args?.orderBy) ? args.orderBy : [];
+    expect(orderBy[0]?.sortOrder).toBe("asc");
+    expect(orderBy[1]?.id).toBe("asc");
   });
 
   it("GET /portal/bundles/:bundleId ignores per-assignment verification (login-only)", async () => {

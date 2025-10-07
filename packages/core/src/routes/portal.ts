@@ -183,13 +183,53 @@ export function registerPortalRoutes(
   server.get("/portal/bundles/:bundleId/objects", async (req, res) => {
     try {
       const { assignment } = await requireRecipient(req, true);
+      const qp = (req.query ?? {}) as Record<string, string>;
+      const limit = Math.max(1, Math.min(100, Number(qp["limit"]) || 50));
+      const rawCursor = qp["cursor"];
+      let after: { sortOrder: number; id: string } | null = null;
+      if (typeof rawCursor === "string" && rawCursor.length > 0) {
+        try {
+          const decoded = Buffer.from(rawCursor, "base64").toString("utf8");
+          const obj = JSON.parse(decoded);
+          if (obj && typeof obj.sortOrder === "number" && typeof obj.id === "string") {
+            after = { sortOrder: obj.sortOrder, id: obj.id };
+          }
+        } catch {
+          // ignore malformed cursor
+        }
+      }
       // assignment exists and is enabled; list enabled bundle objects
+      const whereBase = { bundleId: assignment.bundleId, isEnabled: true } as const;
+      const where = after
+        ? ({
+            AND: [
+              whereBase,
+              {
+                OR: [
+                  { sortOrder: { gt: after.sortOrder } },
+                  {
+                    AND: [{ sortOrder: after.sortOrder }, { id: { gt: after.id } }],
+                  },
+                ],
+              },
+            ],
+          } as Prisma.BundleObjectWhereInput)
+        : whereBase;
       const objects = await db.bundleObject.findMany({
-        where: { bundleId: assignment.bundleId, isEnabled: true },
-        orderBy: { sortOrder: "asc" },
-        select: { file: true },
+        where,
+        take: limit,
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+        select: { id: true, sortOrder: true, file: true },
       });
       const items = objects.map((o) => o.file).filter(Boolean);
+      const last = objects[objects.length - 1];
+      const lastSortOrder = last?.sortOrder != null ? Number(last.sortOrder) : null;
+      const nextCursor =
+        last && lastSortOrder != null && Number.isFinite(lastSortOrder)
+          ? Buffer.from(JSON.stringify({ sortOrder: lastSortOrder, id: last.id }), "utf8").toString(
+              "base64",
+            )
+          : undefined;
       // Lazy background rebuild check (non-blocking)
       if (deps.scheduler) {
         const bundleId = assignment.bundleId;
@@ -209,7 +249,7 @@ export function registerPortalRoutes(
             .catch(() => void 0);
         }, 0);
       }
-      res.status(200).json({ items });
+      res.status(200).json({ items, ...(nextCursor ? { nextCursor } : {}) });
     } catch (e) {
       const err = e as Error & { status?: number };
       res
