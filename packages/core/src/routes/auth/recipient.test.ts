@@ -38,20 +38,19 @@ function makeServer() {
 }
 
 describe("recipient auth routes", () => {
-  it("/auth/recipient/start 404 when recipient not found", async () => {
+  it("/auth/recipient/start returns 204 even when recipient not found", async () => {
     db.recipient.findUnique.mockResolvedValueOnce(null);
     const { handlers } = makeServer();
     const h = handlers.get("POST /auth/recipient/start")!;
+    const beforeDeleteCalls = db.recipientOtp.deleteMany.mock.calls.length;
+    const beforeCreateCalls = db.recipientOtp.create.mock.calls.length;
     let status = 0;
-    let body: any = null;
     await h({ ip: "1.1.1.1", body: { recipientId: "r" } } as any, {
       status(c: number) {
         status = c;
         return this as any;
       },
-      json(p: unknown) {
-        body = p;
-      },
+      json() {},
       header() {
         return this as any;
       },
@@ -59,8 +58,9 @@ describe("recipient auth routes", () => {
       sendStream() {},
       sendBuffer() {},
     });
-    expect(status).toBe(404);
-    expect((body as any)?.code).toBe("NOT_FOUND");
+    expect(status).toBe(204);
+    expect(db.recipientOtp.deleteMany.mock.calls.length).toBe(beforeDeleteCalls);
+    expect(db.recipientOtp.create.mock.calls.length).toBe(beforeCreateCalls);
   });
 
   it("/auth/recipient/start is rate-limited after 10 calls per minute", async () => {

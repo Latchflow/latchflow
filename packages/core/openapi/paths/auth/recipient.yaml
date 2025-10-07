@@ -27,8 +27,6 @@ recipient_start:
     responses:
       '204':
         description: OTP issued (dev logs only)
-      '404':
-        $ref: ../../components/responses/NotFound.yaml
       '429':
         $ref: ../../components/responses/RateLimited.yaml
       '400':
