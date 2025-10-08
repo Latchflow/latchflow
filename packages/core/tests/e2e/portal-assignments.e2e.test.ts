@@ -119,7 +119,7 @@ describe("E2E: portal assignments summary", () => {
     expect(r0.streamed).toBe(true);
 
     // Query assignments summary
-    const hSum = handlers.get("GET /portal/assignments")!;
+    const hSum = handlers.get("GET /portal/bundles")!;
     const rc = createResponseCapture();
     await hSum(
       { headers: { cookie: "lf_recipient_sess=sess-assign-1" } } as unknown as RequestLike,
@@ -127,13 +127,13 @@ describe("E2E: portal assignments summary", () => {
     );
     expect(rc.status).toBe(200);
     expect(Array.isArray(rc.body?.items)).toBe(true);
-    const it = rc.body.items.find((x: any) => x.bundleId === bundle.id);
+    const it = rc.body.items.find((x: any) => x.summary.bundleId === bundle.id);
     expect(it).toBeTruthy();
-    expect(it.maxDownloads).toBe(2);
-    expect(it.downloadsUsed).toBe(1);
-    expect(it.downloadsRemaining).toBe(1);
-    expect(it.cooldownSeconds).toBe(1);
+    expect(it.summary.maxDownloads).toBe(2);
+    expect(it.summary.downloadsUsed).toBe(1);
+    expect(it.summary.downloadsRemaining).toBe(1);
+    expect(it.summary.cooldownSeconds).toBe(1);
     // cooldownRemainingSeconds may be 0..1 depending on timing; only assert present
-    expect(typeof it.cooldownRemainingSeconds).toBe("number");
+    expect(typeof it.summary.cooldownRemainingSeconds).toBe("number");
   });
 });

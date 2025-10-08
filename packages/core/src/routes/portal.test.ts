@@ -323,7 +323,7 @@ describe("portal routes (unit)", () => {
     expect(scheduler.schedule).toHaveBeenCalledWith("B1");
   });
 
-  it("GET /portal/assignments returns per-assignment status", async () => {
+  it("GET /portal/bundles returns bundle summaries with assignment status", async () => {
     const { handlers, storage } = makeServer();
     const { registerPortalRoutes } = await import("./portal.js");
     registerPortalRoutes(
@@ -340,14 +340,17 @@ describe("portal routes (unit)", () => {
     db.bundleAssignment.findMany.mockResolvedValueOnce([
       {
         id: "A1",
+        updatedAt: new Date(now),
         bundleId: "B1",
         maxDownloads: 5,
         cooldownSeconds: null,
         lastDownloadAt: null,
         bundle: { id: "B1", name: "Bundle 1" },
+        _count: { downloadEvents: 2 },
       },
       {
         id: "A2",
+        updatedAt: new Date(now - 1000),
         bundleId: "B2",
         maxDownloads: null,
         cooldownSeconds: 10,
@@ -357,19 +360,21 @@ describe("portal routes (unit)", () => {
     ] as any);
     db.downloadEvent.count.mockResolvedValueOnce(2);
     db.downloadEvent.count.mockResolvedValueOnce(1);
-    const h = handlers.get("GET /portal/assignments")!;
+    const h = handlers.get("GET /portal/bundles")!;
     const rc = createResponseCapture();
     await h({ headers: { cookie: "lf_recipient_sess=tok" } } as any, rc.res);
     expect(rc.status).toBe(200);
     expect(Array.isArray(rc.body?.items)).toBe(true);
-    const a1 = rc.body.items.find((x: any) => x.bundleId === "B1");
-    expect(a1.maxDownloads).toBe(5);
-    expect(a1.downloadsUsed).toBe(2);
-    expect(a1.downloadsRemaining).toBe(3);
-    const a2 = rc.body.items.find((x: any) => x.bundleId === "B2");
-    expect(a2.maxDownloads).toBeNull();
-    expect(a2.downloadsRemaining).toBeNull();
-    expect(a2.cooldownSeconds).toBe(10);
-    expect(a2.cooldownRemainingSeconds).toBeGreaterThan(0);
+    const a1 = rc.body.items.find((x: any) => x.summary.bundleId === "B1");
+    expect(a1.summary.maxDownloads).toBe(5);
+    expect(a1.summary.downloadsUsed).toBe(2);
+    expect(a1.summary.downloadsRemaining).toBe(3);
+    expect(a1.bundle.id).toBe("B1");
+    expect(typeof a1.assignmentId).toBe("string");
+    const a2 = rc.body.items.find((x: any) => x.summary.bundleId === "B2");
+    expect(a2.summary.maxDownloads).toBeNull();
+    expect(a2.summary.downloadsRemaining).toBeNull();
+    expect(a2.summary.cooldownSeconds).toBe(10);
+    expect(a2.summary.cooldownRemainingSeconds).toBeGreaterThan(0);
   });
 });

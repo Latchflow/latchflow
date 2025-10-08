@@ -23,15 +23,14 @@ Latchflow began as a “digital legacy” tool — a way to pass files to specif
 - Recipients authenticate once (OTP) at the account level; no per‑bundle verification step after login.
 - After login, recipients can:
   - `GET /portal/me` — identity and a list of accessible bundles
-  - `GET /portal/bundles` — paginated list of enabled bundles they’re assigned to
+  - `GET /portal/bundles` — paginated list of enabled bundles they’re assigned to, including per-assignment download/cooldown summary
   - `GET /portal/bundles/{bundleId}/objects` — enabled files within a bundle
   - `GET /portal/bundles/{bundleId}` — stream the zipped bundle archive
 - Enforce limits atomically on download:
   - `maxDownloads` per assignment
   - `cooldownSeconds` between downloads
   - Every download creates a `DownloadEvent` row and updates `lastDownloadAt`.
-- Assignment status endpoint for UX:
-  - `GET /portal/assignments` — returns per‑assignment summary with downloads used/remaining and cooldown timing.
+- Assignment status data is embedded in the `/portal/bundles` response so the portal can display download limits and cooldown timing without an additional request.
 
 ### Enable/Disable Semantics
 - `Recipient.isEnabled`, `Bundle.isEnabled`, `BundleAssignment.isEnabled`, and `BundleObject.isEnabled` control visibility and access without deleting data.

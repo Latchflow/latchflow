@@ -1,0 +1,18 @@
+type: object
+description: Bundle entry with assignment summary for recipients
+properties:
+  assignmentId:
+    type: string
+    format: uuid
+  assignmentUpdatedAt:
+    type: string
+    format: date-time
+  summary:
+    $ref: ./AssignmentSummary.yaml
+  bundle:
+    $ref: ./Bundle.yaml
+required:
+  - assignmentId
+  - assignmentUpdatedAt
+  - summary
+  - bundle
