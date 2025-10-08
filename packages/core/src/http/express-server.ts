@@ -15,7 +15,18 @@ import type { HttpServer, RequestLike, ResponseLike, HttpHandler } from "./http-
 export function createExpressServer(): HttpServer {
   const app = express();
   app.use(helmet());
-  app.use(cors());
+
+  // CORS configuration for portal and other web clients
+  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(",")
+    : ["http://localhost:3002", "http://localhost:3000"];
+
+  app.use(
+    cors({
+      origin: allowedOrigins,
+      credentials: true, // Allow cookies
+    }),
+  );
   // Parse multipart using disk storage to avoid buffering large files in memory.
   // Applied globally; it activates only for multipart/form-data requests.
   const upload = multer({
