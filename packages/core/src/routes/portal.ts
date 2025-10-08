@@ -103,6 +103,10 @@ export function registerPortalRoutes(
         select: {
           id: true,
           updatedAt: true,
+          bundleId: true,
+          maxDownloads: true,
+          cooldownSeconds: true,
+          lastDownloadAt: true,
           bundle: {
             select: {
               id: true,
@@ -114,9 +118,39 @@ export function registerPortalRoutes(
               updatedAt: true,
             },
           },
+          _count: { select: { downloadEvents: true } },
         },
       });
-      const items = assignments.map((a) => a.bundle).filter(Boolean);
+      const now = new Date();
+      const items = (
+        await Promise.all(
+          assignments.map(async (assignment) => {
+            if (!assignment.bundle) {
+              return null;
+            }
+            const fromCount = assignment._count?.downloadEvents;
+            const downloadsUsed =
+              typeof fromCount === "number"
+                ? fromCount
+                : await db.downloadEvent.count({ where: { bundleAssignmentId: assignment.id } });
+            const summaryInput: AssignmentRowForSummary = {
+              id: assignment.id,
+              bundleId: assignment.bundleId,
+              maxDownloads: assignment.maxDownloads ?? null,
+              cooldownSeconds: assignment.cooldownSeconds ?? null,
+              lastDownloadAt: assignment.lastDownloadAt ?? null,
+              bundle: { id: assignment.bundle.id, name: assignment.bundle.name },
+            };
+            const summary = toAssignmentSummary(summaryInput, downloadsUsed, now);
+            return {
+              assignmentId: assignment.id,
+              assignmentUpdatedAt: assignment.updatedAt.toISOString(),
+              summary,
+              bundle: assignment.bundle,
+            };
+          }),
+        )
+      ).filter((item): item is NonNullable<typeof item> => item !== null);
       const last = assignments[assignments.length - 1] as
         | { updatedAt?: Date; id?: string }
         | undefined;
@@ -128,49 +162,6 @@ export function registerPortalRoutes(
             ).toString("base64")
           : undefined;
       res.status(200).json({ items, ...(nextCursor ? { nextCursor } : {}) });
-    } catch (e) {
-      const err = e as Error & { status?: number };
-      res
-        .status(err.status ?? 401)
-        .json({ status: "error", code: "UNAUTHORIZED", message: err.message });
-    }
-  });
-
-  // GET /portal/assignments — per-assignment status summary for the logged-in recipient
-  server.get("/portal/assignments", async (req, res) => {
-    try {
-      const { session } = await requireRecipient(req, false);
-      const now = new Date();
-      const assignments = await db.bundleAssignment.findMany({
-        where: {
-          recipientId: session.recipientId,
-          isEnabled: true,
-          recipient: { isEnabled: true },
-          bundle: { isEnabled: true },
-        },
-        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-        select: {
-          id: true,
-          bundleId: true,
-          maxDownloads: true,
-          cooldownSeconds: true,
-          lastDownloadAt: true,
-          bundle: { select: { id: true, name: true } },
-          _count: { select: { downloadEvents: true } },
-        },
-      });
-      const items = await Promise.all(
-        assignments.map(async (a) => {
-          const fromCount = (a as unknown as { _count?: { downloadEvents?: number } })._count
-            ?.downloadEvents;
-          const used =
-            typeof fromCount === "number"
-              ? fromCount
-              : await db.downloadEvent.count({ where: { bundleAssignmentId: a.id } });
-          return toAssignmentSummary(a as AssignmentRowForSummary, used, now);
-        }),
-      );
-      res.status(200).json({ items });
     } catch (e) {
       const err = e as Error & { status?: number };
       res

@@ -45,7 +45,7 @@ portal_bundles:
               properties:
                 items:
                   type: array
-                  items: { $ref: ../components/schemas/Bundle.yaml }
+                  items: { $ref: ../components/schemas/PortalBundleItem.yaml }
                 nextCursor: { type: string }
               required: [items]
       '401': { $ref: ../components/responses/Unauthorized.yaml }
@@ -130,25 +130,3 @@ portal_otp_resend:
       '204': { description: Sent }
       '429': { $ref: ../components/responses/RateLimited.yaml }
       '400': { $ref: ../components/responses/ValidationError.yaml }
-
-portal_assignments:
-  get:
-    summary: List per-assignment status for the current recipient
-    operationId: listPortalAssignments
-    tags: [Portal]
-    security:
-      - cookieRecipient: []
-    responses:
-      '200':
-        description: Assignment summaries
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                items:
-                  type: array
-                  items: { $ref: ../components/schemas/AssignmentSummary.yaml }
-              required: [items]
-      '401': { $ref: ../components/responses/Unauthorized.yaml }
-      '403': { $ref: ../components/responses/Forbidden.yaml }

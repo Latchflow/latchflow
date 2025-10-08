@@ -10,7 +10,33 @@ export const portalMe = (): RouteDescriptor => ({
 export const portalBundles = (store: InMemoryStore): RouteDescriptor => ({
   method: "GET",
   path: "/portal/bundles",
-  handler: () => ({ status: 200, json: { items: Array.from(store.bundles.values()) } }),
+  handler: () => {
+    const items = Array.from(store.bundles.values()).map((bundle) => ({
+      assignmentId: `assign-${bundle.id}`,
+      assignmentUpdatedAt: bundle.createdAt,
+      summary: {
+        bundleId: bundle.id,
+        name: bundle.name,
+        maxDownloads: null,
+        downloadsUsed: 0,
+        downloadsRemaining: null,
+        cooldownSeconds: null,
+        lastDownloadAt: null,
+        nextAvailableAt: null,
+        cooldownRemainingSeconds: 0,
+      },
+      bundle: {
+        id: bundle.id,
+        name: bundle.name,
+        storagePath: null,
+        checksum: null,
+        description: bundle.description ?? null,
+        createdAt: bundle.createdAt,
+        updatedAt: bundle.createdAt,
+      },
+    }));
+    return { status: 200, json: { items } };
+  },
 });
 export const portalBundleObjects = (store: InMemoryStore): RouteDescriptor => ({
   method: "GET",
