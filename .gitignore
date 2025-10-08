@@ -36,3 +36,12 @@ scratch_*.md
 
 # Test fs storage directory
 packages/core/.data/
+
+# Next.js
+**/.next
+**/next-env.d.ts
+**/out
+**/tsconfig.tsbuildinfo
+
+# UI Renders
+**/renders

@@ -11,10 +11,9 @@ This document explains the runtime shape and key flows with an emphasis on the p
 
 ### Endpoints
 - `GET /portal/me` — identity and accessible bundles (`{ bundleId, name }`).
-- `GET /portal/bundles` — cursor‑paginated view over enabled assignments.
+- `GET /portal/bundles` — cursor‑paginated view over enabled assignments, including downloads-used/remaining and cooldown metadata.
 - `GET /portal/bundles/{bundleId}/objects` — enabled files within the bundle.
 - `GET /portal/bundles/{bundleId}` — stream zipped bundle artifact.
-- `GET /portal/assignments` — per‑assignment summary (downloads used/remaining, cooldown timing).
 
 ### Assignment Enforcement
 - Every download runs inside an atomic guard:

@@ -123,7 +123,8 @@ describe("portal routes (integration)", () => {
     });
     expect(status).toBe(200);
     expect(Array.isArray(body?.items)).toBe(true);
-    expect(body?.items?.[0]?.id).toBe("B1");
+    expect(body?.items?.[0]?.bundle?.id).toBe("B1");
+    expect(body?.items?.[0]?.summary?.bundleId).toBe("B1");
     // Ensure we asked DB with isEnabled filters
     const args = db.bundleAssignment.findMany.mock.calls[0]?.[0] ?? {};
     expect(args?.where?.isEnabled).toBe(true);
@@ -170,7 +171,7 @@ describe("portal routes (integration)", () => {
       sendBuffer() {},
     });
     expect(status).toBe(200);
-    expect(body?.items?.[0]?.id).toBe("B2");
+    expect(body?.items?.[0]?.bundle?.id).toBe("B2");
     expect(typeof body?.nextCursor === "string").toBe(true);
 
     // second page after cursor
@@ -205,7 +206,7 @@ describe("portal routes (integration)", () => {
       },
     );
     expect(status).toBe(200);
-    expect(body?.items?.[0]?.id).toBe("B1");
+    expect(body?.items?.[0]?.bundle?.id).toBe("B1");
   });
 
   it("GET /portal/bundles/:bundleId/objects lists files", async () => {
