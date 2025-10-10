@@ -69,21 +69,34 @@ The portal interacts with the following Core API endpoints:
   - Response: `204 No Content`
 
 ### Bundle Access
-- `GET /portal/assignments` - List bundle assignments with download status
+- `GET /portal/bundles` - List bundles with embedded assignment status
   - Response:
     ```json
     {
       "items": [
         {
-          "bundleId": "uuid",
-          "name": "string",
-          "maxDownloads": number | null,
-          "downloadsUsed": number,
-          "downloadsRemaining": number | null,
-          "cooldownSeconds": number | null,
-          "lastDownloadAt": "datetime" | null,
-          "nextAvailableAt": "datetime" | null,
-          "cooldownRemainingSeconds": number
+          "assignmentId": "uuid",
+          "assignmentUpdatedAt": "2024-01-01T00:00:00.000Z",
+          "bundle": {
+            "id": "uuid",
+            "name": "string",
+            "description": null,
+            "storagePath": null,
+            "checksum": null,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:00.000Z"
+          },
+          "summary": {
+            "bundleId": "uuid",
+            "name": "string",
+            "maxDownloads": null,
+            "downloadsUsed": 0,
+            "downloadsRemaining": null,
+            "cooldownSeconds": null,
+            "lastDownloadAt": null,
+            "nextAvailableAt": null,
+            "cooldownRemainingSeconds": 0
+          }
         }
       ]
     }
@@ -116,4 +129,3 @@ apps/portal/
 │   ├── format.ts        # Formatting helpers
 │   └── query-client.tsx # React Query provider
 └── middleware.ts        # Session guard
-
