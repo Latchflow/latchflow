@@ -26,11 +26,13 @@ export function BundleRow({ assignment, selected, onToggle, disabled }: BundleRo
       className={`bg-white rounded-lg border p-4 flex items-center gap-4 transition-colors ${
         !isDownloadable ? "opacity-60" : ""
       }`}
+      data-testid={`bundle-row-${assignment.bundleId}`}
     >
       <Checkbox
         checked={selected}
         onCheckedChange={onToggle}
         disabled={disabled || !isDownloadable}
+        data-testid="bundle-checkbox"
       />
 
       <div className="flex-1 min-w-0">

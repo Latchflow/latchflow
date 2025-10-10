@@ -70,6 +70,7 @@ export function BundlesList() {
             checked={allDownloadableSelected && downloadableCount > 0}
             onCheckedChange={queue.toggleAll}
             disabled={downloadableCount === 0 || queue.queueState === "running"}
+            data-testid="bundle-checkbox-header"
           />
           <span className="text-sm font-medium">
             {queue.selectedIds.size > 0 ? `${queue.selectedIds.size} selected` : "Select all"}

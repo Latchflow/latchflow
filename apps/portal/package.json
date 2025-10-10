@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3002",
+    "dev:visual": "next dev --hostname 127.0.0.1 --port 4300",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "start:visual": "node ./scripts/start-visual.js",
+    "lint": "next lint",
+    "visual:capture": "node ./scripts/visual-capture.js"
   },
   "dependencies": {
     "@latchflow/api-types": "workspace:*",
@@ -25,6 +28,9 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "pixelmatch": "^5.3.0",
+    "pngjs": "^7.0.0",
     "@types/node": "^20.19.9",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",

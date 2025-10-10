@@ -51,6 +51,22 @@ Recipient-facing web application for accessing and downloading secure file bundl
 
    The portal will be available at `http://localhost:3002`
 
+## Visual Comparison Workflow
+
+Capture up-to-date renders for the key portal states and compare them with the mockups under `apps/portal/renders`:
+
+```bash
+pnpm -F portal visual:capture           # capture every scenario
+pnpm -F portal visual:capture -- login  # capture a single scenario
+pnpm -F portal visual:capture -- list   # list available scenarios
+```
+
+Each run builds the portal (`pnpm run build`) and serves it with `next start` (via `pnpm run start:visual`) to avoid hot-reload restarts while screenshots are being written. The script automatically selects an open port (default `4300`); set `PORTAL_VISUAL_SKIP_BUILD=1` if you have already built the app and want a faster iteration loop, or override `PORTAL_VISUAL_COMMAND`/`PORTAL_VISUAL_BUILD_COMMAND`/`PORTAL_VISUAL_PORT` to use a custom server/build/port.
+
+When the script runs for the first time it will automatically download the required Playwright Chromium browser. If Playwright prompts for additional system packages (e.g. `install-deps`), follow the printed instructions once, then rerun the capture command. Updated screenshots land in `apps/portal/renders/current` and diffs (when a baseline exists) are written to `apps/portal/renders/diff`.
+
+The capture script aligns the browser viewport to each baseline image automatically. If a baseline and the current render have different dimensions, the script skips the diff, saves the latest render under `renders/diff`, and logs the dimensions so you can decide whether to update the baseline or adjust the layout.
+
 ## API Endpoints Used
 
 The portal interacts with the following Core API endpoints:

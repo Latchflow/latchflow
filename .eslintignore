@@ -2,3 +2,4 @@
 packages/db/generated/**
 packages/db/generated/prisma/**
 packages/core/coverage/**
+**/next-env.d.ts

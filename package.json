@@ -60,6 +60,7 @@
     },
     "onlyBuiltDependencies": [
       "cpu-features",
+      "msw",
       "ssh2"
     ]
   },

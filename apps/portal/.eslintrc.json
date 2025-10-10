@@ -1,3 +1,12 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": ["next/core-web-vitals", "../../.eslintrc.json"],
+  "settings": {
+    "next": {
+      "rootDir": ["./"]
+    }
+  },
+  "rules": {
+    "@next/next/no-html-link-for-pages": "off",
+    "@typescript-eslint/no-unused-expressions": "off"
+  }
 }
