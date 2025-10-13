@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { paths, components } from "@latchflow/api-types";
-import { apiClient, ApiError } from "@/lib/api-client";
+import { apiClient, ApiError } from "../lib/api-client";
 
 // Extract types from OpenAPI-generated types
 type PortalBundlesResponse =
@@ -20,14 +20,14 @@ export function useAssignments() {
       try {
         const data = await apiClient.get<PortalBundlesResponse>("/portal/bundles");
         return data.items.map(
-          (item): Assignment => ({
+          (item: PortalBundleItem): Assignment => ({
             ...item.summary,
             assignmentId: item.assignmentId,
             assignmentUpdatedAt: item.assignmentUpdatedAt,
             bundle: item.bundle,
           }),
         );
-      } catch (error) {
+      } catch (error: unknown) {
         if (error instanceof ApiError && error.status === 401) {
           // Redirect to login on auth failure
           window.location.href = "/login";

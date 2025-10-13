@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiClient, ApiError } from "@/lib/api-client";
+import { apiClient, ApiError } from "../lib/api-client";
 import { toast } from "sonner";
 import type { Assignment } from "./use-assignments";
 
@@ -35,25 +35,41 @@ export function useDownloadQueue(bundles: BundleItem[]) {
     });
   }, []);
 
-  const toggleAll = useCallback(() => {
-    // Find all downloadable bundles (not cooling down, has downloads remaining)
-    const downloadable = bundles.filter(
-      (b) =>
-        b.cooldownRemainingSeconds <= 0 &&
-        (b.downloadsRemaining === null ||
-          b.downloadsRemaining === undefined ||
-          b.downloadsRemaining > 0),
-    );
+  const toggleAll = useCallback(
+    (scope?: BundleItem[]) => {
+      const pool = scope ?? bundles;
+      const downloadable = pool.filter(
+        (b) =>
+          b.cooldownRemainingSeconds <= 0 &&
+          (b.downloadsRemaining === null ||
+            b.downloadsRemaining === undefined ||
+            b.downloadsRemaining > 0),
+      );
 
-    setSelectedIds((prev) => {
-      // If all downloadable are selected, deselect all
-      if (downloadable.every((b) => prev.has(b.bundleId))) {
-        return new Set();
-      }
-      // Otherwise, select all downloadable
-      return new Set(downloadable.map((b) => b.bundleId));
-    });
-  }, [bundles]);
+      setSelectedIds((prev) => {
+        if (downloadable.length === 0) {
+          return new Set(prev);
+        }
+
+        // If all downloadable are selected, deselect them
+        if (downloadable.every((b) => prev.has(b.bundleId))) {
+          const next = new Set(prev);
+          for (const bundle of downloadable) {
+            next.delete(bundle.bundleId);
+          }
+          return next;
+        }
+
+        // Otherwise, add all downloadable bundle ids to the set
+        const next = new Set(prev);
+        for (const bundle of downloadable) {
+          next.add(bundle.bundleId);
+        }
+        return next;
+      });
+    },
+    [bundles],
+  );
 
   const downloadBundle = async (bundle: BundleItem): Promise<DownloadResult> => {
     // Check if bundle is available
@@ -104,7 +120,7 @@ export function useDownloadQueue(bundles: BundleItem[]) {
         bundleId: bundle.bundleId,
         status: "success",
       };
-    } catch (error) {
+    } catch (error: unknown) {
       let message = "Download failed";
       if (error instanceof ApiError) {
         if (error.status === 409) {
