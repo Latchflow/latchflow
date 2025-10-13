@@ -47,7 +47,7 @@
     "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^8.0.0",
     "husky": "^9.0.0",
-    "lint-staged": "^15.0.0",
+    "lint-staged": "^16.2.4",
     "prettier": "^3.0.0",
     "swagger-cli": "^4.0.4",
     "typescript": "^5.0.0",
