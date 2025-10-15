@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3002",
+    "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --hostname 0.0.0.0 --port 3002",
     "dev:visual": "next dev --hostname 127.0.0.1 --port 4300",
     "build": "next build",
     "start": "next start",
